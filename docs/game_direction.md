@@ -25,3 +25,14 @@ rather than expanding the collection before the central rule is satisfying.
 Keep gameplay independent of presentation. Shared Resources define content;
 individual encounters own mutable state. Improve feedback and accessibility as
 the rules develop, and use real play decisions to guide new architecture.
+
+Patterns now reward three-card sequences with defense, finishing damage, or extra
+energy. Cadence, Rewrite, and Patterns are the chosen core pillars. The working
+creative direction is a travelling duelist who edits an opponent's written future.
+Three rival doctrines are now playable: the Duelist prioritizes attacks, the
+Warden guards, and the Scribe tactics. Their identities are expressed through
+content, prepared order, accent colors, and illustrated seals. The next milestone
+is playtesting the three-duel journey and its card-editing sidegrades. HP now
+carries through the route, and between wins the player chooses recovery or one
+category revision. These changes belong to that journey, not the saved collection.
+See feature_shortlist.md for the wider candidate pool and implementation priorities.

@@ -5,6 +5,15 @@ const Style = preload("res://scripts/ui/ui_style.gd")
 const Library = preload("res://scripts/content/deck_library.gd")
 const Table = preload("res://scripts/ui/table_screen.gd")
 const CombatResult = preload("res://scripts/ui/combat_result.gd")
+const Rivals = preload("res://scripts/content/rival_catalog.gd")
+const Backdrop = preload("res://scripts/ui/ink_backdrop.gd")
+const DuelArt = preload("res://scripts/ui/duel_art.gd")
+const Journey = preload("res://scripts/combat/journey_state.gd")
+var journey: RefCounted
+var preparing_journey: bool = false
+var journey_deck_name: String = ""
+var _table_is_journey: bool = false
+var selected_rival: Resource
 var library = Library.new()
 var body: VBoxContainer
 var player_index: int = -1
@@ -19,8 +28,7 @@ var result_overlay: Control
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = Style.theme()
-	var background := ColorRect.new()
-	background.color = Color("0b1c20")
+	var background := Backdrop.new()
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
@@ -47,7 +55,7 @@ func clear(title: String, subtitle: String) -> void:
 		body.remove_child(child)
 		child.queue_free()
 	Style.label(body, "THE CARD TABLE", 14, Style.GOLD)
-	Style.label(body, title, 28)
+	Style.heading(body, title, 30)
 	Style.label(body, subtitle, 16, Style.MUTED)
 	if not library.error_message.is_empty():
 		Style.label(body, library.error_message, 16, Color("eea89b"))
@@ -55,18 +63,75 @@ func clear(title: String, subtitle: String) -> void:
 
 func show_menu() -> void:
 	screen = "menu"
-	clear("Every run begins with a deck.", "Build your collection. Choose a rival. Take a seat.")
-	var center := CenterContainer.new()
-	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(center)
-	var menu := Style.panel(center)
-	menu.custom_minimum_size.x = 440
-	Style.label(menu, "CARD / ROGUELIKE", 32, Style.GOLD)
-	Style.label(menu, "Change your rhythm. Rewrite their next move.", 16, Style.MUTED)
-	Style.button(menu, "Start game  →", show_setup)
-	Style.button(menu, "Manage decks", func(): show_library(false))
-	Style.button(menu, "Quit", func(): get_tree().quit())
-	Style.label(body, "LOCAL DECKS  •  Saved on this device", 14, Style.MUTED)
+	clear("", "")
+	body.get_child(1).hide()
+	body.get_child(2).hide()
+	var hero := Style.row(body)
+	hero.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var center := VBoxContainer.new()
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.size_flags_stretch_ratio = 1.2
+	center.alignment = BoxContainer.ALIGNMENT_CENTER
+	hero.add_child(center)
+	Style.label(center, "A DUEL OF INK & INTENT", 13, Style.GOLD)
+	Style.heading(center, "The next move\nis unwritten.", 54)
+	var copy := Style.label(center, "Read the rival's line. Rewrite its order.\nCompose a Pattern they never saw coming.", 18, Style.MUTED)
+	copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	Style.primary(Style.button(center, "Continue journey  →" if journey != null else "Begin a journey  →", show_journey_overview if journey != null else show_journey_setup))
+	var secondary := Style.row(center)
+	Style.button(secondary, "Single duel", show_rivals)
+	Style.button(secondary, "Custom duel", start_custom_duel)
+	Style.button(secondary, "Your decks", func(): show_library(false))
+	Style.button(secondary, "Quit", func(): get_tree().quit())
+	var art := DuelArt.new()
+	art.custom_minimum_size = Vector2(340, 320)
+	art.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hero.add_child(art)
+	var footer := Style.panel(body)
+	Style.label(footer, "CADENCE  /  Change your rhythm     ·     REWRITE  /  Reshape their line     ·     PATTERNS  /  Compose your answer", 13, Style.GOLD)
+	Style.label(body, "YOUR DECKS ARE SAVED ON THIS DEVICE", 11, Style.MUTED)
+
+
+func start_custom_duel() -> void:
+	preparing_journey = false
+	selected_rival = null
+	show_setup()
+
+
+func show_rivals() -> void:
+	preparing_journey = false
+	screen = "rivals"
+	clear("Every rival writes differently.", "Choose a doctrine to challenge. Their prepared line is yours to reshape.")
+	var choices := Style.row(body)
+	choices.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for index in range(Rivals.ALL.size()):
+		var rival: Resource = Rivals.ALL[index]
+		var panel := Style.panel(choices)
+		panel.get_parent().custom_minimum_size.x = 300
+		Style.label(panel, "0%d  /  %s" % [index + 1, ["PRESSURE", "BASTION", "INTRIGUE"][index]], 12, rival.accent)
+		var art := DuelArt.new()
+		art.motif = rival.display_name
+		art.accent = rival.accent
+		art.custom_minimum_size.y = 112
+		panel.add_child(art)
+		Style.heading(panel, rival.display_name, 28)
+		var epithet := Style.label(panel, rival.epithet, 13, rival.accent)
+		epithet.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var description := Style.label(panel, rival.description, 14, Style.MUTED)
+		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		description.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		Style.label(panel, "%d HP  ·  %d cards" % [rival.health, rival.cards.size()], 14, Style.GOLD)
+		Style.label(panel, rival.doctrine_text(), 13, rival.accent)
+		Style.primary(Style.button(panel, "Challenge  →", select_rival.bind(index)))
+	Style.button(body, "← Main menu", show_menu)
+
+
+func select_rival(index: int) -> void:
+	if index < 0 or index >= Rivals.ALL.size():
+		return
+	selected_rival = Rivals.ALL[index]
+	preparing_journey = false
+	show_setup()
 
 
 func show_library(selecting: bool) -> void:
@@ -138,7 +203,7 @@ func show_editor(index: int, selecting: bool) -> void:
 		var panel := Style.panel(cards)
 		panel.get_parent().custom_minimum_size.x = 300
 		Style.label(panel, definition.display_name, 24, Style.GOLD)
-		Style.label(panel, "%d energy" % definition.energy_cost, 16, Style.MUTED)
+		Style.label(panel, "%d energy  ·  %s" % [definition.energy_cost, CardDefinition.Category.keys()[definition.category].capitalize()], 14, Style.MUTED)
 		var description := Style.label(panel, definition.description)
 		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		var id := String(definition.id)
@@ -160,11 +225,20 @@ func change_count(index: int, id: String, amount: int, selecting: bool) -> void:
 func show_setup() -> void:
 	ensure_deck_selections()
 	screen = "setup"
-	clear("Choose both sides", "Select your deck and an enemy deck. Both may use the same recipe.")
+	clear("Choose your approach." if selected_rival != null else "Choose both sides", "Your deck is your argument. The rival's doctrine is a promise." if selected_rival != null else "Choose both decks for a custom duel.")
+	if preparing_journey:
+		Style.label(body, "THREE DUELS  ·  HP carries forward  ·  Recover or edit a card between wins", 13, Style.GOLD)
 	var sides := Style.row(body)
 	for side in ["player", "enemy"]:
 		var panel := Style.panel(sides)
-		Style.label(panel, "YOUR DECK" if side == "player" else "ENEMY DECK", 20, Style.GOLD)
+		Style.label(panel, "YOUR DECK" if side == "player" else ("YOUR RIVAL" if selected_rival != null else "ENEMY DECK"), 20, Style.GOLD)
+		if side == "enemy" and selected_rival != null:
+			Style.heading(panel, selected_rival.display_name, 28)
+			var description := Style.label(panel, selected_rival.description, 16, Style.MUTED)
+			description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			Style.label(panel, "%d HP  ·  %s" % [selected_rival.health, selected_rival.doctrine_text()], 14, selected_rival.accent)
+			Style.button(panel, "Choose a different rival", show_rivals)
+			continue
 		var picker := OptionButton.new()
 		picker.custom_minimum_size = Vector2(340, 48)
 		picker.add_item("Select a deck…", -1)
@@ -182,23 +256,47 @@ func show_setup() -> void:
 				enemy_index = item - 1
 			show_setup())
 		if selected >= 0 and selected < library.decks.size():
+			var card_list := GridContainer.new()
+			card_list.columns = 2
+			card_list.add_theme_constant_override("h_separation", 24)
+			panel.add_child(card_list)
 			for definition in Library.CARDS:
 				var count := int(library.decks[selected].cards.get(String(definition.id), 0))
 				if count > 0:
-					Style.label(panel, "%s × %d" % [definition.display_name, count])
+					Style.label(card_list, "%s × %d" % [definition.display_name, count], 15)
+			var counts: Array[int] = library.category_counts(library.decks[selected])
+			Style.label(panel, "Attack %d  ·  Guard %d  ·  Tactic %d" % counts, 13, Style.MUTED)
+			if side == "player" and counts.has(0):
+				Style.label(panel, "Patterns use all three categories.", 13, Style.GOLD)
+				Style.button(panel, "Try the Counterpoint deck", use_counterpoint_deck)
 	var artifact := CheckButton.new()
 	artifact.text = "War Drum: each Strike adds +1 attack damage for this encounter (before damage)."
 	artifact.button_pressed = use_war_drum
 	artifact.toggled.connect(func(enabled: bool): use_war_drum = enabled)
 	body.add_child(artifact)
 	Style.button(body, "Create / edit decks", show_library.bind(true))
-	var confirm := Style.button(body, "Confirm  /  Take a seat  →", show_table)
+	var confirm := Style.button(body, "Begin the journey  →" if preparing_journey else "Begin the duel  →", begin_journey if preparing_journey else show_table)
+	Style.primary(confirm)
 	confirm.disabled = not valid_selection()
 	Style.button(body, "← Main menu", show_menu)
 
 
+func use_counterpoint_deck() -> void:
+	for index in range(library.decks.size()):
+		if library.decks[index].name == "Counterpoint" and not library.category_counts(library.decks[index]).has(0):
+			player_index = index
+			show_setup()
+			return
+	library.decks.append(library.counterpoint_recipe())
+	player_index = library.decks.size() - 1
+	library.save()
+	show_setup()
+
+
 func valid_selection() -> bool:
-	return player_index >= 0 and enemy_index >= 0 and player_index < library.decks.size() and enemy_index < library.decks.size() and library.total(library.decks[player_index]) > 0 and library.total(library.decks[enemy_index]) > 0
+	var player_valid: bool = player_index >= 0 and player_index < library.decks.size() and library.total(library.decks[player_index]) > 0
+	var enemy_valid: bool = selected_rival != null or (enemy_index >= 0 and enemy_index < library.decks.size() and library.total(library.decks[enemy_index]) > 0)
+	return player_valid and enemy_valid
 
 
 func ensure_deck_selections() -> void:
@@ -216,12 +314,19 @@ func ensure_deck_selections() -> void:
 func show_table() -> void:
 	if not valid_selection():
 		return
+	var enemy_name: String = selected_rival.display_name if selected_rival != null else library.decks[enemy_index].name
+	var enemy_cards: Array[CardInstance] = selected_rival.create_deck() if selected_rival != null else library.instantiate_deck(library.decks[enemy_index])
+	mount_table(library.instantiate_deck(library.decks[player_index]), enemy_cards, library.decks[player_index].name, enemy_name, selected_rival)
+
+
+func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], player_name: String, enemy_name: String, rival: Resource, existing: RefCounted = null, in_journey: bool = false) -> void:
 	screen = "table"
-	clear("The table", "%s  vs  %s" % [library.decks[player_index].name, library.decks[enemy_index].name])
+	_table_is_journey = in_journey
+	clear("The table", "%s vs %s" % [player_name, enemy_name])
 	for index in range(3):
 		body.get_child(index).hide()
 	var toolbar := Style.row(body)
-	var title := Style.label(toolbar, "THE CARD TABLE  ·  %s vs %s" % [library.decks[player_index].name, library.decks[enemy_index].name], 14, Style.GOLD)
+	var title := Style.label(toolbar, ("CHAPTER %d/3  ·  " % (journey.stage + 1) if in_journey else "") + "%s / %s" % [player_name.to_upper(), enemy_name.to_upper()], 13, Style.GOLD)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var speed := CheckButton.new()
 	speed.text = "Fast turns"
@@ -229,14 +334,16 @@ func show_table() -> void:
 	speed.tooltip_text = "Rival card interval: 0.2 seconds when enabled, 0.65 seconds otherwise."
 	toolbar.add_child(speed)
 	speed.toggled.connect(set_fast_turns)
-	Style.button(toolbar, "← Leave table", show_setup)
+	Style.button(toolbar, "Journey" if in_journey else "← Leave table", show_journey_overview if in_journey else show_setup)
 	var table := Table.new()
 	table.name = "CombatTable"
 	table.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(table)
-	table.setup(library.instantiate_deck(library.decks[player_index]), library.instantiate_deck(library.decks[enemy_index]), use_war_drum)
+	table.setup(player_cards, enemy_cards, use_war_drum, rival, existing)
 	table.rival_timer.wait_time = 0.2 if fast_rival_turns else 0.65
 	table.combat_finished.connect(show_result)
+	if existing != null and not existing.player_turn and existing.outcome.is_empty():
+		table.rival_timer.start()
 
 
 func set_fast_turns(enabled: bool) -> void:
@@ -266,4 +373,131 @@ func show_result(summary: Dictionary) -> void:
 	result_overlay = CombatResult.new()
 	result_overlay.name = "CombatResult"
 	add_child(result_overlay)
-	result_overlay.setup(summary, show_table, show_setup, review_result)
+	if _table_is_journey and journey != null:
+		if journey.phase == Journey.Phase.DUEL:
+			journey.finish_encounter(body.get_node("CombatTable").session)
+		var next := show_journey_reward if journey.phase == Journey.Phase.REWARD else show_journey_summary
+		result_overlay.setup(summary, next, end_journey, review_result, "Choose your next step" if journey.phase == Journey.Phase.REWARD else "Journey summary", "End journey")
+	else:
+		result_overlay.setup(summary, show_table, show_setup, review_result)
+
+
+func show_journey_setup() -> void:
+	if journey != null:
+		show_journey_overview()
+		return
+	preparing_journey = true
+	selected_rival = Rivals.ALL[0]
+	show_setup()
+
+
+func begin_journey() -> void:
+	if not preparing_journey or not valid_selection() or journey != null:
+		return
+	journey_deck_name = library.decks[player_index].name
+	journey = Journey.new(library.instantiate_deck(library.decks[player_index]), use_war_drum)
+	preparing_journey = false
+	show_journey_overview()
+
+
+func show_journey_overview() -> void:
+	if journey == null:
+		show_menu()
+		return
+	if journey.phase == Journey.Phase.REWARD:
+		show_journey_reward()
+		return
+	if journey.phase == Journey.Phase.COMPLETE or journey.phase == Journey.Phase.DEFEAT:
+		show_journey_summary()
+		return
+	screen = "journey"
+	clear("Three names. One unwritten ending.", "Your deck and HP carry forward. Each victory offers recovery or a card edit.")
+	var hp: int = journey.active_session.player.health if journey.active_session != null else journey.health
+	Style.label(body, "%s  ·  HP %d / 30  ·  %d cards" % [journey_deck_name, hp, journey.roster.size()], 17, Style.GOLD)
+	var route := Style.row(body)
+	for index in range(Rivals.ALL.size()):
+		var rival: Resource = Rivals.ALL[index]
+		var panel := Style.panel(route)
+		Style.label(panel, "CLEARED" if index < journey.stage else ("NEXT DUEL" if index == journey.stage else "AHEAD"), 12, rival.accent)
+		Style.heading(panel, rival.display_name, 25)
+		Style.label(panel, "%d HP" % rival.health, 14, Style.MUTED)
+	if not journey.edits.is_empty():
+		Style.label(body, "YOUR REVISIONS", 13, Style.GOLD)
+		for edit in journey.edits:
+			Style.label(body, edit, 15)
+	Style.primary(Style.button(body, "Resume the duel  →" if journey.phase == Journey.Phase.DUEL else "Enter chapter %d  →" % (journey.stage + 1), show_journey_encounter))
+	Style.button(body, "Main menu — keep this journey", show_menu)
+	Style.button(body, "End this journey", end_journey)
+
+
+func show_journey_encounter() -> void:
+	if journey == null:
+		return
+	var session: RefCounted = journey.start_encounter() if journey.phase == Journey.Phase.READY else journey.active_session
+	if session == null:
+		return
+	var rival: Resource = journey.current_rival()
+	mount_table([], [], journey_deck_name, rival.display_name, rival, session, true)
+
+
+func show_journey_reward() -> void:
+	if journey == null or journey.phase != Journey.Phase.REWARD:
+		return
+	screen = "journey_reward"
+	clear("A pause between the lines.", "Choose one: recover 8 HP, or change one card's category for the rest of this journey.")
+	Style.label(body, "HP %d / 30  ·  Next: %s" % [journey.health, Rivals.ALL[journey.stage + 1].display_name], 17, Style.GOLD)
+	var recover := Style.button(body, "Recover 8 HP  →", take_journey_recovery)
+	recover.name = "Recover"
+	recover.disabled = journey.health >= journey.max_health
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.custom_minimum_size.y = 220
+	body.add_child(scroll)
+	var list := Style.column(scroll, true)
+	var names := CardDefinition.Category.keys()
+	for index in range(journey.roster.size()):
+		var card: CardInstance = journey.roster[index]
+		var panel := Style.panel(list)
+		var row := Style.row(panel)
+		var label := Style.label(row, "%02d  %s · %s" % [index + 1, card.definition.display_name, names[card.get_category()].capitalize()], 15)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		for category in range(3):
+			var button := Style.button(row, names[category].capitalize(), take_journey_edit.bind(index, category))
+			button.disabled = category == card.get_category()
+	Style.button(body, "Continue without a reward", skip_journey_reward)
+
+
+func take_journey_recovery() -> void:
+	if journey != null and journey.take_recovery():
+		show_journey_overview()
+
+
+func take_journey_edit(index: int, category: int) -> void:
+	if journey != null and journey.reclassify(index, category):
+		show_journey_overview()
+
+
+func skip_journey_reward() -> void:
+	if journey != null and journey.skip_reward():
+		show_journey_overview()
+
+
+func show_journey_summary() -> void:
+	if journey == null:
+		return
+	screen = "journey_summary"
+	clear("The last line is yours." if journey.phase == Journey.Phase.COMPLETE else "This ending can be rewritten.", "Journey complete" if journey.phase == Journey.Phase.COMPLETE else "Your journey ended in defeat")
+	var totals: Dictionary = journey.totals()
+	var panel := Style.panel(body)
+	Style.heading(panel, "%d / 3 duels won" % totals.wins, 34)
+	Style.label(panel, "%d cards played  ·  %d HP damage  ·  %d rewrites  ·  %d Patterns" % [totals.cards, totals.damage, totals.rewrites, totals.patterns], 16)
+	for edit in journey.edits:
+		Style.label(panel, edit, 15, Style.MUTED)
+	Style.primary(Style.button(body, "Return to main menu", end_journey))
+
+
+func end_journey() -> void:
+	journey = null
+	preparing_journey = false
+	_table_is_journey = false
+	show_menu()

@@ -33,11 +33,12 @@ var player_status: Label
 var enemy_status: Label
 var rewrite_row: HBoxContainer
 var intent_scroll: ScrollContainer
+var pattern_label: Label
 
 
-func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], use_war_drum: bool = false) -> void:
+func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], use_war_drum: bool = false, rival: Resource = null, existing_session: RefCounted = null) -> void:
 	add_theme_constant_override("separation", 8)
-	session = Session.new(player_cards, enemy_cards, true, use_war_drum)
+	session = existing_session if existing_session != null else Session.new(player_cards, enemy_cards, true, use_war_drum, rival)
 	player_piles = session.player_piles
 	enemy_piles = session.enemy_piles
 	var actors := Style.row(self)
@@ -71,6 +72,7 @@ func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 	pile_row = Style.row(field)
 	var controls := Style.row(field)
 	end_button = Style.button(controls, "End turn →", end_turn)
+	Style.primary(end_button)
 	var tools := CheckButton.new()
 	tools.text = "Testing tools"
 	controls.add_child(tools)
@@ -89,7 +91,21 @@ func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 	combat_log.add_theme_font_size_override("normal_font_size", 14)
 	combat_log.add_theme_color_override("default_color", Style.INK)
 	log_panel.add_child(combat_log)
-	Style.label(self, "YOUR HAND", 14, Style.GOLD)
+	var hand_heading := Style.row(self)
+	Style.label(hand_heading, "YOUR HAND", 14, Style.GOLD)
+	pattern_label = Style.label(hand_heading, "", 13, Style.GOLD)
+	pattern_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pattern_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var guide := Style.button(hand_heading, "Patterns ?", show_pattern_guide)
+	guide.name = "PatternGuideButton"
+	guide.add_theme_font_size_override("font_size", 12)
+	guide.custom_minimum_size.y = 22
+	var guide_box := Style.box(Color("203436"))
+	guide_box.content_margin_top = 2
+	guide_box.content_margin_bottom = 2
+	guide_box.content_margin_left = 8
+	guide_box.content_margin_right = 8
+	guide.add_theme_stylebox_override("normal", guide_box)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size.y = 242
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -159,7 +175,9 @@ func empty(container: Node) -> void:
 func refresh() -> void:
 	empty(pile_row)
 	empty(hand_row)
-	enemy_label.text = "RIVAL"
+	enemy_label.text = session.rival_definition.display_name.to_upper() if session.rival_definition != null else "RIVAL"
+	enemy_label.add_theme_color_override("font_color", session.rival_definition.accent if session.rival_definition != null else Style.GOLD)
+	enemy_label.tooltip_text = session.rival_definition.description + "\nPrepared order: " + session.rival_definition.doctrine_text() if session.rival_definition != null else "Custom rival deck"
 	status_label.text = "YOU  ·  Energy %d / 3" % session.energy
 	player_hp.max_value = session.player.max_health
 	player_hp.value = session.player.health
@@ -172,6 +190,7 @@ func refresh() -> void:
 	update_status(player_status, session.player)
 	update_status(enemy_status, session.enemy)
 	refresh_intent()
+	refresh_pattern()
 	artifact_label.text = "Turn %d  ·  CADENCE %d/3  ·  %s" % [session.round_number, session.cadence, "War Drum +%d" % session.war_drum.damage_bonus if session.war_drum != null else "No artifact"]
 	artifact_label.tooltip_text = "First card each turn or a change of category earns 1 Cadence (maximum 3). Repeating a category earns none. Cadence carries between turns. Spend 2 once per turn to move a rival card to the back of its prepared hand."
 	var log_text := "\n".join(session.history)
@@ -180,7 +199,7 @@ func refresh() -> void:
 		var colored: PackedStringArray = []
 		for line in session.history:
 			var escaped: String = line.replace("[", "[lb]")
-			colored.append("[color=#65ef94]%s[/color]" % escaped if line.contains("Poison") else escaped)
+			colored.append("[color=#65ef94]%s[/color]" % escaped if line.contains("Poison") else ("[color=#f4cc70]%s[/color]" % escaped if line.begins_with("Pattern ") else escaped))
 		combat_log.text = "\n".join(colored)
 	end_button.disabled = not session.player_turn and session.outcome.is_empty()
 	end_button.text = "Encounter results" if not session.outcome.is_empty() else ("End turn →" if session.player_turn else "Rival is playing…")
@@ -205,7 +224,8 @@ func refresh() -> void:
 		var exhaust := move_card.bind(card, true) if sandbox and session.player_turn and session.outcome.is_empty() else Callable()
 		var text: String = session.describe_card(card)
 		var details := forecast_text(card)
-		view.setup(card, session.can_play(card), play_card.bind(card), exhaust, text, details)
+		var pattern: Resource = session.preview_pattern(card)
+		view.setup(card, session.can_play(card), play_card.bind(card), exhaust, text, details, pattern.display_name if pattern != null else "")
 		view.inspected.connect(show_card_forecast.bind(card))
 		view.inspection_ended.connect(restore_action_message)
 
@@ -217,8 +237,13 @@ func forecast_text(card: CardInstance) -> String:
 		text += " Rival loses %d HP; %d damage blocked." % [forecast.hp_loss, forecast.blocked]
 		if forecast.lethal:
 			text += " Lethal."
-	if session.war_drum != null and forecast.bonus > 0:
-		text += " War Drum bonus: +%d." % forecast.bonus
+	if session.war_drum != null:
+		var drum_bonus: int = session.war_drum.preview_bonus(card)
+		if drum_bonus > 0:
+			text += " War Drum bonus: +%d." % drum_bonus
+	var pattern: Resource = session.preview_pattern(card)
+	if pattern != null:
+		text += " Pattern %s: %s" % [pattern.display_name, pattern.payoff]
 	if not session.outcome.is_empty():
 		text += " Encounter finished."
 	elif not session.player_turn:
@@ -230,12 +255,58 @@ func forecast_text(card: CardInstance) -> String:
 	return text
 
 
+func refresh_pattern() -> void:
+	pattern_label.tooltip_text = session.pattern_rules()
+	if not session.completed_pattern.is_empty():
+		pattern_label.text = "PATTERN COMPLETE · " + session.completed_pattern
+		return
+	if not session.player_turn or not session.outcome.is_empty():
+		pattern_label.text = "Patterns reset each player turn"
+		return
+	var names := CardDefinition.Category.keys()
+	var sequence: PackedStringArray = []
+	for index in session.pattern_history:
+		sequence.append(names[index].capitalize())
+	pattern_label.text = "Build a 3-card Pattern" if sequence.is_empty() else " → ".join(sequence) + " → ?"
+	if sequence.size() >= 2:
+		var history: Array[int] = session.pattern_history
+		for pattern in session.PATTERNS:
+			if history[-2] == pattern.first and history[-1] == pattern.second:
+				pattern_label.text = "%s → %s → %s = %s" % [names[pattern.first].capitalize(), names[pattern.second].capitalize(), names[pattern.third].capitalize(), pattern.display_name]
+				break
+
+
+func show_pattern_guide() -> void:
+	var dialog := AcceptDialog.new()
+	dialog.name = "PatternGuide"
+	dialog.title = "Patterns — shape your turn"
+	var guide_theme := Style.theme()
+	guide_theme.set_stylebox("panel", "AcceptDialog", Style.box(Color("142a2c"), Style.GOLD))
+	dialog.theme = guide_theme
+	dialog.dialog_text = session.pattern_rules()
+	dialog.get_label().autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(dialog)
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
+	dialog.popup_centered(Vector2i(760, 320))
+
+
 func show_card_forecast(card: CardInstance) -> void:
 	if session.player_turn and session.outcome.is_empty():
-		message.text = forecast_text(card)
+		message.tooltip_text = forecast_text(card)
+		message.text = "%s · %s" % [card.definition.display_name, session.describe_card(card)]
+		var forecast: Dictionary = session.preview_attack(card)
+		if forecast.damage > 0:
+			message.text += " %d HP / %d blocked.%s" % [forecast.hp_loss, forecast.blocked, " Lethal." if forecast.lethal else ""]
+		var pattern: Resource = session.preview_pattern(card)
+		if pattern != null:
+			message.text += " Pattern " + pattern.display_name + "."
+		if card.get_energy_cost() > session.energy:
+			message.text += " Need %d energy." % card.get_energy_cost()
 
 
 func restore_action_message() -> void:
+	message.tooltip_text = ""
 	if not session.outcome.is_empty():
 		message.text = session.outcome + " — encounter complete."
 	elif not session.last_action.is_empty():

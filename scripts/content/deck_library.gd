@@ -54,3 +54,10 @@ func instantiate_deck(recipe: Dictionary) -> Array[CardInstance]:
 
 func counterpoint_recipe() -> Dictionary:
 	return {"name": "Counterpoint", "cards": {"strike": 2, "block": 2, "crosscut": 2, "switchback": 2, "venom": 1, "mend": 1}}
+
+
+func category_counts(recipe: Dictionary) -> Array[int]:
+	var counts: Array[int] = [0, 0, 0]
+	for definition in CARDS:
+		counts[definition.category] += int(recipe.cards.get(String(definition.id), 0))
+	return counts

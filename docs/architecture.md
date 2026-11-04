@@ -159,5 +159,56 @@ Crosscut and Switchback compose existing draw/damage/block Resources with explic
 categories. Counterpoint is an opt-in deck recipe for existing saves; its creation
 does not rewrite other recipes or require a save format migration.
 
-Next: playtest Cadence gain, Rewrite cost, and rival reserve composition before
-designing encounter progression and rewards. See game_direction.md.
+Patterns are editable Resources under data/patterns, with three category slots
+and explicit block, finishing-damage, or energy payoffs. CombatSession owns a
+three-card sliding history, the once-per-player-turn completion flag, and the
+temporary finishing bonus. Rewrite preserves that history; new turns reset it.
+One Pattern may complete per turn, including with zero-cost cards or extra energy.
+Riposte adds to War Drum before each damage effect on the finishing card and is
+cleared immediately after that card resolves. Shared definitions remain immutable.
+
+preview_pattern is read-only and feeds live descriptions, direct-damage forecasts,
+gold card borders, and the hand's progress tracker. Shelter and Surge apply their
+payoffs before the finishing card's effects. A Pattern cannot fund the upfront
+cost of its own finishing card. Completed Pattern counts enter encounter summaries.
+The rules guide is presentation-only and reads the same Resource definitions.
+
+RivalDefinition Resources contain identity, health, accent, deck definitions, and
+a preparation doctrine. rival_catalog.gd lists the three authored rivals.
+CombatSession accepts an optional rival; existing custom-duel callers remain
+unchanged. prepare_rival_hand draws then applies a stable category grouping.
+Only newly prepared hands are ordered; turn start, execution, and draw follow-ups
+never reorder the revealed line. Rewrite therefore remains authoritative.
+
+The navigation controller stores the selected rival and passes fresh card instances
+into each encounter and rematch. Custom duel clears the rival selection and keeps
+the original recipe-versus-recipe flow. Setup summarizes deck categories and offers
+an opt-in Counterpoint shortcut for decks missing a category; existing recipes are
+not rewritten. Results carry the rival's name as presentation metadata.
+
+ink_backdrop.gd and duel_art.gd draw texture, folio cards, and rival seals locally.
+They consume no gameplay randomness and contain no combat rules. Shared serif
+heading and primary-button helpers keep the menu, selection, setup, and result
+screens visually consistent. System font fallbacks avoid bundled font assets.
+
+JourneyState now owns the three-rival route, carried health, a private runtime
+roster, result snapshots, and the ready/duel/reward/complete/defeat phases. It
+accepts a completed result only from its active encounter, once. After the first
+two victories, the player may recover eight HP, reclassify one card, or skip.
+Rewards advance the route atomically and cannot be claimed twice.
+
+CardInstance.get_category reads its per-copy override before its shared definition.
+Cadence, Patterns, rival ordering, and hand rendering all use that accessor.
+Reclassification changes one journey roster copy; each encounter receives fresh
+copies. Effects, shared Resources, and saved recipes remain unchanged. Health
+carries forward, while piles, energy, Poison, block, artifact stacks, and Pattern
+progress start fresh. A journey currently lasts for the app session.
+
+The UI can mount an existing encounter to resume a journey. Its Timer is recreated
+when returning to a paused rival turn; the underlying session is retained. Result
+panels route journey wins to rewards and final outcomes to aggregate summaries,
+while single duels keep their rematch flow. Returning to the main menu retains
+the journey until it is explicitly ended.
+
+Next: playtest the full route, reward tradeoffs, and category edits; add route
+variation only after those decisions feel worthwhile.

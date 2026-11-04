@@ -1,9 +1,9 @@
 extends RefCounted
 ## Small shared visual helpers. Screen behavior stays in its own controller.
 
-const INK = Color("e8eadf")
-const GOLD = Color("dbc28b")
-const MUTED = Color("929f9e")
+const INK = Color("eee2c9")
+const GOLD = Color("cfaa66")
+const MUTED = Color("9ba9a4")
 
 
 static func box(color: Color, border: Color = Color("334546")) -> StyleBoxFlat:
@@ -11,7 +11,7 @@ static func box(color: Color, border: Color = Color("334546")) -> StyleBoxFlat:
 	style.bg_color = color
 	style.border_color = border
 	style.set_border_width_all(1)
-	style.set_corner_radius_all(10)
+	style.set_corner_radius_all(6)
 	style.content_margin_left = 20
 	style.content_margin_right = 20
 	style.content_margin_top = 10
@@ -28,7 +28,14 @@ static func theme() -> Theme:
 	result.set_stylebox("hover", "Button", box(Color("304c4c"), GOLD))
 	result.set_stylebox("pressed", "Button", box(Color("42605a"), GOLD))
 	result.set_stylebox("disabled", "Button", box(Color("182526")))
-	result.set_stylebox("focus", "Button", box(Color("304c4c"), GOLD))
+	var focus := box(Color(0, 0, 0, 0), GOLD)
+	focus.set_border_width_all(2)
+	result.set_stylebox("focus", "Button", focus)
+	result.set_color("font_disabled_color", "Button", Color("7c8985"))
+	result.set_stylebox("panel", "PopupMenu", box(Color("142428"), GOLD))
+	result.set_stylebox("normal", "OptionButton", box(Color("203436")))
+	result.set_stylebox("hover", "OptionButton", box(Color("304c4c"), GOLD))
+	result.set_color("font_color", "OptionButton", INK)
 	result.set_stylebox("normal", "LineEdit", box(Color("102426")))
 	result.set_color("font_color", "LineEdit", INK)
 	result.set_constant("separation", "VBoxContainer", 10)
@@ -45,10 +52,28 @@ static func label(parent: Node, text: String, size: int = 18, color: Color = INK
 	return node
 
 
+static func heading(parent: Node, text: String, size: int = 32, color: Color = INK) -> Label:
+	var node := label(parent, text, size, color)
+	var serif := SystemFont.new()
+	serif.font_names = PackedStringArray(["Georgia", "Cambria", "Times New Roman"])
+	node.add_theme_font_override("font", serif)
+	return node
+
+
+static func primary(button_node: Button) -> void:
+	button_node.add_theme_stylebox_override("normal", box(Color("b9985c"), Color("efd4a0")))
+	button_node.add_theme_stylebox_override("hover", box(Color("d0ae70"), Color("f4e0b5")))
+	button_node.add_theme_stylebox_override("pressed", box(Color("a78852"), GOLD))
+	button_node.add_theme_color_override("font_color", Color("152426"))
+	button_node.add_theme_color_override("font_hover_color", Color("152426"))
+	button_node.add_theme_color_override("font_pressed_color", Color("152426"))
+
+
 static func button(parent: Node, text: String, action: Callable) -> Button:
 	var node := Button.new()
 	node.text = text
 	node.custom_minimum_size.y = 38
+	node.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	node.pressed.connect(action)
 	parent.add_child(node)
 	return node

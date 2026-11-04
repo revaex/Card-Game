@@ -21,6 +21,17 @@ func run() -> void:
 	var ui := GameUI.new()
 	root.add_child(ui)
 	await capture("res://.godot/menu-preview.png")
+	ui.show_rivals()
+	await capture("res://.godot/rivals-preview.png")
+	ui.select_rival(0)
+	await capture("res://.godot/rival-setup-preview.png")
+	ui.library.decks.append(ui.library.counterpoint_recipe())
+	ui.player_index = ui.library.decks.size() - 1
+	ui.show_setup()
+	await capture("res://.godot/counterpoint-setup-preview.png")
+	ui.show_table()
+	await capture("res://.godot/rival-table-preview.png")
+	ui.start_custom_duel()
 	ui.library.decks.assign([{"name": "Starter", "cards": {"strike": 5, "block": 5}}])
 	ui.player_index = 0
 	ui.enemy_index = 0
@@ -83,4 +94,49 @@ func run() -> void:
 	root.mode = Window.MODE_WINDOWED
 	root.size = Vector2i(1100, 700)
 	await capture("res://.godot/rewrite-small-preview.png")
+	ui.library.decks.assign([{"name": "Patterns", "cards": {"strike": 2, "block": 2, "mend": 2}}])
+	ui.show_table()
+	table = ui.body.get_node("CombatTable")
+	for category in [CardDefinition.Category.GUARD, CardDefinition.Category.TACTIC]:
+		for card in table.player_piles.hand:
+			if card.definition.category == category:
+				table.play_card(card)
+				break
+	var finisher: CardInstance = null
+	for card in table.player_piles.hand:
+		if card.definition.category == CardDefinition.Category.ATTACK:
+			finisher = card
+			break
+	table.show_card_forecast(finisher)
+	await capture("res://.godot/pattern-ready-preview.png")
+	table.play_card(finisher)
+	await capture("res://.godot/pattern-complete-preview.png")
+	table.show_pattern_guide()
+	await capture("res://.godot/pattern-guide-preview.png")
+	ui.show_journey_setup()
+	ui.begin_journey()
+	await capture("res://.godot/journey-preview.png")
+	ui.show_journey_encounter()
+	table = ui.body.get_node("CombatTable")
+	table.session.player.take_damage(10)
+	table.session.enemy.apply_poison(99)
+	table.end_turn()
+	ui.result_overlay.find_child("Rematch", true, false).pressed.emit()
+	await capture("res://.godot/journey-reward-preview.png")
+	ui.take_journey_edit(0, (ui.journey.roster[0].get_category() + 1) % 3)
+	await capture("res://.godot/journey-edit-preview.png")
+	ui.show_journey_encounter()
+	table = ui.body.get_node("CombatTable")
+	table.player_piles.draw_cards(6)
+	table.refresh()
+	await capture("res://.godot/revised-cards-preview.png")
+	table.session.enemy.apply_poison(99)
+	table.end_turn()
+	ui.take_journey_recovery()
+	ui.show_journey_encounter()
+	table = ui.body.get_node("CombatTable")
+	table.session.enemy.apply_poison(99)
+	table.end_turn()
+	ui.result_overlay.find_child("Rematch", true, false).pressed.emit()
+	await capture("res://.godot/journey-summary-preview.png")
 	quit()

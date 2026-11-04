@@ -17,6 +17,9 @@ func _initialize() -> void:
 	test_stepped_turns()
 	test_live_previews_and_statistics()
 	test_cadence_and_rewrite()
+	test_patterns()
+	test_rival_doctrines()
+	test_journey()
 	print("Backend checks: %d passed, %d failed" % [checks - failures, failures])
 	quit(1 if failures else 0)
 
@@ -443,3 +446,185 @@ func test_cadence_and_rewrite() -> void:
 	combo.play_card(combo.player_piles.hand[0])
 	check(combo.cadence == 2 and combo.player.block == 4 and combo.enemy.health == 33, "Combination cards execute effects and build Cadence")
 	check(combo.player_piles.total_cards() == 7, "Combination draw cards conserve the deck")
+
+
+func pattern_cards(free: bool = false) -> Array[CardInstance]:
+	var cards := copies(StarterDeck.STRIKE, 2)
+	cards.append_array(copies(StarterDeck.BLOCK, 2))
+	cards.append_array(copies(load("res://data/cards/mend.tres"), 2))
+	if free:
+		for card in cards:
+			card.cost_modifier = -1
+	return cards
+
+
+func play_category(session: RefCounted, category: int) -> bool:
+	for card in session.player_piles.hand:
+		if card.definition.category == category:
+			return session.play_card(card)
+	return false
+
+
+func test_patterns() -> void:
+	var shelter = Session.new(pattern_cards(true), copies(StarterDeck.BLOCK, 5), false)
+	play_category(shelter, CardDefinition.Category.ATTACK)
+	play_category(shelter, CardDefinition.Category.GUARD)
+	check(shelter.completed_pattern.is_empty(), "Two cards cannot complete a Pattern")
+	check(shelter.rewrite_intent(shelter.enemy_piles.hand[0]), "Rewrite can happen between Pattern cards")
+	play_category(shelter, CardDefinition.Category.TACTIC)
+	check(shelter.completed_pattern == "Shelter" and shelter.player.block == 14, "Attack Guard Tactic adds six block, including after Rewrite")
+	check(shelter.statistics.player.patterns == 1, "Completed Pattern enters statistics")
+	shelter.player_piles.draw_card()
+	play_category(shelter, CardDefinition.Category.GUARD)
+	play_category(shelter, CardDefinition.Category.TACTIC)
+	play_category(shelter, CardDefinition.Category.ATTACK)
+	check(shelter.enemy.health == 20 and shelter.statistics.player.patterns == 1, "Only one Pattern can trigger each turn even with free cards")
+	shelter.end_turn()
+	check(shelter.completed_pattern.is_empty() and shelter.pattern_history.is_empty(), "New player turn clears Pattern progress")
+	var riposte = Session.new(pattern_cards(), copies(StarterDeck.BLOCK, 5), false, true)
+	play_category(riposte, CardDefinition.Category.GUARD)
+	play_category(riposte, CardDefinition.Category.TACTIC)
+	riposte.enemy.gain_block(5)
+	var finisher: CardInstance = null
+	for card in riposte.player_piles.hand:
+		if card.definition.category == CardDefinition.Category.ATTACK:
+			finisher = card
+			break
+	var preview: Dictionary = riposte.preview_attack(finisher)
+	check(preview.damage == 17 and preview.hp_loss == 12 and preview.blocked == 5, "Riposte forecast combines six Pattern damage and one War Drum damage")
+	check(riposte.describe_card(finisher) == "Deal 17 damage.", "Finishing card text includes Pattern bonus")
+	check(riposte.completed_pattern.is_empty() and riposte.war_drum.damage_bonus == 0 and riposte.statistics.player.patterns == 0, "Pattern previews do not trigger rewards or stats")
+	riposte.play_card(finisher)
+	check(riposte.completed_pattern == "Riposte" and riposte.enemy.health == preview.remaining_hp, "Riposte resolution matches forecast")
+	check(riposte.last_action.description == "Deal 17 damage.", "Last-action text retains finishing-card bonus")
+	riposte.player_piles.draw_card()
+	for card in riposte.player_piles.hand:
+		if card.definition.category == CardDefinition.Category.ATTACK:
+			check(riposte.describe_card(card) == "Deal 12 damage.", "Finishing bonus does not leak to later cards")
+	var surge = Session.new(pattern_cards(), copies(StarterDeck.BLOCK, 5), false)
+	play_category(surge, CardDefinition.Category.TACTIC)
+	play_category(surge, CardDefinition.Category.ATTACK)
+	play_category(surge, CardDefinition.Category.GUARD)
+	check(surge.completed_pattern == "Surge" and surge.energy == 1, "Tactic Attack Guard refunds one energy")
+	surge.player_piles.draw_card()
+	check(play_category(surge, CardDefinition.Category.ATTACK) and surge.energy == 0, "Surge enables a fourth one-energy card")
+	var reset = Session.new(pattern_cards(), copies(StarterDeck.BLOCK, 5), false)
+	play_category(reset, CardDefinition.Category.ATTACK)
+	play_category(reset, CardDefinition.Category.GUARD)
+	reset.end_turn()
+	play_category(reset, CardDefinition.Category.TACTIC)
+	check(reset.completed_pattern.is_empty() and reset.pattern_history.size() == 1, "Sequences do not cross turn boundaries")
+	var sliding = Session.new(pattern_cards(true), copies(StarterDeck.BLOCK, 5), false)
+	play_category(sliding, CardDefinition.Category.GUARD)
+	play_category(sliding, CardDefinition.Category.GUARD)
+	play_category(sliding, CardDefinition.Category.TACTIC)
+	play_category(sliding, CardDefinition.Category.ATTACK)
+	check(sliding.completed_pattern == "Riposte", "Pattern matches the latest three cards after an earlier repetition")
+	var fresh = Session.new(pattern_cards(), copies(StarterDeck.BLOCK, 5), false)
+	check(fresh.pattern_history.is_empty() and fresh.completed_pattern.is_empty(), "Pattern state is encounter-local")
+	check(Session.PATTERNS[1].finishing_damage == 6 and StarterDeck.STRIKE.effects[0].damage == 10, "Patterns never alter shared definitions")
+
+
+func test_rival_doctrines() -> void:
+	var catalog = load("res://scripts/content/rival_catalog.gd")
+	for rival in catalog.ALL:
+		var cards: Array[CardInstance] = rival.create_deck()
+		var another: Array[CardInstance] = rival.create_deck()
+		check(cards.size() == 10 and cards[0] != another[0], "Rival decks contain ten independent runtime copies")
+		var session = Session.new(StarterDeck.create(), cards, false, false, rival)
+		check(session.enemy.health == rival.health and session.enemy.max_health == rival.health, "Rival Resource configures encounter health")
+		check(session.enemy_piles.hand.size() == 5 and session.enemy_piles.total_cards() == 10, "Rival preparation conserves its roster")
+		var priority: Array[int] = []
+		priority.assign([0, 1, 2] if rival.doctrine == 0 else ([1, 0, 2] if rival.doctrine == 1 else [2, 0, 1]))
+		var previous_rank := -1
+		for card in session.enemy_piles.hand:
+			var rank := priority.find(card.definition.category)
+			check(rank >= previous_rank, "Prepared hand follows the visible doctrine")
+			previous_rank = rank
+		var first: CardInstance = session.enemy_piles.hand[0]
+		session.cadence = 2
+		session.rewrite_intent(first)
+		var rewritten: Array[CardInstance] = session.enemy_piles.hand.duplicate()
+		check(rewritten[-1] == first, "Doctrine does not immediately undo Rewrite")
+		var expected: Array[CardInstance] = session.enemy_opening_plan()
+		var observed: Array[CardInstance] = []
+		session.card_played.connect(record_enemy_play.bind(observed))
+		session.player.gain_block(100)
+		session.begin_rival_turn()
+		check(session.enemy_piles.hand == rewritten, "Beginning rival turn preserves the revealed rewritten line")
+		while not session.player_turn and session.outcome.is_empty():
+			session.advance_rival_turn()
+		check(observed.slice(0, expected.size()) == expected, "Rival executes the rewritten opening before any drawn follow-ups")
+		check(session.enemy_piles.total_cards() == 10, "Rival turns retain all original card instances")
+		if session.player_turn:
+			previous_rank = -1
+			for card in session.enemy_piles.hand:
+				var rank := priority.find(card.definition.category)
+				check(rank >= previous_rank, "Next prepared hand reapplies doctrine")
+				previous_rank = rank
+		check(rival.create_deck()[0].definition == cards[0].definition, "Rivals share definitions without sharing runtime cards")
+
+
+func test_journey() -> void:
+	var Journey = load("res://scripts/combat/journey_state.gd")
+	var original := pattern_cards()
+	var journey = Journey.new(original, true)
+	check(journey.roster[0] != original[0] and journey.roster[0].definition == original[0].definition, "Journey copies runtime cards while sharing definitions")
+	check(not journey.reclassify(0, 1) and not journey.skip_reward(), "Rewards are unavailable before a win")
+	var duel: RefCounted = journey.start_encounter()
+	check(duel.player.health == 30 and duel.enemy.max_health == 36, "Journey begins against Duelist at full health")
+	check(journey.start_encounter() == null and not journey.finish_encounter(duel), "Cannot start another encounter or record unfinished combat")
+	duel.player.take_damage(15)
+	duel.enemy.take_damage(999)
+	duel.check_outcome()
+	duel.statistics.player.cards = 2
+	check(journey.finish_encounter(duel) and journey.health == 15 and journey.phase == Journey.Phase.REWARD, "Victory records remaining HP and opens one reward")
+	check(not journey.finish_encounter(duel) and journey.summaries.size() == 1, "A result cannot be recorded twice")
+	check(not journey.reclassify(-1, 1) and not journey.reclassify(0, 9) and not journey.reclassify(0, 0), "Invalid or unchanged category edits do not consume reward")
+	check(journey.reclassify(0, 1) and journey.stage == 1, "A valid edit advances to the second rival")
+	check(original[0].get_category() == 0 and original[0].definition.category == 0, "Journey edit leaves source cards and Resources unchanged")
+	check(not journey.take_recovery() and not journey.reclassify(1, 1), "Cannot claim two rewards for one win")
+	var next: RefCounted = journey.start_encounter()
+	check(next.player.health == 15 and next.enemy.max_health == 46, "Second encounter carries health into Warden duel")
+	next.player_piles.draw_cards(6)
+	var revised: CardInstance = null
+	for card in next.player_piles.hand:
+		if card.category_override == 1:
+			revised = card
+			break
+	check(revised != null and revised != journey.roster[0], "Edited card appears as an independent encounter copy")
+	next.play_card(revised)
+	check(next.last_category == 1 and next.pattern_history[0] == 1, "Cadence and Patterns use the revised category")
+	play_category(next, CardDefinition.Category.TACTIC)
+	play_category(next, CardDefinition.Category.ATTACK)
+	check(next.completed_pattern == "Riposte", "Revised card can start a different Pattern")
+	check(next.war_drum.damage_bonus >= 1, "Edited category preserves card effects and artifact identity")
+	next.enemy.take_damage(999)
+	next.check_outcome()
+	var wounded_health: int = next.player.health
+	journey.finish_encounter(next)
+	var recovered_health := mini(30, wounded_health + 8)
+	check(journey.take_recovery() and journey.health == recovered_health and journey.stage == 2, "Recovery heals eight HP and advances once")
+	var finale: RefCounted = journey.start_encounter()
+	check(finale.enemy.max_health == 32 and finale.war_drum.damage_bonus == 0 and finale.player.poison == 0 and finale.cadence == 0, "Scribe encounter resets combat-local states")
+	check(finale.player.health == recovered_health, "Recovered HP is carried into final encounter")
+	finale.enemy.take_damage(999)
+	finale.check_outcome()
+	journey.finish_encounter(finale)
+	check(journey.phase == Journey.Phase.COMPLETE and journey.totals().wins == 3, "Three victories finish the journey")
+	check(journey.start_encounter() == null and not journey.skip_reward(), "Completed journey cannot start another duel or claim another reward")
+	check(journey.summaries[0].statistics.player.cards == 2, "Journey stores independent encounter summaries")
+	var failed = Journey.new(StarterDeck.create(), false)
+	var loss: RefCounted = failed.start_encounter()
+	loss.player.take_damage(999)
+	loss.check_outcome()
+	failed.finish_encounter(loss)
+	check(failed.phase == Journey.Phase.DEFEAT and failed.health == 0, "Defeat ends the journey")
+	check(failed.start_encounter() == null and not failed.take_recovery(), "Defeated journey cannot restart at zero health")
+	var full = Journey.new(StarterDeck.create(), false)
+	var win: RefCounted = full.start_encounter()
+	win.enemy.take_damage(999)
+	win.check_outcome()
+	full.finish_encounter(win)
+	check(not full.take_recovery() and full.phase == Journey.Phase.REWARD, "Full-health recovery does not consume a reward")
+	check(full.skip_reward() and full.stage == 1, "Player may skip the reward")

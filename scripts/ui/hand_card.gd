@@ -35,7 +35,7 @@ class Emblem extends Control:
 					draw_rect(Rect2(center + offset, Vector2(22, 30)), accent, false, 2)
 
 
-func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_action: Callable = Callable(), effective_text: String = "", details: String = "") -> void:
+func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_action: Callable = Callable(), effective_text: String = "", details: String = "", pattern_name: String = "") -> void:
 	custom_minimum_size = Vector2(174, 226)
 	size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	var kind := "TACTIC"
@@ -53,7 +53,11 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 		elif effect is HealEffect and kind != "ATTACK":
 			kind = "RESTORE"
 			accent = Color("8bd2ac")
+	if card.category_override >= 0:
+		accent = [Color("d88b78"), Color("79bce0"), Color("c5ae77")][card.get_category()]
 	var frame := Style.box(Color("dfd3b6"), accent)
+	if not pattern_name.is_empty():
+		frame.border_color = Color("f4cc70")
 	frame.set_border_width_all(2)
 	frame.content_margin_left = 8
 	frame.content_margin_right = 8
@@ -70,6 +74,8 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	mouse_entered.connect(func(): inspected.emit())
 	mouse_exited.connect(func(): inspection_ended.emit())
 	tooltip_text = details if not details.is_empty() else card.definition.description
+	if card.category_override >= 0:
+		tooltip_text += "\nRevised category: %s. Card effects unchanged." % CardDefinition.Category.keys()[card.get_category()].capitalize()
 	var content := Style.column(self)
 	content.add_theme_constant_override("separation", 4)
 	var heading := Style.row(content)
@@ -96,8 +102,9 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	art.kind = kind
 	art.accent = accent
 	art_frame.add_child(art)
-	var category: String = CardDefinition.Category.keys()[card.definition.category]
-	var type_label := Style.label(content, category + (" · " + kind if kind != category and kind != "TACTIC" else ""), 10, Color("5c6252"))
+	var category: String = CardDefinition.Category.keys()[card.get_category()]
+	var detail := pattern_name.to_upper() if not pattern_name.is_empty() else ("REVISED" if card.category_override >= 0 else (kind if kind != category and kind != "TACTIC" else ""))
+	var type_label := Style.label(content, category + (" · " + detail if not detail.is_empty() else ""), 10, Color("5c6252"))
 	type_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var description := Style.label(content, effective_text if not effective_text.is_empty() else card.definition.description, 14, Color("26302d"))
 	description.name = "Description"

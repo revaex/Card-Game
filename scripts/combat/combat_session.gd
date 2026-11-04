@@ -23,22 +23,40 @@ var statistics: Dictionary = {"player": {}, "enemy": {}}
 var last_action: Dictionary = {}
 const CADENCE_CAP: int = 3
 const REWRITE_COST: int = 2
+const PATTERNS = [preload("res://data/patterns/shelter.tres"), preload("res://data/patterns/riposte.tres"), preload("res://data/patterns/surge.tres")]
+var pattern_history: Array[int] = []
+var completed_pattern: String = ""
+var _finishing_damage: int = 0
 var cadence: int = 0
 var last_category: int = -1
 var rewrote_this_turn: bool = false
+var rival_definition: Resource
 
 
-func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], shuffle: bool = true, use_war_drum: bool = false) -> void:
+func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], shuffle: bool = true, use_war_drum: bool = false, rival: Resource = null, starting_health: int = 30) -> void:
+	assert(starting_health > 0 and starting_health <= player.max_health)
+	player.health = starting_health
+	rival_definition = rival
+	if rival != null:
+		enemy = Combatant.new(rival.health)
 	for side in statistics:
-		statistics[side] = {"cards": 0, "energy": 0, "damage": 0, "absorbed": 0, "healed": 0, "poison_applied": 0, "rewrites": 0}
+		statistics[side] = {"cards": 0, "energy": 0, "damage": 0, "absorbed": 0, "healed": 0, "poison_applied": 0, "rewrites": 0, "patterns": 0}
 	if use_war_drum:
 		war_drum = WarDrum.new()
 	player_piles = CardPiles.new(player_cards, shuffle)
 	enemy_piles = CardPiles.new(enemy_cards, shuffle)
 	player_piles.draw_cards(5)
-	enemy_piles.draw_cards(5)
+	prepare_rival_hand()
 	log_event("Turn 1 — You drew %d cards. Energy 3." % player_piles.hand.size())
 	log_event("Rival prepared %d cards for its next turn." % enemy_piles.hand.size())
+	if rival_definition != null:
+		log_event("%s doctrine: %s. Rewrite changes the revealed order." % [rival_definition.display_name, rival_definition.doctrine_text()])
+
+
+func prepare_rival_hand() -> void:
+	enemy_piles.draw_cards(5)
+	if rival_definition != null:
+		rival_definition.arrange_hand(enemy_piles)
 
 
 func log_event(text: String) -> void:
@@ -70,7 +88,31 @@ func is_affordable(card: CardInstance, available_energy: int) -> bool:
 
 
 func preview_bonus(card: CardInstance, by_player: bool = true) -> int:
-	return war_drum.preview_bonus(card) if by_player and war_drum != null else 0
+	if not by_player:
+		return 0
+	var bonus: int = war_drum.preview_bonus(card) if war_drum != null else 0
+	var pattern := preview_pattern(card)
+	return bonus + (int(pattern.finishing_damage) if pattern != null else 0)
+
+
+func preview_pattern(card: CardInstance) -> Resource:
+	if not completed_pattern.is_empty() or not player_turn or not outcome.is_empty() or card == null:
+		return null
+	var next := pattern_history.duplicate()
+	next.append(card.get_category())
+	if next.size() > 3:
+		next.pop_front()
+	for pattern in PATTERNS:
+		if pattern.matches(next):
+			return pattern
+	return null
+
+
+func pattern_rules() -> String:
+	var rules: PackedStringArray = ["Complete one Pattern per player turn, using three consecutive cards. Progress resets each turn; Rewrite does not break it."]
+	for pattern in PATTERNS:
+		rules.append("%s: %s — %s" % [pattern.display_name, pattern.sequence_text(), pattern.payoff])
+	return "\n".join(rules)
 
 
 func describe_card(card: CardInstance, by_player: bool = true) -> String:
@@ -107,11 +149,11 @@ func preview_attack(card: CardInstance, by_player: bool = true) -> Dictionary:
 
 
 func combat_summary() -> Dictionary:
-	return {"outcome": outcome, "rounds": round_number, "player_health": player.health, "enemy_health": enemy.health, "statistics": statistics.duplicate(true)}
+	return {"outcome": outcome, "rounds": round_number, "player_health": player.health, "enemy_health": enemy.health, "rival_name": rival_definition.display_name if rival_definition != null else "Rival", "statistics": statistics.duplicate(true)}
 
 
 func cadence_gain(card: CardInstance) -> int:
-	return 1 if card.definition.category != last_category and cadence < CADENCE_CAP else 0
+	return 1 if card.get_category() != last_category and cadence < CADENCE_CAP else 0
 
 
 func can_rewrite(card: CardInstance) -> bool:
@@ -138,12 +180,24 @@ func play_card(card: CardInstance) -> bool:
 		return false
 	_resolving = true
 	energy -= card.get_energy_cost()
+	var pattern := preview_pattern(card)
+	pattern_history.append(card.get_category())
+	if pattern_history.size() > 3:
+		pattern_history.pop_front()
+	if pattern != null:
+		completed_pattern = pattern.display_name
+		_finishing_damage = pattern.finishing_damage
+		player.gain_block(pattern.block_gain)
+		energy += pattern.energy_gain
+		statistics.player.patterns += 1
+		log_event("Pattern %s: %s" % [pattern.display_name, pattern.payoff])
 	var gained := cadence_gain(card)
 	cadence += gained
-	last_category = card.definition.category
+	last_category = card.get_category()
 	if gained > 0:
 		log_event("Cadence +1 (%d/%d): changed to %s." % [cadence, CADENCE_CAP, CardDefinition.Category.keys()[last_category].capitalize()])
 	resolve_card(card, player, enemy, player_piles, true)
+	_finishing_damage = 0
 	_resolving = false
 	changed.emit()
 	return true
@@ -157,11 +211,11 @@ func resolve_card(card: CardInstance, source: Combatant, target: Combatant, pile
 	source_stats.cards += 1
 	source_stats.energy += card.get_energy_cost()
 	log_event("%s played %s (%d energy)." % [actor, card.definition.display_name, card.get_energy_cost()])
-	var bonus := 0
+	var bonus := _finishing_damage if by_player else 0
 	if by_player and war_drum != null:
 		if war_drum.before_card(card):
 			log_event("War Drum: your attack bonus is now +%d." % war_drum.damage_bonus)
-		bonus = war_drum.damage_bonus
+		bonus += war_drum.damage_bonus
 	var context := EffectContext.new(piles, bonus)
 	last_action = {"card": card.definition.display_name, "by_player": by_player, "description": describe_effects(card, bonus)}
 	# Hold the resolving card outside the draw cycle until its effects finish.
@@ -273,8 +327,10 @@ func advance_rival_turn() -> bool:
 			energy = ENERGY_PER_TURN
 			last_category = -1
 			rewrote_this_turn = false
+			pattern_history.clear()
+			completed_pattern = ""
 			player_piles.draw_cards(5)
-			enemy_piles.draw_cards(5)
+			prepare_rival_hand()
 			player_turn = true
 			log_event("Turn %d — You drew %d cards. Energy 3." % [round_number, player_piles.hand.size()])
 			log_event("Rival prepared %d cards for its next turn." % enemy_piles.hand.size())
