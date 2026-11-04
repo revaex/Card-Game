@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3 uid="uid://b802x2nel0ea3"]
+
+[ext_resource type="Script" uid="uid://crv5fmkqu8grk" path="res://scripts/cards/card_definition.gd" id="1_j7hgg"]
+[ext_resource type="Script" path="res://scripts/effects/damage_effect.gd" id="2_damage"]
+[ext_resource type="Script" path="res://scripts/effects/card_effect.gd" id="3_effect"]
+
+[sub_resource type="Resource" id="Resource_damage"]
+script = ExtResource("2_damage")
+damage = 10
+
+[resource]
+script = ExtResource("1_j7hgg")
+id = &"strike"
+display_name = "Strike"
+description = "Deal 10 Damage"
+effects = Array[ExtResource("3_effect")]([SubResource("Resource_damage")])
+metadata/_custom_type_script = "uid://crv5fmkqu8grk"

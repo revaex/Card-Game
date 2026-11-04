@@ -1,3 +1,9 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Generated exports and local credentials
+/builds/
+/exports/
+export_credentials.cfg
+*.tmp
