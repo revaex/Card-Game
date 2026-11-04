@@ -25,6 +25,8 @@ func run() -> void:
 	root.add_child(menu)
 	for button_name in actions:
 		var button: Button = menu.find_child(button_name, true, false)
+		check(button.call("_make_custom_tooltip", "") == null, "%s does not create an empty tooltip" % button_name)
+		check(button.call("_make_custom_tooltip", " \n\t") == null, "%s ignores whitespace-only help" % button_name)
 		var fired: Array[bool] = []
 		menu.connect(actions[button_name], func(): fired.append(true))
 		button.pressed.emit()
@@ -34,6 +36,13 @@ func run() -> void:
 	menu.set_has_journey(true)
 	check(menu.get_node("%JourneyButton").text.contains("Continue"), "Menu reflects a continuing journey")
 	menu.free()
+	for script in [preload("res://scripts/ui/info_label.gd"), preload("res://scripts/ui/info_progress.gd"), preload("res://scripts/ui/pile_token.gd"), preload("res://scripts/ui/hand_card.gd")]:
+		var control = script.new()
+		check(control.call("_make_custom_tooltip", "") == null, "Shared tooltip controls suppress empty help")
+		var help: Control = control.call("_make_custom_tooltip", "HEALTH\nYour remaining HP.")
+		check(help.get_child(0).get_child(1).text == "Your remaining HP.", "Nonempty help retains its content")
+		help.free()
+		control.free()
 	var board = preload("res://scenes/ui/combat_table.tscn").instantiate()
 	for path in ["Actors/PlayerPanel", "Actors/EnemyPanel", "Middle/RecordPanel/Content/CombatLog", "HandScroll/HandRow", "RivalTimer"]:
 		check(board.has_node(path) and board.get_node(path).owner == board, "%s exists in the saved board without setup" % path)

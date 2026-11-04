@@ -2,6 +2,13 @@ extends PanelContainer
 ## Opaque, wrapped help content shared by board controls.
 
 
+static func create(text: String) -> Control:
+	# Godot can request a custom tooltip even when a control has no help text.
+	if text.strip_edges().is_empty():
+		return null
+	return load("res://scripts/ui/board_tooltip.gd").new(text)
+
+
 func _init(text: String = "") -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var panel := StyleBoxFlat.new()

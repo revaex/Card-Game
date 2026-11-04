@@ -36,4 +36,4 @@ func _draw() -> void:
 
 
 func _make_custom_tooltip(text: String) -> Object:
-	return Tooltip.new(text)
+	return Tooltip.create(text)
