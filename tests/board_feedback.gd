@@ -1,6 +1,6 @@
 extends SceneTree
 
-const Table = preload("res://scripts/ui/table_screen.gd")
+const Table = preload("res://scenes/ui/combat_table.tscn")
 const Style = preload("res://scripts/ui/ui_style.gd")
 var checks: int = 0
 var failures: int = 0
@@ -25,7 +25,7 @@ func copies(definition: CardDefinition) -> Array[CardInstance]:
 
 
 func board(own: CardDefinition, rival: CardDefinition) -> Control:
-	var view := Table.new()
+	var view := Table.instantiate()
 	view.theme = Style.theme()
 	root.add_child(view)
 	view.setup(copies(own), copies(rival))
@@ -64,7 +64,7 @@ func run() -> void:
 	var retained: RefCounted = view.session
 	view.queue_free()
 	await process_frame
-	view = Table.new()
+	view = Table.instantiate()
 	root.add_child(view)
 	var empty_cards: Array[CardInstance] = []
 	view.setup(empty_cards, empty_cards, false, null, retained)

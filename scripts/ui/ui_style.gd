@@ -22,35 +22,8 @@ static func box(color: Color, border: Color = Color("334546")) -> StyleBoxFlat:
 
 
 static func theme() -> Theme:
-	var result := Theme.new()
-	result.default_font_size = 16
-	result.set_color("font_color", "Label", INK)
-	result.set_color("font_color", "Button", INK)
-	result.set_stylebox("normal", "Button", box(Color("203436")))
-	result.set_stylebox("hover", "Button", box(Color("304c4c"), GOLD))
-	result.set_stylebox("pressed", "Button", box(Color("42605a"), GOLD))
-	result.set_stylebox("disabled", "Button", box(Color("182526")))
-	var focus := box(Color(0, 0, 0, 0), GOLD)
-	focus.set_border_width_all(2)
-	result.set_stylebox("focus", "Button", focus)
-	result.set_color("font_disabled_color", "Button", Color("7c8985"))
-	result.set_stylebox("panel", "PopupMenu", box(Color("142428"), GOLD))
-	result.set_stylebox("normal", "OptionButton", box(Color("203436")))
-	result.set_stylebox("hover", "OptionButton", box(Color("304c4c"), GOLD))
-	result.set_color("font_color", "OptionButton", INK)
-	result.set_stylebox("normal", "LineEdit", box(Color("102426")))
-	result.set_color("font_color", "LineEdit", INK)
-	var tooltip := box(Color("101c22"), GOLD)
-	tooltip.content_margin_left = 16
-	tooltip.content_margin_right = 16
-	result.set_stylebox("panel", "TooltipPanel", tooltip)
-	result.set_color("font_color", "TooltipLabel", INK)
-	result.set_color("font_shadow_color", "TooltipLabel", Color(0, 0, 0, 0))
-	result.set_font_size("font_size", "TooltipLabel", 14)
-	result.set_stylebox("panel", "AcceptDialog", box(Color("142428"), GOLD))
-	result.set_constant("separation", "VBoxContainer", 10)
-	result.set_constant("separation", "HBoxContainer", 14)
-	return result
+	# Duplicate so dialog-specific overrides cannot change the shared scene theme.
+	return preload("res://data/ui/game_theme.tres").duplicate(true)
 
 
 static func label(parent: Node, text: String, size: int = 18, color: Color = INK) -> Label:

@@ -5,9 +5,9 @@ const Style = preload("res://scripts/ui/ui_style.gd")
 const Session = preload("res://scripts/combat/combat_session.gd")
 const HandCard = preload("res://scripts/ui/hand_card.gd")
 const POISON_GREEN = Color("65ef94")
-const InfoProgress = preload("res://scripts/ui/info_progress.gd")
+
 const PileToken = preload("res://scripts/ui/pile_token.gd")
-const Feedback = preload("res://scripts/ui/combat_feedback.gd")
+
 var player_feedback: Control
 var enemy_feedback: Control
 var _display_state: Dictionary = {}
@@ -50,95 +50,10 @@ var relic_label: Label
 
 
 func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], use_war_drum: bool = false, rival: Resource = null, existing_session: RefCounted = null) -> void:
-	add_theme_constant_override("separation", 8)
 	session = existing_session if existing_session != null else Session.new(player_cards, enemy_cards, true, use_war_drum, rival)
 	player_piles = session.player_piles
 	enemy_piles = session.enemy_piles
-	var actors := Style.row(self)
-	var own_panel := Style.panel(actors)
-	var own_heading := Style.row(own_panel)
-	status_label = Style.label(own_heading, "", 16, Style.GOLD)
-	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	energy_label = Style.label(own_heading, "", 13, Style.GOLD)
-	player_status = Style.label(own_heading, "", 14, Color("b4d77c"))
-	player_hp = make_health_bar(own_panel, Color("65b58b"))
-	player_block = player_hp.get_node("Block")
-	player_feedback = make_feedback_layer(player_hp)
-	var enemy_panel := Style.panel(actors)
-	var enemy_heading := Style.row(enemy_panel)
-	enemy_label = Style.label(enemy_heading, "", 16, Style.GOLD)
-	enemy_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	enemy_energy_label = Style.label(enemy_heading, "", 13, Style.GOLD)
-	enemy_energy_label.tooltip_text = "RIVAL ENERGY\nThe rival has 3 energy each turn. It resolves affordable cards in the revealed order. Draw effects can add follow-up plays."
-	enemy_status = Style.label(enemy_heading, "", 14, Color("b4d77c"))
-	enemy_hp = make_health_bar(enemy_panel, Color("ce7871"))
-	enemy_block = enemy_hp.get_node("Block")
-	enemy_feedback = make_feedback_layer(enemy_hp)
-	intent_label = Style.label(self, "", 14, Style.GOLD)
-	intent_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	intent_scroll = ScrollContainer.new()
-	intent_scroll.custom_minimum_size.y = 46
-	intent_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	add_child(intent_scroll)
-	rewrite_row = Style.row(intent_scroll)
-	var middle := Style.row(self)
-	middle.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var field := Style.column(middle, true)
-	message = Style.label(field, "Block lasts until your next turn.", 14, Style.MUTED)
-	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var resources := Style.row(field)
-	turn_label = Style.label(resources, "", 13, Style.MUTED)
-	artifact_label = Style.label(resources, "", 14, Style.GOLD)
-	relic_label = Style.label(resources, "", 13, Style.GOLD)
-	pile_row = Style.row(field)
-	var controls := Style.row(field)
-	end_button = Style.button(controls, "End turn →", end_turn)
-	Style.primary(end_button)
-	var tools := CheckButton.new()
-	tools.text = "Lab"
-	tools.custom_minimum_size.x = 90
-	tools.tooltip_text = "PILE LAB\nOptional testing controls for free drawing, redrawing, and exhausting. These are outside the normal combat rules."
-	Style.quiet(tools)
-	controls.add_child(tools)
-	tools.toggled.connect(func(enabled: bool): sandbox = enabled; refresh())
-	var debug_controls := Style.row(field)
-	draw_button = Style.button(debug_controls, "Draw 1", draw_one)
-	redraw_button = Style.button(debug_controls, "Redraw up to 5", next_hand)
-	draw_button.tooltip_text = "LAB DRAW\nDraw one available card without spending energy. Discard reshuffles when the draw pile is empty. Exhausted cards stay out."
-	redraw_button.tooltip_text = "LAB REDRAW\nDiscard your current hand and draw up to five available cards without advancing the turn."
-	var log_panel := Style.panel(middle)
-	log_panel.get_parent().custom_minimum_size.x = 340
-	Style.label(log_panel, "ENCOUNTER RECORD", 13, Style.GOLD).tooltip_text = "ENCOUNTER RECORD\nResolved plays and actual HP, block, draw, Poison, Cadence, and Pattern changes. Scroll upward to review earlier actions."
-	combat_log = RichTextLabel.new()
-	combat_log.custom_minimum_size = Vector2(290, 100)
-	combat_log.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	combat_log.scroll_following = true
-	combat_log.tooltip_text = "ENCOUNTER RECORD\nScroll to review earlier actions. Numbers report actual changes after block, healing limits, and available draws."
-	combat_log.bbcode_enabled = true
-	combat_log.add_theme_font_size_override("normal_font_size", 14)
-	combat_log.add_theme_color_override("default_color", Style.INK)
-	log_panel.add_child(combat_log)
-	var hand_heading := Style.row(self)
-	hand_title = Style.label(hand_heading, "YOUR HAND", 13, Style.GOLD)
-	pattern_label = Style.label(hand_heading, "", 13, Style.GOLD)
-	pattern_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pattern_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	var guide := Style.button(hand_heading, "Patterns ?", show_pattern_guide)
-	guide.name = "PatternGuideButton"
-	guide.add_theme_font_size_override("font_size", 12)
-	guide.custom_minimum_size.y = 22
-	Style.quiet(guide)
-	guide.tooltip_text = "PATTERNS\nOpen all three sequence recipes. Complete one Pattern per turn; Rewrite does not interrupt the sequence. Rival playback pauses while the guide is open."
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size.y = 226
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	add_child(scroll)
-	hand_row = Style.row(scroll)
-	rival_timer = Timer.new()
-	rival_timer.wait_time = 0.65
-	rival_timer.timeout.connect(advance_rival_presentation)
-	add_child(rival_timer)
+	_bind_scene_nodes()
 	session.changed.connect(on_session_changed)
 	session.card_played.connect(on_card_presented)
 	if existing_session != null and not session.player_turn and not session.last_action.is_empty() and not session.last_action.by_player and not enemy_piles.discard_pile.is_empty():
@@ -150,11 +65,41 @@ func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 	restore_action_message()
 
 
-func make_feedback_layer(bar: Control) -> Control:
-	var layer := Feedback.new()
-	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bar.add_child(layer)
-	return layer
+func _bind_scene_nodes() -> void:
+	status_label = $Actors/PlayerPanel/Content/Heading/ActorName
+	energy_label = $Actors/PlayerPanel/Content/Heading/Energy
+	player_status = $Actors/PlayerPanel/Content/Heading/Poison
+	player_hp = $Actors/PlayerPanel/Content/HealthBar
+	player_block = player_hp.get_node("Block")
+	player_feedback = player_hp.get_node("Feedback")
+	enemy_label = $Actors/EnemyPanel/Content/Heading/ActorName
+	enemy_energy_label = $Actors/EnemyPanel/Content/Heading/Energy
+	enemy_status = $Actors/EnemyPanel/Content/Heading/Poison
+	enemy_hp = $Actors/EnemyPanel/Content/HealthBar
+	enemy_block = enemy_hp.get_node("Block")
+	enemy_feedback = enemy_hp.get_node("Feedback")
+	intent_label = %IntentStatus
+	intent_scroll = %IntentScroll
+	rewrite_row = %RewriteRow
+	message = %ActionMessage
+	turn_label = %TurnLabel
+	artifact_label = %CadenceLabel
+	relic_label = %RelicLabel
+	pile_row = %PileRow
+	end_button = %EndTurnButton
+	draw_button = %DrawButton
+	redraw_button = %RedrawButton
+	combat_log = %CombatLog
+	hand_title = %HandTitle
+	pattern_label = %PatternLabel
+	hand_row = %HandRow
+	rival_timer = %RivalTimer
+	enemy_energy_label.tooltip_text = "RIVAL ENERGY\nThe rival has 3 energy each turn. It resolves affordable cards in the revealed order. Draw effects can add follow-up plays."
+
+
+func _on_lab_toggled(enabled: bool) -> void:
+	sandbox = enabled
+	refresh()
 
 
 func read_display_state() -> Dictionary:
@@ -200,51 +145,6 @@ func present_state_changes() -> void:
 		_feedback_tween.tween_property(enemy_hp, "modulate", Color.WHITE, 0.25)
 	if own.is_empty() and rival.is_empty():
 		_feedback_tween.kill()
-
-
-func make_health_bar(parent: Node, color: Color) -> ProgressBar:
-	var bar := InfoProgress.new()
-	bar.custom_minimum_size.y = 32
-	bar.show_percentage = false
-	bar.add_theme_stylebox_override("background", Style.box(Color("0b1c20")))
-	var fill := Style.box(color, color)
-	fill.content_margin_top = 0
-	fill.content_margin_bottom = 0
-	bar.add_theme_stylebox_override("fill", fill)
-	parent.add_child(bar)
-	var shield := InfoProgress.new()
-	shield.name = "Block"
-	shield.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	shield.offset_bottom = 8
-	shield.show_percentage = false
-	shield.mouse_filter = Control.MOUSE_FILTER_PASS
-	shield.add_theme_stylebox_override("background", StyleBoxEmpty.new())
-	var shield_fill := StyleBoxFlat.new()
-	shield_fill.bg_color = Color("64bdff")
-	shield_fill.set_corner_radius_all(3)
-	shield.add_theme_stylebox_override("fill", shield_fill)
-	bar.add_child(shield)
-	var overlay := HBoxContainer.new()
-	overlay.name = "Overlay"
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.offset_left = 10
-	overlay.offset_right = -5
-	overlay.offset_top = 8
-	overlay.offset_bottom = -3
-	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_child(overlay)
-	var hp_text := Style.label(overlay, "", 14, Color("f1f6ee"))
-	hp_text.add_theme_color_override("font_outline_color", Color("091b20"))
-	hp_text.add_theme_constant_override("outline_size", 4)
-	hp_text.name = "Health"
-	hp_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hp_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	var block_text := Style.label(overlay, "", 14, Color("d4edff"))
-	block_text.name = "BlockText"
-	block_text.add_theme_color_override("font_outline_color", Color("102c42"))
-	block_text.add_theme_constant_override("outline_size", 4)
-	block_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	return bar
 
 
 func empty(container: Node) -> void:

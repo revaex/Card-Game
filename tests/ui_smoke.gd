@@ -1,6 +1,6 @@
 extends SceneTree
 
-const GameUI = preload("res://scripts/ui/game_ui.gd")
+const GameUI = preload("res://scenes/ui/game_ui.tscn")
 var failed := false
 
 
@@ -15,7 +15,7 @@ func check(condition: bool, text: String) -> void:
 
 
 func run() -> void:
-	var ui := GameUI.new()
+	var ui := GameUI.instantiate()
 	root.add_child(ui)
 	ui.library.save_path = "res://.godot/ui-test-decks.json"
 	ui.library.decks.assign([{"name": "Test", "cards": {"strike": 5, "block": 5}}])

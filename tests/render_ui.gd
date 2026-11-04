@@ -1,7 +1,7 @@
 extends SceneTree
 ## Render-only QA. Uses in-memory decks and does not touch saved recipes.
 
-const GameUI = preload("res://scripts/ui/game_ui.gd")
+const GameUI = preload("res://scenes/ui/game_ui.tscn")
 
 
 func _initialize() -> void:
@@ -18,7 +18,7 @@ func capture(path: String) -> void:
 func run() -> void:
 	root.mode = Window.MODE_WINDOWED
 	root.size = Vector2i(1100, 700)
-	var ui := GameUI.new()
+	var ui := GameUI.instantiate()
 	root.add_child(ui)
 	await capture("res://.godot/menu-preview.png")
 	ui.show_rivals()

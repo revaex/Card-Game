@@ -1,0 +1,260 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/table_screen.gd" id="controller"]
+[ext_resource type="Script" path="res://scripts/ui/info_label.gd" id="label"]
+[ext_resource type="Script" path="res://scripts/ui/info_button.gd" id="button"]
+[ext_resource type="PackedScene" path="res://scenes/ui/combatant_panel.tscn" id="actor"]
+[ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
+
+[sub_resource type="StyleBoxFlat" id="EnemyHealth"]
+bg_color = Color(0.808, 0.471, 0.443, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+
+[sub_resource type="StyleBoxFlat" id="LogPanel"]
+bg_color = Color(0.078, 0.165, 0.173, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.271, 0.275, 1)
+content_margin_left = 20.0
+content_margin_right = 20.0
+content_margin_top = 10.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="Primary"]
+bg_color = Color(0.725, 0.596, 0.361, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.94, 0.83, 0.63, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+content_margin_left = 20.0
+content_margin_right = 20.0
+content_margin_top = 10.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="PrimaryHover"]
+bg_color = Color(0.816, 0.682, 0.439, 1)
+content_margin_left = 20.0
+content_margin_right = 20.0
+content_margin_top = 10.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="Quiet"]
+bg_color = Color(0.078, 0.141, 0.157, 1)
+content_margin_left = 8.0
+content_margin_right = 8.0
+content_margin_top = 3.0
+content_margin_bottom = 3.0
+
+[node name="CombatTable" type="VBoxContainer"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme = ExtResource("theme")
+theme_override_constants/separation = 8
+script = ExtResource("controller")
+
+[node name="Actors" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="PlayerPanel" parent="Actors" instance=ExtResource("actor")]
+layout_mode = 2
+
+[node name="EnemyPanel" parent="Actors" instance=ExtResource("actor")]
+layout_mode = 2
+
+[node name="HealthBar" parent="Actors/EnemyPanel/Content" index="1"]
+theme_override_styles/fill = SubResource("EnemyHealth")
+
+[node name="IntentStatus" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.812, 0.667, 0.4, 1)
+text = "Rival intent"
+autowrap_mode = 3
+script = ExtResource("label")
+
+[node name="IntentScroll" type="ScrollContainer" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+vertical_scroll_mode = 0
+
+[node name="RewriteRow" type="HBoxContainer" parent="IntentScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Middle" type="HBoxContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Field" type="VBoxContainer" parent="Middle"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ActionMessage" type="Label" parent="Middle/Field"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.608, 0.663, 0.643, 1)
+theme_override_font_sizes/font_size = 14
+text = "Hover a card to preview its effects."
+autowrap_mode = 3
+script = ExtResource("label")
+
+[node name="Resources" type="HBoxContainer" parent="Middle/Field"]
+layout_mode = 2
+
+[node name="TurnLabel" type="Label" parent="Middle/Field/Resources"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "YOUR TURN · 01"
+script = ExtResource("label")
+
+[node name="CadenceLabel" type="Label" parent="Middle/Field/Resources"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.812, 0.667, 0.4, 1)
+theme_override_font_sizes/font_size = 14
+text = "CADENCE 0/3"
+script = ExtResource("label")
+
+[node name="RelicLabel" type="Label" parent="Middle/Field/Resources"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.812, 0.667, 0.4, 1)
+theme_override_font_sizes/font_size = 13
+text = "WAR DRUM +0"
+script = ExtResource("label")
+
+[node name="PileRow" type="HBoxContainer" parent="Middle/Field"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Actions" type="HBoxContainer" parent="Middle/Field"]
+layout_mode = 2
+
+[node name="EndTurnButton" type="Button" parent="Middle/Field/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.082, 0.141, 0.149, 1)
+theme_override_colors/font_hover_color = Color(0.082, 0.141, 0.149, 1)
+theme_override_colors/font_pressed_color = Color(0.082, 0.141, 0.149, 1)
+theme_override_styles/normal = SubResource("Primary")
+theme_override_styles/hover = SubResource("PrimaryHover")
+theme_override_styles/pressed = SubResource("Primary")
+text = "End turn →"
+script = ExtResource("button")
+
+[node name="LabToggle" type="CheckButton" parent="Middle/Field/Actions"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+theme_override_styles/normal = SubResource("Quiet")
+text = "Lab"
+tooltip_text = "PILE LAB\nOptional drawing, redrawing, and exhausting outside normal combat rules."
+
+[node name="DebugActions" type="HBoxContainer" parent="Middle/Field"]
+layout_mode = 2
+visible = false
+
+[node name="DrawButton" type="Button" parent="Middle/Field/DebugActions"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Draw 1"
+tooltip_text = "LAB DRAW\nDraw one available card without spending energy."
+script = ExtResource("button")
+
+[node name="RedrawButton" type="Button" parent="Middle/Field/DebugActions"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Redraw up to 5"
+tooltip_text = "LAB REDRAW\nDiscard and redraw up to five cards without advancing the turn."
+script = ExtResource("button")
+
+[node name="RecordPanel" type="PanelContainer" parent="Middle"]
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("LogPanel")
+
+[node name="Content" type="VBoxContainer" parent="Middle/RecordPanel"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Middle/RecordPanel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.812, 0.667, 0.4, 1)
+theme_override_font_sizes/font_size = 13
+text = "ENCOUNTER RECORD"
+tooltip_text = "ENCOUNTER RECORD\nResolved plays and actual changes. Scroll upward to review earlier actions."
+script = ExtResource("label")
+
+[node name="CombatLog" type="RichTextLabel" parent="Middle/RecordPanel/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(290, 100)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/normal_font_size = 14
+bbcode_enabled = true
+scroll_following = true
+tooltip_text = "ENCOUNTER RECORD\nScroll to review earlier actions and actual resolved changes."
+
+[node name="HandHeading" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="HandTitle" type="Label" parent="HandHeading"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "YOUR HAND"
+script = ExtResource("label")
+
+[node name="PatternLabel" type="Label" parent="HandHeading"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 2
+script = ExtResource("label")
+
+[node name="PatternGuideButton" type="Button" parent="HandHeading"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 22)
+theme_override_styles/normal = SubResource("Quiet")
+theme_override_font_sizes/font_size = 12
+text = "Patterns ?"
+tooltip_text = "PATTERNS\nView all three recipes. Rival playback pauses while the guide is open."
+script = ExtResource("button")
+
+[node name="HandScroll" type="ScrollContainer" parent="."]
+custom_minimum_size = Vector2(0, 226)
+layout_mode = 2
+size_flags_horizontal = 3
+vertical_scroll_mode = 0
+
+[node name="HandRow" type="HBoxContainer" parent="HandScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RivalTimer" type="Timer" parent="."]
+unique_name_in_owner = true
+wait_time = 0.65
+
+[connection signal="pressed" from="Middle/Field/Actions/EndTurnButton" to="." method="end_turn"]
+[connection signal="toggled" from="Middle/Field/Actions/LabToggle" to="." method="_on_lab_toggled"]
+[connection signal="pressed" from="Middle/Field/DebugActions/DrawButton" to="." method="draw_one"]
+[connection signal="pressed" from="Middle/Field/DebugActions/RedrawButton" to="." method="next_hand"]
+[connection signal="pressed" from="HandHeading/PatternGuideButton" to="." method="show_pattern_guide"]
+[connection signal="timeout" from="RivalTimer" to="." method="advance_rival_presentation"]
+
+[editable path="Actors/PlayerPanel"]
+[editable path="Actors/EnemyPanel"]

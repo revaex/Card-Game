@@ -3,10 +3,9 @@ extends Control
 
 const Style = preload("res://scripts/ui/ui_style.gd")
 const Library = preload("res://scripts/content/deck_library.gd")
-const Table = preload("res://scripts/ui/table_screen.gd")
+const Table = preload("res://scenes/ui/combat_table.tscn")
 const CombatResult = preload("res://scripts/ui/combat_result.gd")
 const Rivals = preload("res://scripts/content/rival_catalog.gd")
-const Backdrop = preload("res://scripts/ui/ink_backdrop.gd")
 const DuelArt = preload("res://scripts/ui/duel_art.gd")
 const Journey = preload("res://scripts/combat/journey_state.gd")
 var journey: RefCounted
@@ -15,7 +14,9 @@ var journey_deck_name: String = ""
 var _table_is_journey: bool = false
 var selected_rival: Resource
 var library = Library.new()
-var body: VBoxContainer
+@onready var body: VBoxContainer = %Body
+@onready var main_menu: VBoxContainer = %MainMenu
+@onready var page_scroll: ScrollContainer = %PageScroll
 var player_index: int = -1
 var enemy_index: int = -1
 var editing: int = -1
@@ -26,31 +27,28 @@ var result_overlay: Control
 
 
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	theme = Style.theme()
-	var background := Backdrop.new()
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(background)
-	var margin := MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 24)
-	add_child(margin)
-	var page_scroll := ScrollContainer.new()
-	page_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	margin.add_child(page_scroll)
-	body = Style.column(page_scroll, true)
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 10)
+	main_menu.journey_requested.connect(_on_menu_journey)
+	main_menu.single_duel_requested.connect(show_rivals)
+	main_menu.custom_duel_requested.connect(start_custom_duel)
+	main_menu.decks_requested.connect(func(): show_library(false))
+	main_menu.quit_requested.connect(func(): get_tree().quit())
 	library.load_decks()
 	show_menu()
+
+
+func _on_menu_journey() -> void:
+	if journey != null:
+		show_journey_overview()
+	else:
+		show_journey_setup()
 
 
 func clear(title: String, subtitle: String) -> void:
 	close_result()
 	# Each screen starts at the top, even after scrolling the deck editor.
-	body.get_parent().set_deferred("scroll_vertical", 0)
+	page_scroll.set_deferred("scroll_vertical", 0)
+	main_menu.hide()
+	body.show()
 	for child in body.get_children():
 		body.remove_child(child)
 		child.queue_free()
@@ -64,32 +62,9 @@ func clear(title: String, subtitle: String) -> void:
 func show_menu() -> void:
 	screen = "menu"
 	clear("", "")
-	body.get_child(1).hide()
-	body.get_child(2).hide()
-	var hero := Style.row(body)
-	hero.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var center := VBoxContainer.new()
-	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center.size_flags_stretch_ratio = 1.2
-	center.alignment = BoxContainer.ALIGNMENT_CENTER
-	hero.add_child(center)
-	Style.label(center, "A DUEL OF INK & INTENT", 13, Style.GOLD)
-	Style.heading(center, "The next move\nis unwritten.", 54)
-	var copy := Style.label(center, "Read the rival's line. Rewrite its order.\nCompose a Pattern they never saw coming.", 18, Style.MUTED)
-	copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	Style.primary(Style.button(center, "Continue journey  →" if journey != null else "Begin a journey  →", show_journey_overview if journey != null else show_journey_setup))
-	var secondary := Style.row(center)
-	Style.button(secondary, "Single duel", show_rivals)
-	Style.button(secondary, "Custom duel", start_custom_duel)
-	Style.button(secondary, "Your decks", func(): show_library(false))
-	Style.button(secondary, "Quit", func(): get_tree().quit())
-	var art := DuelArt.new()
-	art.custom_minimum_size = Vector2(340, 320)
-	art.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hero.add_child(art)
-	var footer := Style.panel(body)
-	Style.label(footer, "CADENCE  /  Change your rhythm     ·     REWRITE  /  Reshape their line     ·     PATTERNS  /  Compose your answer", 13, Style.GOLD)
-	Style.label(body, "YOUR DECKS ARE SAVED ON THIS DEVICE", 11, Style.MUTED)
+	body.hide()
+	main_menu.set_has_journey(journey != null)
+	main_menu.show()
 
 
 func start_custom_duel() -> void:
@@ -339,7 +314,7 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	var leave := Style.button(toolbar, "Journey" if in_journey else "← Leave table", show_journey_overview if in_journey else show_setup)
 	Style.quiet(leave)
 	leave.tooltip_text = "JOURNEY\nPause this duel and view your route. Returning resumes the same hand, HP, and rival turn." if in_journey else "LEAVE TABLE\nReturn to deck preparation. This single duel is discarded; saved decks are unchanged."
-	var table := Table.new()
+	var table := Table.instantiate()
 	table.name = "CombatTable"
 	table.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(table)

@@ -1,0 +1,180 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="controller"]
+[ext_resource type="Script" path="res://scripts/ui/info_label.gd" id="label"]
+[ext_resource type="Script" path="res://scripts/ui/info_button.gd" id="button"]
+[ext_resource type="Script" path="res://scripts/ui/duel_art.gd" id="art"]
+[ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
+
+[sub_resource type="SystemFont" id="Serif"]
+font_names = PackedStringArray("Georgia", "Cambria", "Times New Roman")
+
+[sub_resource type="StyleBoxFlat" id="PrimaryNormal"]
+bg_color = Color(0.725, 0.596, 0.361, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.94, 0.83, 0.63, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+content_margin_left = 20.0
+content_margin_right = 20.0
+content_margin_top = 10.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="PrimaryHover"]
+bg_color = Color(0.816, 0.682, 0.439, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.957, 0.878, 0.71, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+content_margin_left = 20.0
+content_margin_right = 20.0
+content_margin_top = 10.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="FooterPanel"]
+bg_color = Color(0.078, 0.165, 0.173, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.271, 0.275, 1)
+content_margin_left = 20.0
+content_margin_right = 20.0
+content_margin_top = 10.0
+content_margin_bottom = 10.0
+
+[node name="MainMenu" type="VBoxContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme = ExtResource("theme")
+script = ExtResource("controller")
+
+[node name="Brand" type="Label" parent="."]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.812, 0.667, 0.4, 1)
+theme_override_font_sizes/font_size = 14
+text = "THE CARD TABLE"
+script = ExtResource("label")
+
+[node name="Hero" type="HBoxContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Copy" type="VBoxContainer" parent="Hero"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.2
+alignment = 1
+
+[node name="Eyebrow" type="Label" parent="Hero/Copy"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.812, 0.667, 0.4, 1)
+theme_override_font_sizes/font_size = 13
+text = "A DUEL OF INK & INTENT"
+script = ExtResource("label")
+
+[node name="Title" type="Label" parent="Hero/Copy"]
+layout_mode = 2
+theme_override_fonts/font = SubResource("Serif")
+theme_override_font_sizes/font_size = 54
+text = "The next move\nis unwritten."
+script = ExtResource("label")
+
+[node name="Description" type="Label" parent="Hero/Copy"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.608, 0.663, 0.643, 1)
+theme_override_font_sizes/font_size = 18
+text = "Read the rival's line. Rewrite its order.\nCompose a Pattern they never saw coming."
+autowrap_mode = 3
+script = ExtResource("label")
+
+[node name="JourneyButton" type="Button" parent="Hero/Copy"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.082, 0.141, 0.149, 1)
+theme_override_colors/font_hover_color = Color(0.082, 0.141, 0.149, 1)
+theme_override_colors/font_pressed_color = Color(0.082, 0.141, 0.149, 1)
+theme_override_styles/normal = SubResource("PrimaryNormal")
+theme_override_styles/hover = SubResource("PrimaryHover")
+theme_override_styles/pressed = SubResource("PrimaryNormal")
+text = "Begin a journey  →"
+script = ExtResource("button")
+
+[node name="SecondaryActions" type="HBoxContainer" parent="Hero/Copy"]
+layout_mode = 2
+
+[node name="SingleDuelButton" type="Button" parent="Hero/Copy/SecondaryActions"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Single duel"
+script = ExtResource("button")
+
+[node name="CustomDuelButton" type="Button" parent="Hero/Copy/SecondaryActions"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Custom duel"
+script = ExtResource("button")
+
+[node name="DecksButton" type="Button" parent="Hero/Copy/SecondaryActions"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Your decks"
+script = ExtResource("button")
+
+[node name="QuitButton" type="Button" parent="Hero/Copy/SecondaryActions"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Quit"
+script = ExtResource("button")
+
+[node name="FolioArtwork" type="Control" parent="Hero"]
+custom_minimum_size = Vector2(340, 320)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+script = ExtResource("art")
+
+[node name="MechanicsFooter" type="PanelContainer" parent="."]
+layout_mode = 2
+theme_override_styles/panel = SubResource("FooterPanel")
+
+[node name="Summary" type="Label" parent="MechanicsFooter"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.812, 0.667, 0.4, 1)
+theme_override_font_sizes/font_size = 13
+text = "CADENCE  /  Change your rhythm     ·     REWRITE  /  Reshape their line     ·     PATTERNS  /  Compose your answer"
+script = ExtResource("label")
+
+[node name="SaveNote" type="Label" parent="."]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.608, 0.663, 0.643, 1)
+theme_override_font_sizes/font_size = 11
+text = "YOUR DECKS ARE SAVED ON THIS DEVICE"
+script = ExtResource("label")
+
+[connection signal="pressed" from="Hero/Copy/JourneyButton" to="." method="_on_journey_pressed"]
+[connection signal="pressed" from="Hero/Copy/SecondaryActions/SingleDuelButton" to="." method="_on_single_pressed"]
+[connection signal="pressed" from="Hero/Copy/SecondaryActions/CustomDuelButton" to="." method="_on_custom_pressed"]
+[connection signal="pressed" from="Hero/Copy/SecondaryActions/DecksButton" to="." method="_on_decks_pressed"]
+[connection signal="pressed" from="Hero/Copy/SecondaryActions/QuitButton" to="." method="_on_quit_pressed"]
