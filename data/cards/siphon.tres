@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/cards/card_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/effects/card_effect.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/effects/damage_effect.gd" id="effect0"]
+[ext_resource type="Script" path="res://scripts/effects/heal_effect.gd" id="effect1"]
+
+[sub_resource type="Resource" id="Effect0"]
+script = ExtResource("effect0")
+damage = 5
+
+[sub_resource type="Resource" id="Effect1"]
+script = ExtResource("effect1")
+amount = 3
+
+[resource]
+script = ExtResource("1")
+id = &"siphon"
+display_name = "Siphon"
+category = 0
+description = "Deal 5 damage. Heal 3 HP."
+effects = Array[ExtResource("2")]([SubResource("Effect0"), SubResource("Effect1")])

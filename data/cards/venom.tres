@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/cards/card_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/effects/card_effect.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/effects/apply_poison_effect.gd" id="3"]
+
+[sub_resource type="Resource" id="Poison"]
+script = ExtResource("3")
+stacks = 3
+
+[resource]
+script = ExtResource("1")
+id = &"venom"
+display_name = "Venom"
+description = "Apply 3 Poison."
+effects = Array[ExtResource("2")]([SubResource("Poison")])

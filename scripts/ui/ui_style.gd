@@ -14,14 +14,14 @@ static func box(color: Color, border: Color = Color("334546")) -> StyleBoxFlat:
 	style.set_corner_radius_all(10)
 	style.content_margin_left = 20
 	style.content_margin_right = 20
-	style.content_margin_top = 16
-	style.content_margin_bottom = 16
+	style.content_margin_top = 10
+	style.content_margin_bottom = 10
 	return style
 
 
 static func theme() -> Theme:
 	var result := Theme.new()
-	result.default_font_size = 18
+	result.default_font_size = 16
 	result.set_color("font_color", "Label", INK)
 	result.set_color("font_color", "Button", INK)
 	result.set_stylebox("normal", "Button", box(Color("203436")))
@@ -31,7 +31,7 @@ static func theme() -> Theme:
 	result.set_stylebox("focus", "Button", box(Color("304c4c"), GOLD))
 	result.set_stylebox("normal", "LineEdit", box(Color("102426")))
 	result.set_color("font_color", "LineEdit", INK)
-	result.set_constant("separation", "VBoxContainer", 14)
+	result.set_constant("separation", "VBoxContainer", 10)
 	result.set_constant("separation", "HBoxContainer", 14)
 	return result
 
@@ -48,7 +48,7 @@ static func label(parent: Node, text: String, size: int = 18, color: Color = INK
 static func button(parent: Node, text: String, action: Callable) -> Button:
 	var node := Button.new()
 	node.text = text
-	node.custom_minimum_size.y = 46
+	node.custom_minimum_size.y = 38
 	node.pressed.connect(action)
 	parent.add_child(node)
 	return node

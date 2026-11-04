@@ -1,6 +1,6 @@
 class_name StarterDeck
 extends RefCounted
-## Prototype content only. Each call creates independent runtime copies.
+## Starter content. Each call creates independent runtime copies.
 
 const STRIKE: CardDefinition = preload("res://data/cards/strike.tres")
 const BLOCK: CardDefinition = preload("res://data/cards/block.tres")

@@ -12,6 +12,7 @@ block_amount = 8
 script = ExtResource("1_h1rc3")
 id = &"block"
 display_name = "Block"
+category = 1
 description = "Gain 8 Block"
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_block")])
 metadata/_custom_type_script = "uid://crv5fmkqu8grk"

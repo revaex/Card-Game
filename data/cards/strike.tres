@@ -12,6 +12,7 @@ damage = 10
 script = ExtResource("1_j7hgg")
 id = &"strike"
 display_name = "Strike"
+category = 0
 description = "Deal 10 Damage"
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_damage")])
 metadata/_custom_type_script = "uid://crv5fmkqu8grk"

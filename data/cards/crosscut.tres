@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/cards/card_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/effects/card_effect.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/effects/damage_effect.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/effects/draw_effect.gd" id="4"]
+
+[sub_resource type="Resource" id="Damage"]
+script = ExtResource("3")
+damage = 7
+
+[sub_resource type="Resource" id="Draw"]
+script = ExtResource("4")
+amount = 1
+
+[resource]
+script = ExtResource("1")
+id = &"crosscut"
+display_name = "Crosscut"
+description = "Deal 7 damage. Draw 1 card."
+category = 0
+effects = Array[ExtResource("2")]([SubResource("Damage"), SubResource("Draw")])
