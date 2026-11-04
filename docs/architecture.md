@@ -212,3 +212,32 @@ the journey until it is explicitly ended.
 
 Next: playtest the full route, reward tradeoffs, and category edits; add route
 variation only after those decisions feel worthwhile.
+
+The combat board uses paper intent slips, drawn pile stacks, and whole-card play
+targets. The native Button behind each card preserves focus and keyboard activation;
+the opaque card frame remains visible during hover and focus. End Turn is the main
+filled action, while navigation, speed, Patterns help, and Lab use quieter controls.
+
+board_tooltip.gd provides a fully opaque, wrapped panel. InfoLabel, InfoButton,
+and InfoProgress return it from Godot's custom tooltip hook. Labels use PASS mouse
+filtering so their explanations are hoverable. The theme also supplies an opaque
+TooltipPanel for controls using the native fallback. Health and block have separate
+help targets; energy, turn, Cadence, artifact, Poison, Patterns, piles, intent status,
+and unavailable card actions all explain their rules and timing. These changes
+affect presentation only; the encounter rules are unchanged.
+
+The rival line remains visible during playback, marking the next affordable card
+and distinguishing planned cards from reserves explicitly. The empty hand area
+shows the most recently resolved rival card as a disabled reference, including
+when resuming a paused turn. The energy indicator follows the acting side.
+
+combat_feedback.gd displays short-lived colored badges above the affected HP bar.
+The table compares snapshots after completed session changes to report actual HP,
+block, and Poison differences. Turn transitions distinguish expired block from
+attack absorption and Poison ticks from attack damage. Zero-value healing creates
+no gain badge. Feedback and its tweens belong to the table and are freed with it;
+they never advance gameplay. Pattern and pile dialogs pause only the presentation
+Timer and resume it when closed if a rival turn is still active.
+
+tests/board_feedback.gd verifies state-to-feedback behavior, rival-line progression,
+dialog pause/resume, presentation-card restoration, and lifecycle cleanup.

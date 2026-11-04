@@ -4,6 +4,7 @@ extends PanelContainer
 const Style = preload("res://scripts/ui/ui_style.gd")
 signal inspected
 signal inspection_ended
+const Tooltip = preload("res://scripts/ui/board_tooltip.gd")
 
 class Emblem extends Control:
 	var kind: String
@@ -35,8 +36,8 @@ class Emblem extends Control:
 					draw_rect(Rect2(center + offset, Vector2(22, 30)), accent, false, 2)
 
 
-func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_action: Callable = Callable(), effective_text: String = "", details: String = "", pattern_name: String = "") -> void:
-	custom_minimum_size = Vector2(174, 226)
+func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_action: Callable = Callable(), effective_text: String = "", details: String = "", pattern_name: String = "", action_hint: String = "Unavailable") -> void:
+	custom_minimum_size = Vector2(174, 210)
 	size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	var kind := "TACTIC"
 	var accent := Color("c5ae77")
@@ -56,6 +57,8 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	if card.category_override >= 0:
 		accent = [Color("d88b78"), Color("79bce0"), Color("c5ae77")][card.get_category()]
 	var frame := Style.box(Color("dfd3b6"), accent)
+	if not playable:
+		frame.bg_color = Color("c4bea9")
 	if not pattern_name.is_empty():
 		frame.border_color = Color("f4cc70")
 	frame.set_border_width_all(2)
@@ -111,17 +114,41 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	description.custom_minimum_size = Vector2(140, 36)
 	description.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var actions := Style.row(content)
-	actions.add_theme_constant_override("separation", 4)
-	var play := Style.button(actions, "Play", play_action)
+	var footer := Style.label(content, "CLICK TO PLAY" if playable else action_hint.to_upper(), 11, Color("3d514b") if playable else Color("555d53"))
+	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var hit_area := Control.new()
+	hit_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(hit_area)
+	var play := Style.button(hit_area, "", play_action)
 	play.name = "Play"
-	play.custom_minimum_size.y = 30
-	play.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	play.add_theme_font_size_override("font_size", 14)
+	play.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	play.offset_left = -8
+	play.offset_right = 8
+	play.offset_top = -8
+	play.offset_bottom = 8
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		play.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+	var focus := StyleBoxFlat.new()
+	focus.bg_color = Color(0, 0, 0, 0)
+	focus.border_color = Color("fff0c4")
+	focus.set_border_width_all(3)
+	focus.set_corner_radius_all(6)
+	play.add_theme_stylebox_override("focus", focus)
 	play.disabled = not playable
+	play.tooltip_text = tooltip_text + "\n" + ("Click this card, or focus it and press Enter / Space to play." if playable else action_hint)
+	play.mouse_entered.connect(func(): inspected.emit())
+	play.mouse_exited.connect(func(): inspection_ended.emit())
 	play.focus_entered.connect(func(): inspected.emit())
 	play.focus_exited.connect(func(): inspection_ended.emit())
 	if not exhaust_action.is_null():
-		var exhaust := Style.button(actions, "×", exhaust_action)
-		exhaust.custom_minimum_size.y = 30
+		var exhaust := Style.button(play, "×", exhaust_action)
+		exhaust.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+		exhaust.offset_left = -28
+		exhaust.offset_bottom = 28
+		exhaust.custom_minimum_size = Vector2(28, 28)
+		Style.quiet(exhaust)
 		exhaust.tooltip_text = "Exhaust this card (testing tool)"
+
+
+func _make_custom_tooltip(text: String) -> Object:
+	return Tooltip.new(text)

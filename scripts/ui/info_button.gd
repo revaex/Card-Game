@@ -1,0 +1,7 @@
+extends Button
+
+const Tooltip = preload("res://scripts/ui/board_tooltip.gd")
+
+
+func _make_custom_tooltip(text: String) -> Object:
+	return Tooltip.new(text)

@@ -33,12 +33,30 @@ func run() -> void:
 	ui.enemy_index = 0
 	ui.show_table()
 	var table = ui.body.get_node("CombatTable")
+	await process_frame
 	check(table.player_piles.hand.size() == 5, "Player draws opening hand")
 	check(table.enemy_piles.draw_pile.size() == 5 and table.enemy_piles.hand.size() == 5, "Enemy prepares its upcoming hand")
 	check(table.player_piles.hand[0] != table.enemy_piles.draw_pile[0], "Same recipe creates independent sides")
 	var played_card = table.player_piles.hand[0]
 	var play_button: Button = table.hand_row.get_child(0).find_child("Play", true, false)
-	play_button.pressed.emit()
+	var card_view: Control = table.hand_row.get_child(0)
+	check(play_button.get_global_rect().size.is_equal_approx(card_view.get_global_rect().size), "Whole card is the play target")
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = card_view.get_global_rect().get_center()
+	root.push_input(press, true)
+	var release := press.duplicate() as InputEventMouseButton
+	release.pressed = false
+	root.push_input(release, true)
+	var tooltip: Control = play_button.call("_make_custom_tooltip", play_button.tooltip_text)
+	check(is_equal_approx(tooltip.get_theme_stylebox("panel").bg_color.a, 1.0), "Custom card tooltip background is fully opaque")
+	tooltip.free()
+	check(is_equal_approx(ui.theme.get_stylebox("panel", "TooltipPanel").bg_color.a, 1.0), "Fallback tooltip theme is also opaque")
+	check(table.energy_label.tooltip_text.contains("Surge") and table.energy_label.mouse_filter != Control.MOUSE_FILTER_IGNORE, "Energy help is hoverable")
+	check(table.relic_label.tooltip_text.contains("WAR DRUM") and table.turn_label.tooltip_text.contains("TURN"), "Artifact and turn information have help")
+	check(table.player_hp.get_node("Overlay/BlockText").tooltip_text.contains("Poison"), "Block text explains damage absorption and Poison")
+	check(table.pile_row.get_node("DrawPile").tooltip_text.contains("shuffled"), "Draw pile stack explains recycling")
 	check(table.session.energy == 2 and table.player_piles.discard_pile.has(played_card), "UI play resolves effect and spends energy")
 	check(table.player_hp.value == table.session.player.health and table.enemy_hp.value == table.session.enemy.health, "HP bars match combat state")
 	check(table.combat_log.text.contains("played"), "Combat log displays resolved actions")
@@ -139,7 +157,16 @@ func run() -> void:
 	check(first_view.find_child("Description", true, false).text == "Deal 11 damage.", "Hand card displays effective attack including pending artifact trigger")
 	first_view.inspected.emit()
 	check(attacks.message.text.contains("11 HP") and attacks.session.statistics.player.cards == 0, "Card inspection shows forecast without playing the card")
-	first_view.find_child("Play", true, false).pressed.emit()
+	var keyboard_play: Button = first_view.find_child("Play", true, false)
+	keyboard_play.grab_focus()
+	var key_press := InputEventKey.new()
+	key_press.keycode = KEY_ENTER
+	key_press.pressed = true
+	root.push_input(key_press, true)
+	var key_release := key_press.duplicate() as InputEventKey
+	key_release.pressed = false
+	root.push_input(key_release, true)
+	check(attacks.session.statistics.player.cards == 1, "Keyboard Enter plays the focused card")
 	check(attacks.hand_row.get_child(0).find_child("Description", true, false).text == "Deal 12 damage.", "Card text refreshes after artifact activation")
 	attacks.session.enemy.take_damage(28)
 	attacks.hand_row.get_child(0).find_child("Play", true, false).pressed.emit()

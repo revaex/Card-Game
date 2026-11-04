@@ -330,11 +330,15 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var speed := CheckButton.new()
 	speed.text = "Fast turns"
+	speed.custom_minimum_size.x = 128
 	speed.button_pressed = fast_rival_turns
 	speed.tooltip_text = "Rival card interval: 0.2 seconds when enabled, 0.65 seconds otherwise."
+	Style.quiet(speed)
 	toolbar.add_child(speed)
 	speed.toggled.connect(set_fast_turns)
-	Style.button(toolbar, "Journey" if in_journey else "← Leave table", show_journey_overview if in_journey else show_setup)
+	var leave := Style.button(toolbar, "Journey" if in_journey else "← Leave table", show_journey_overview if in_journey else show_setup)
+	Style.quiet(leave)
+	leave.tooltip_text = "JOURNEY\nPause this duel and view your route. Returning resumes the same hand, HP, and rival turn." if in_journey else "LEAVE TABLE\nReturn to deck preparation. This single duel is discarded; saved decks are unchanged."
 	var table := Table.new()
 	table.name = "CombatTable"
 	table.size_flags_vertical = Control.SIZE_EXPAND_FILL

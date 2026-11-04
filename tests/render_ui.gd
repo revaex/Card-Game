@@ -139,4 +139,33 @@ func run() -> void:
 	table.end_turn()
 	ui.result_overlay.find_child("Rematch", true, false).pressed.emit()
 	await capture("res://.godot/journey-summary-preview.png")
+	ui.end_journey()
+	ui.library.decks.assign([ui.library.counterpoint_recipe()])
+	ui.player_index = 0
+	ui.enemy_index = 0
+	ui.start_custom_duel()
+	ui.show_table()
+	table = ui.body.get_node("CombatTable")
+	await capture("res://.godot/board-polish-preview.png")
+	var first_view: Control = table.hand_row.get_child(0)
+	var play: Button = first_view.find_child("Play", true, false)
+	var tooltip: Control = play.call("_make_custom_tooltip", play.tooltip_text)
+	root.add_child(tooltip)
+	tooltip.position = Vector2(720, 240)
+	await capture("res://.godot/board-tooltip-preview.png")
+	tooltip.queue_free()
+	ui.library.decks.assign([{"name": "Guard", "cards": {"block": 5}}, {"name": "Assault", "cards": {"strike": 5}}])
+	ui.player_index = 0
+	ui.enemy_index = 1
+	ui.show_table()
+	table = ui.body.get_node("CombatTable")
+	await process_frame
+	await process_frame
+	table.play_card(table.player_piles.hand[0])
+	await capture("res://.godot/block-feedback-preview.png")
+	table.end_turn()
+	await capture("res://.godot/rival-next-preview.png")
+	table.advance_rival_presentation()
+	await capture("res://.godot/rival-feedback-preview.png")
+	table.rival_timer.stop()
 	quit()
