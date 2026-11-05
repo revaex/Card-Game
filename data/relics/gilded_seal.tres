@@ -1,0 +1,12 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/artifacts/relic_definition.gd" id="relic"]
+
+[resource]
+script = ExtResource("relic")
+id = "gilded_seal"
+title = "Gilded Seal"
+description = "Start each duel with 1 extra energy on your opening turn."
+price = 75
+perk = 3
+requires_journey = true

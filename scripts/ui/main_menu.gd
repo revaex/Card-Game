@@ -3,6 +3,7 @@ extends VBoxContainer
 
 signal journey_requested
 signal lesson_requested
+signal relics_requested
 signal single_duel_requested
 signal custom_duel_requested
 signal decks_requested
@@ -14,12 +15,20 @@ func set_has_journey(active: bool) -> void:
 	%JourneyButton.text = "Continue journey  →" if active else "Begin a journey  →"
 
 
+func set_relic_marks(marks: int) -> void:
+	%RelicsButton.text = "Relics · %d Marks" % marks if marks > 0 else "Relic collection"
+
+
 func _on_journey_pressed() -> void:
 	journey_requested.emit()
 
 
 func _on_lesson_pressed() -> void:
 	lesson_requested.emit()
+
+
+func _on_relics_pressed() -> void:
+	relics_requested.emit()
 
 
 func _on_single_pressed() -> void:

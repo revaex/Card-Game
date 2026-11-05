@@ -54,6 +54,8 @@ static func button(parent: Node, text: String, action: Callable) -> Button:
 	var node := InfoButton.new()
 	node.text = text
 	node.custom_minimum_size.y = 38
+	if parent is VBoxContainer:
+		node.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	node.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	node.pressed.connect(action)
 	parent.add_child(node)

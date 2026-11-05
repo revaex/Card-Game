@@ -9,6 +9,7 @@
 
 [resource]
 script = ExtResource("rival")
+id = "warden"
 display_name = "The Warden"
 epithet = "Every wall has a missing word."
 description = "Builds a guard before attacking. Moving a defensive card may let a Strike move up."

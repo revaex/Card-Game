@@ -3,6 +3,9 @@ extends Control
 
 const Style = preload("res://scripts/ui/ui_style.gd")
 const Library = preload("res://scripts/content/deck_library.gd")
+const RelicCollection = preload("res://scripts/content/relic_collection.gd")
+const RelicPage = preload("res://scenes/ui/relic_collection.tscn")
+const RelicTile = preload("res://scenes/ui/relic_tile.tscn")
 const Table = preload("res://scenes/ui/combat_table.tscn")
 const TableToolbar = preload("res://scenes/ui/table_toolbar.tscn")
 const OptionsMenu = preload("res://scenes/ui/options_menu.tscn")
@@ -32,7 +35,9 @@ var player_index: int = -1
 var enemy_index: int = -1
 var editing: int = -1
 var screen: String = ""
-var use_war_drum: bool = true
+var relics := RelicCollection.new()
+var _paid_session: RefCounted
+var _spoils_text := ""
 var fast_rival_turns: bool = false
 var combat_sound: bool = true
 var combat_motion: bool = true
@@ -50,10 +55,12 @@ var result_overlay: Control
 
 func _ready() -> void:
 	load_options()
+	relics.load_profile()
 	if OS.has_feature("web"):
 		main_menu.find_child("QuitButton", true, false).hide()
 	main_menu.journey_requested.connect(_on_menu_journey)
 	main_menu.lesson_requested.connect(show_lesson)
+	main_menu.relics_requested.connect(show_relics)
 	main_menu.single_duel_requested.connect(show_rivals)
 	main_menu.custom_duel_requested.connect(start_custom_duel)
 	main_menu.decks_requested.connect(func(): show_library(false))
@@ -91,6 +98,7 @@ func show_menu() -> void:
 	clear("", "")
 	body.hide()
 	main_menu.set_has_journey(journey != null)
+	main_menu.set_relic_marks(relics.marks)
 	main_menu.show()
 
 
@@ -285,16 +293,69 @@ func show_setup() -> void:
 			if side == "player" and counts.has(0):
 				Style.label(panel, "Patterns use all three categories.", 13, Style.GOLD)
 				Style.button(panel, "Try the Counterpoint deck", use_counterpoint_deck)
-	var artifact := CheckButton.new()
-	artifact.text = "War Drum: each Strike adds +1 attack damage for this encounter (before damage)."
-	artifact.button_pressed = use_war_drum
-	artifact.toggled.connect(func(enabled: bool): use_war_drum = enabled)
-	body.add_child(artifact)
-	Style.button(body, "Create / edit decks", show_library.bind(true))
-	var confirm := Style.button(body, "Begin the journey  →" if preparing_journey else "Begin the duel  →", begin_journey if preparing_journey else show_table)
+	var equipment := Style.row(body)
+	var equipped := relics.equipped()
+	Style.label(equipment, "RELIC   /   " + (equipped.title if equipped != null else "None"), 15, Style.GOLD)
+	Style.button(equipment, "Change relic", show_relics.bind(true))
+	var actions := HFlowContainer.new()
+	body.add_child(actions)
+	var confirm := Style.button(actions, "Begin the journey  →" if preparing_journey else "Begin the duel  →", begin_journey if preparing_journey else show_table)
 	Style.primary(confirm)
 	confirm.disabled = not valid_selection()
-	Style.button(body, "← Main menu", show_menu)
+	Style.button(actions, "Create / edit decks", show_library.bind(true))
+	Style.button(actions, "← Main menu", show_menu)
+
+
+func show_relics(from_setup: bool = false) -> void:
+	screen = "relics"
+	clear("Relic collection", "Equip one relic for your next duel or journey.")
+	var page := RelicPage.instantiate()
+	body.add_child(page)
+	page.get_node("%Balance").text = "%d MARKS" % relics.marks
+	page.get_node("%Earnings").text = "Named rival victories earn %d Marks. Completing a Journey earns %d more." % [RelicCollection.DUEL_MARKS, RelicCollection.JOURNEY_BONUS]
+	page.get_node("%Back").pressed.connect(show_setup if from_setup else show_menu)
+	for relic in RelicCollection.CATALOG:
+		var tile := RelicTile.instantiate()
+		tile.name = relic.id
+		page.get_node("%Relics").add_child(tile)
+		tile.get_node("%Title").text = relic.title
+		tile.get_node("%Description").text = relic.description
+		var tier := "STARTER" if relic.price == 0 else ("JOURNEY RELIC" if relic.requires_journey else ("RIVAL RELIC" if not relic.required_rival.is_empty() else "COLLECTION RELIC"))
+		tile.get_node("%Tier").text = tier
+		var action: Button = tile.get_node("%Action")
+		if relics.owned.has(relic.id):
+			var equipped: bool = relics.equipped_id == relic.id
+			tile.get_node("%Status").text = "EQUIPPED" if equipped else "OWNED"
+			action.text = "Unequip" if equipped else "Equip"
+			action.pressed.connect(change_equipped_relic.bind("" if equipped else relic.id, from_setup))
+		else:
+			var requirement := relic_requirement(relic)
+			tile.get_node("%Status").text = requirement if not relics.meets_milestone(relic) else ("Ready to unlock" if relics.marks >= relic.price else "%d more Marks needed" % (relic.price - relics.marks))
+			action.text = "Unlock · %d Marks" % relic.price
+			action.disabled = not relics.meets_milestone(relic) or relics.marks < relic.price
+			action.pressed.connect(unlock_relic.bind(relic, from_setup))
+	if not relics.error_message.is_empty():
+		Style.label(body, relics.error_message, 15, Color("eea89b"))
+
+
+func relic_requirement(relic: Resource) -> String:
+	if relic.requires_journey:
+		return "Complete a Journey"
+	for rival in Rivals.ALL:
+		if rival.id == relic.required_rival:
+			var title: String = rival.display_name
+			return "Defeat " + ("the " + title.trim_prefix("The ") if title.begins_with("The ") else title)
+	return ""
+
+
+func change_equipped_relic(id: String, from_setup: bool) -> void:
+	relics.equip(id)
+	show_relics(from_setup)
+
+
+func unlock_relic(relic: Resource, from_setup: bool) -> void:
+	relics.buy(relic)
+	show_relics(from_setup)
 
 
 func show_deck_cards(index: int) -> void:
@@ -340,7 +401,9 @@ func show_table() -> void:
 		return
 	var enemy_name: String = selected_rival.display_name if selected_rival != null else library.decks[enemy_index].name
 	var enemy_cards: Array[CardInstance] = selected_rival.create_deck() if selected_rival != null else library.instantiate_deck(library.decks[enemy_index])
-	mount_table(library.instantiate_deck(library.decks[player_index]), enemy_cards, library.decks[player_index].name, enemy_name, selected_rival)
+	var player_cards: Array[CardInstance] = library.instantiate_deck(library.decks[player_index])
+	var duel := CombatSession.new(player_cards, enemy_cards, true, false, selected_rival, 30, relics.equipped())
+	mount_table(player_cards, enemy_cards, library.decks[player_index].name, enemy_name, selected_rival, duel)
 
 
 func show_lesson() -> void:
@@ -384,7 +447,7 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	table.guided = guided
 	table.configure_controller(controller_shortcuts, swap_shoulders, end_shortcut)
 	table.combat_audio.set_enabled(combat_sound)
-	table.setup(player_cards, enemy_cards, use_war_drum, rival, existing)
+	table.setup(player_cards, enemy_cards, false, rival, existing)
 	if guided:
 		table.lesson.completed.connect(show_journey_setup)
 		table.lesson.get_node("%Continue").grab_focus()
@@ -564,7 +627,8 @@ func show_result(summary: Dictionary) -> void:
 	screen = "result"
 	result_overlay = CombatResult.instantiate()
 	add_child(result_overlay)
-	if body.get_node("CombatTable").guided:
+	var table := body.get_node("CombatTable")
+	if table.guided:
 		result_overlay.setup(summary, show_lesson, show_menu, review_result, "Retry lesson", "Main menu")
 	elif _table_is_journey and journey != null:
 		if journey.phase == Journey.Phase.DUEL:
@@ -573,6 +637,28 @@ func show_result(summary: Dictionary) -> void:
 		result_overlay.setup(summary, next, end_journey, review_result, "Choose your next step" if journey.phase == Journey.Phase.REWARD else "Journey summary", "End journey")
 	else:
 		result_overlay.setup(summary, show_table, show_setup, review_result)
+	show_victory_spoils(table.session, summary)
+
+
+func show_victory_spoils(session: RefCounted, summary: Dictionary) -> void:
+	if summary.outcome != "Victory" or session.rival_definition == null:
+		return
+	if _paid_session != session:
+		var rival_id: String = session.rival_definition.id
+		var finished: bool = _table_is_journey and journey != null and journey.phase == Journey.Phase.COMPLETE
+		var locked := RelicCollection.CATALOG.filter(func(relic): return not relics.meets_milestone(relic))
+		var amount := relics.record_victory(rival_id, finished)
+		if amount == 0:
+			result_overlay.set_spoils(relics.error_message)
+			return
+		_paid_session = session
+		_spoils_text = "+%d MARKS" % amount
+		var unlocked := locked.filter(func(relic): return relics.meets_milestone(relic))
+		if unlocked.size() == 1:
+			_spoils_text += "   ·   %s milestone reached" % unlocked[0].title
+		elif unlocked.size() > 1:
+			_spoils_text += "   ·   %d relic milestones reached" % unlocked.size()
+	result_overlay.set_spoils(_spoils_text)
 
 
 func show_journey_setup() -> void:
@@ -588,7 +674,7 @@ func begin_journey() -> void:
 	if not preparing_journey or not valid_selection() or journey != null:
 		return
 	journey_deck_name = library.decks[player_index].name
-	journey = Journey.new(library.instantiate_deck(library.decks[player_index]), use_war_drum)
+	journey = Journey.new(library.instantiate_deck(library.decks[player_index]), false, relics.equipped())
 	preparing_journey = false
 	show_journey_overview()
 

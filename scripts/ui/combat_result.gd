@@ -1,4 +1,8 @@
 extends Control
+
+func set_spoils(text: String) -> void:
+	%Spoils.text = text
+	%Spoils.visible = not text.is_empty()
 ## Encounter summary and navigation. No progression or saved-deck mutation.
 
 const STAT_KEYS = ["cards", "energy", "damage", "absorbed", "healed", "poison_applied", "rewrites", "patterns"]

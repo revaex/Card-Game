@@ -1,0 +1,36 @@
+[gd_scene format=3]
+
+[node name="RelicCollection" type="VBoxContainer"]
+theme_override_constants/separation = 15
+
+[node name="Header" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="Balance" type="Label" parent="Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.74, 0.48, 1)
+theme_override_font_sizes/font_size = 21
+text = "0 MARKS"
+
+[node name="Back" type="Button" parent="Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "← Back"
+mouse_default_cursor_shape = 2
+
+[node name="Earnings" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+text = "Named rival victories earn 20 Marks. Completing a Journey earns 35 more."
+
+[node name="Rule" type="HSeparator" parent="."]
+layout_mode = 2
+
+[node name="Relics" type="HFlowContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12

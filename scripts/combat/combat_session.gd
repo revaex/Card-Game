@@ -6,7 +6,9 @@ signal card_played(card: CardInstance, by_player: bool)
 
 const ENERGY_PER_TURN: int = 3
 const WarDrum = preload("res://scripts/artifacts/war_drum.gd")
+const Relic = preload("res://scripts/artifacts/relic_definition.gd")
 var war_drum: RefCounted
+var equipped_relic: Relic
 var player := Combatant.new(30)
 var enemy := Combatant.new(40)
 var player_piles: CardPiles
@@ -33,7 +35,7 @@ var rewrote_this_turn: bool = false
 var rival_definition: Resource
 
 
-func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], shuffle: bool = true, use_war_drum: bool = false, rival: Resource = null, starting_health: int = 30) -> void:
+func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], shuffle: bool = true, use_war_drum: bool = false, rival: Resource = null, starting_health: int = 30, relic: Relic = null) -> void:
 	assert(starting_health > 0 and starting_health <= player.max_health)
 	player.health = starting_health
 	rival_definition = rival
@@ -41,7 +43,8 @@ func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 		enemy = Combatant.new(rival.health)
 	for side in statistics:
 		statistics[side] = {"cards": 0, "energy": 0, "damage": 0, "absorbed": 0, "healed": 0, "poison_applied": 0, "rewrites": 0, "patterns": 0}
-	if use_war_drum:
+	equipped_relic = relic
+	if use_war_drum or (relic != null and relic.perk == Relic.Perk.WAR_DRUM):
 		war_drum = WarDrum.new()
 	player_piles = CardPiles.new(player_cards, shuffle)
 	enemy_piles = CardPiles.new(enemy_cards, shuffle)
@@ -49,7 +52,8 @@ func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 		rival_definition.arrange_opening_draw(enemy_piles)
 	player_piles.draw_cards(5)
 	prepare_rival_hand()
-	log_event("Turn 1 — You drew %d cards. Energy 3." % player_piles.hand.size())
+	apply_turn_relic()
+	log_event("Turn 1 — You drew %d cards. Energy %d." % [player_piles.hand.size(), energy])
 	log_event("Rival prepared %d cards for its next turn." % enemy_piles.hand.size())
 	if rival_definition != null:
 		log_event("%s doctrine: %s. Rewrite changes the revealed order." % [rival_definition.display_name, rival_definition.doctrine_text()])
@@ -59,6 +63,28 @@ func prepare_rival_hand() -> void:
 	enemy_piles.draw_cards(5)
 	if rival_definition != null:
 		rival_definition.arrange_hand(enemy_piles)
+
+
+func apply_turn_relic() -> void:
+	if equipped_relic == null:
+		return
+	match equipped_relic.perk:
+		Relic.Perk.GUARD_SIGIL:
+			player.gain_block(3)
+			log_event("Guard Sigil: gain 3 Block.")
+		Relic.Perk.SCRIBE_QUILL:
+			if round_number == 1:
+				cadence = 1
+				log_event("Scribe’s Quill: start with 1 Cadence.")
+		Relic.Perk.GILDED_SEAL:
+			if round_number == 1:
+				energy += 1
+				log_event("Gilded Seal: start with 1 extra energy.")
+		Relic.Perk.WARDEN_AEGIS:
+			if round_number == 1:
+				player.gain_block(6)
+				player_piles.draw_cards(1)
+				log_event("Warden’s Aegis: begin with 6 Block and an extra opening draw.")
 
 
 func log_event(text: String) -> void:
@@ -327,6 +353,7 @@ func advance_rival_turn() -> bool:
 		start_turn(player, true)
 		if outcome.is_empty():
 			energy = ENERGY_PER_TURN
+			apply_turn_relic()
 			last_category = -1
 			rewrote_this_turn = false
 			pattern_history.clear()

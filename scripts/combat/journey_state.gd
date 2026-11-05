@@ -18,13 +18,15 @@ var summaries: Array[Dictionary] = []
 var edits: Array[String] = []
 var active_session: RefCounted
 var use_war_drum: bool
+var equipped_relic: Resource
 
 
-func _init(cards: Array[CardInstance], artifact_enabled: bool = true) -> void:
+func _init(cards: Array[CardInstance], artifact_enabled: bool = true, relic: Resource = null) -> void:
 	assert(not cards.is_empty())
 	for card in cards:
 		roster.append(card.copy_for_combat())
 	use_war_drum = artifact_enabled
+	equipped_relic = relic
 
 
 func current_rival() -> Resource:
@@ -38,7 +40,7 @@ func start_encounter() -> RefCounted:
 	for card in roster:
 		cards.append(card.copy_for_combat())
 	var rival := current_rival()
-	active_session = Session.new(cards, rival.create_deck(), true, use_war_drum, rival, health)
+	active_session = Session.new(cards, rival.create_deck(), true, use_war_drum, rival, health, equipped_relic)
 	phase = Phase.DUEL
 	return active_session
 

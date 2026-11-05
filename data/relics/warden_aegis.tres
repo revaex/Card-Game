@@ -1,0 +1,12 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/artifacts/relic_definition.gd" id="relic"]
+
+[resource]
+script = ExtResource("relic")
+id = "warden_aegis"
+title = "Warden’s Aegis"
+description = "Start each duel with 6 Block and draw 1 extra card in your opening hand."
+price = 35
+perk = 4
+required_rival = "warden"

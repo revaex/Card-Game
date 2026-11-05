@@ -1,0 +1,11 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/artifacts/relic_definition.gd" id="relic"]
+
+[resource]
+script = ExtResource("relic")
+id = "guard_sigil"
+title = "Guard Sigil"
+description = "Start each of your turns with 3 Block."
+price = 20
+perk = 1

@@ -220,7 +220,7 @@ func refresh() -> void:
 	enemy_label.tooltip_text = session.rival_definition.description + "\nPrepared order: " + session.rival_definition.doctrine_text() if session.rival_definition != null else "Custom rival deck"
 	status_label.text = "YOU"
 	status_label.tooltip_text = "YOU\nYour combatant. Health carries between journey encounters; block, Poison, energy, and encounter bonuses reset for the next duel."
-	energy_label.text = "%d / 3 ENERGY" % session.energy if session.player_turn else "WAITING"
+	energy_label.text = ("%d ENERGY" % session.energy if session.energy > 3 else "%d / 3 ENERGY" % session.energy) if session.player_turn else "WAITING"
 	enemy_energy_label.text = "%d / 3 ENERGY" % session.enemy_energy
 	enemy_energy_label.visible = not session.player_turn and session.outcome.is_empty()
 	energy_label.tooltip_text = "ENERGY\nPay the number on a card to play it. Restore 3 energy at the start of your turn. Surge can grant extra energy. Unspent energy does not carry forward."
@@ -245,8 +245,8 @@ func refresh() -> void:
 	artifact_label.tooltip_text = "CADENCE & REWRITE\nThe first card each turn or a category change earns 1 Cadence, up to 3. Repeating the previous category earns none. Cadence carries between turns. Spend 2, once per turn, to move a rival card to the back of its hand."
 	%CadencePips.text = "◆ ".repeat(session.cadence) + "◇ ".repeat(session.CADENCE_CAP - session.cadence)
 	%CadencePips.tooltip_text = artifact_label.tooltip_text
-	relic_label.text = "WAR DRUM +%d" % session.war_drum.damage_bonus if session.war_drum != null else "NO ARTIFACT"
-	relic_label.tooltip_text = "WAR DRUM\nEach Strike adds +1 to your attack bonus before that Strike resolves. All your damage effects benefit. Resets each encounter; changing a Strike's category preserves its identity." if session.war_drum != null else "ARTIFACT\nNo artifact is equipped for this encounter. You can enable War Drum on the deck preparation screen."
+	relic_label.text = "WAR DRUM +%d" % session.war_drum.damage_bonus if session.war_drum != null else (session.equipped_relic.title.to_upper() if session.equipped_relic != null else "NO RELIC")
+	relic_label.tooltip_text = "WAR DRUM\nEach Strike adds +1 to your attack bonus before that Strike resolves. All your damage effects benefit. Resets each encounter." if session.war_drum != null else ("%s\n%s" % [session.equipped_relic.title, session.equipped_relic.description] if session.equipped_relic != null else "RELIC\nYou can equip a relic before starting a duel.")
 	var log_text := "\n".join(session.history)
 	if _last_log_text != log_text:
 		_last_log_text = log_text

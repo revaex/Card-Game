@@ -81,6 +81,13 @@ theme_override_font_sizes/font_size = 16
 text = "0 turns  ·  Your HP 0  ·  Rival HP 0"
 script = ExtResource("label")
 
+[node name="Spoils" type="Label" parent="Center/Panel/Content"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.74, 0.48, 1)
+text = "+20 Marks"
+
 [node name="Statistics" type="HBoxContainer" parent="Center/Panel/Content"]
 layout_mode = 2
 
@@ -116,6 +123,7 @@ script = ExtResource("button")
 
 [node name="Review" type="Button" parent="Center/Panel/Content"]
 unique_name_in_owner = true
+size_flags_horizontal = 0
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 mouse_default_cursor_shape = 2

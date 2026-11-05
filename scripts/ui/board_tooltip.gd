@@ -1,6 +1,7 @@
 extends PanelContainer
 ## Opaque, wrapped help content shared by board controls.
 
+const TextInk = preload("res://scripts/ui/text_ink.gd")
 
 static func create(text: String) -> Control:
 	# Godot can request a custom tooltip even when a control has no help text.
@@ -11,6 +12,7 @@ static func create(text: String) -> Control:
 
 func _init(text: String = "") -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	theme = preload("res://data/ui/game_theme.tres")
 	var panel := StyleBoxFlat.new()
 	panel.bg_color = Color("101c22")
 	panel.border_color = Color("b99962")
@@ -35,11 +37,14 @@ func _init(text: String = "") -> void:
 
 
 func add_text(parent: Node, text: String, color: Color, font_size: int) -> void:
-	var label := Label.new()
-	label.text = text
+	var label := RichTextLabel.new()
+	label.bbcode_enabled = true
+	label.fit_content = true
+	label.scroll_active = false
+	label.text = TextInk.format(text, true)
 	label.custom_minimum_size.x = 304
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.add_theme_color_override("font_color", color)
-	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("default_color", color)
+	label.add_theme_font_size_override("normal_font_size", font_size)
 	parent.add_child(label)

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/artifacts/relic_definition.gd" id="relic"]
+
+[resource]
+script = ExtResource("relic")
+id = "war_drum"
+title = "War Drum"
+description = "Each Strike adds +1 damage to your attacks for the rest of the duel."
+price = 0
+perk = 0

@@ -106,8 +106,9 @@ script = ExtResource("label")
 
 [node name="JourneyButton" type="Button" parent="Hero/Copy"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 52)
+custom_minimum_size = Vector2(240, 52)
 layout_mode = 2
+size_flags_horizontal = 0
 mouse_default_cursor_shape = 2
 theme_override_font_sizes/font_size = 19
 theme_override_colors/font_color = Color(0.082, 0.141, 0.149, 1)
@@ -119,10 +120,21 @@ theme_override_styles/pressed = SubResource("PrimaryNormal")
 text = "Begin a journey  →"
 script = ExtResource("button")
 
-[node name="LessonButton" type="Button" parent="Hero/Copy"]
+[node name="SecondaryNav" type="HBoxContainer" parent="Hero/Copy"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LessonButton" type="Button" parent="Hero/Copy/SecondaryNav"]
 layout_mode = 2
 mouse_default_cursor_shape = 2
 text = "Learn to duel"
+script = ExtResource("button")
+
+[node name="RelicsButton" type="Button" parent="Hero/Copy/SecondaryNav"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Relic collection"
 script = ExtResource("button")
 
 [node name="SecondaryActions" type="HBoxContainer" parent="Hero/Copy"]
@@ -196,7 +208,8 @@ text = "YOUR DECKS ARE SAVED ON THIS DEVICE"
 script = ExtResource("label")
 
 [connection signal="pressed" from="Hero/Copy/JourneyButton" to="." method="_on_journey_pressed"]
-[connection signal="pressed" from="Hero/Copy/LessonButton" to="." method="_on_lesson_pressed"]
+[connection signal="pressed" from="Hero/Copy/SecondaryNav/LessonButton" to="." method="_on_lesson_pressed"]
+[connection signal="pressed" from="Hero/Copy/SecondaryNav/RelicsButton" to="." method="_on_relics_pressed"]
 [connection signal="pressed" from="Hero/Copy/SecondaryActions/SingleDuelButton" to="." method="_on_single_pressed"]
 [connection signal="pressed" from="Hero/Copy/SecondaryActions/CustomDuelButton" to="." method="_on_custom_pressed"]
 [connection signal="pressed" from="Hero/Copy/SecondaryActions/DecksButton" to="." method="_on_decks_pressed"]

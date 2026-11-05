@@ -3,14 +3,7 @@ extends PanelContainer
 
 const Style = preload("res://scripts/ui/ui_style.gd")
 const CATEGORY_INK = [Color("862b22"), Color("155479"), Color("684c19")]
-const EFFECT_INK = {
-	"deal": "#862b22",
-	"gain": "#155479",
-	"apply": "#285524",
-	"heal": "#14604f",
-	"draw": "#66346f",
-}
-static var effect_phrase := RegEx.create_from_string("(?i)\\b(deal|gain|apply|heal|draw) (?:up to )?\\d+ (?:damage|block|poison|hp|cards?)\\b")
+const TextInk = preload("res://scripts/ui/text_ink.gd")
 signal inspected
 signal inspection_ended
 const Tooltip = preload("res://scripts/ui/board_tooltip.gd")
@@ -76,7 +69,7 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	var detail := pattern_name.to_upper() if not pattern_name.is_empty() else ("REVISED" if card.category_override >= 0 else (kind if kind != category and kind != "TACTIC" else ""))
 	%Category.text = category + (" · " + detail if not detail.is_empty() else "")
 	%Category.add_theme_color_override("font_color", CATEGORY_INK[card.get_category()])
-	%Description.text = color_effects(effective_text if not effective_text.is_empty() else card.definition.description)
+	%Description.text = TextInk.format(effective_text if not effective_text.is_empty() else card.definition.description)
 	%Footer.text = "CLICK TO PLAY" if playable else action_hint.to_upper()
 	var play: Button = %Play
 	if preview:
@@ -108,18 +101,6 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 func setup_preview(card: CardInstance, caption: String = "") -> void:
 	setup(card, false, Callable())
 	set_caption(caption)
-
-
-static func color_effects(description: String) -> String:
-	var colored := ""
-	var cursor := 0
-	for match_result in effect_phrase.search_all(description):
-		var start := match_result.get_start()
-		colored += description.substr(cursor, start - cursor).replace("[", "[lb]")
-		var color: String = EFFECT_INK[match_result.get_string(1).to_lower()]
-		colored += "[color=%s]%s[/color]" % [color, match_result.get_string()]
-		cursor = match_result.get_end()
-	return colored + description.substr(cursor).replace("[", "[lb]")
 
 
 func enable_hand_drag(table: Control, card: CardInstance) -> void:

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/artifacts/relic_definition.gd" id="relic"]
+
+[resource]
+script = ExtResource("relic")
+id = "scribe_quill"
+title = "Scribe’s Quill"
+description = "Start each duel with 1 Cadence already charged."
+price = 45
+perk = 2
+required_rival = "scribe"

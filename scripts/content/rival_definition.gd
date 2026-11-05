@@ -2,6 +2,7 @@ extends Resource
 ## Shared rival content. A doctrine orders a newly prepared hand exactly once.
 
 enum Doctrine { PRESSURE, BASTION, INTRIGUE }
+@export var id: String
 @export var display_name: String
 @export var epithet: String
 @export_multiline var description: String

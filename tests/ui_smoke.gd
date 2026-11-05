@@ -56,6 +56,7 @@ func tap(point: Vector2) -> void:
 
 func run() -> void:
 	var ui := GameUI.instantiate()
+	ui.relics.save_path = "res://.godot/ui-relics-%d.cfg" % Time.get_ticks_usec()
 	ui.options_path = "res://.godot/ui-test-options-%d.cfg" % Time.get_ticks_usec()
 	root.add_child(ui)
 	ui.library.save_path = "res://.godot/ui-test-decks.json"
