@@ -1,0 +1,66 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/intent_card.gd" id="card"]
+
+[sub_resource type="StyleBoxFlat" id="Paper"]
+bg_color = Color(0.88, 0.82, 0.68, 1)
+border_width_left = 3
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.77, 0.58, 0.39, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+
+[node name="IntentCard" type="Button"]
+custom_minimum_size = Vector2(148, 51)
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("Paper")
+script = ExtResource("card")
+
+[node name="Face" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 5.0
+offset_right = -8.0
+offset_bottom = -4.0
+mouse_filter = 2
+theme_override_constants/separation = 1
+
+[node name="Index" type="Label" parent="Face"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.34, 0.27, 0.19, 1)
+theme_override_font_sizes/font_size = 10
+text = "01   /   PLANNED"
+
+[node name="CardName" type="Label" parent="Face"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"CardTitle"
+theme_override_colors/font_color = Color(0.11, 0.17, 0.18, 1)
+theme_override_font_sizes/font_size = 17
+text = "Crosscut"
+text_overrun_behavior = 3
+
+[node name="Energy" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -38.0
+offset_top = 5.0
+offset_right = -8.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.34, 0.27, 0.19, 1)
+theme_override_font_sizes/font_size = 10
+text = "1 E"
+horizontal_alignment = 2

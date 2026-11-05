@@ -1,0 +1,27 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/combat_audio.gd" id="controller"]
+[ext_resource type="AudioStream" path="res://data/audio/rewrite_lift.wav" id="lift"]
+[ext_resource type="AudioStream" path="res://data/audio/rewrite_seal.wav" id="seal"]
+[ext_resource type="AudioStream" path="res://data/audio/pattern.wav" id="pattern"]
+
+[node name="CombatAudio" type="Node"]
+script = ExtResource("controller")
+
+[node name="Paper" type="AudioStreamPlayer" parent="."]
+volume_db = -13.0
+
+[node name="Impact" type="AudioStreamPlayer" parent="."]
+volume_db = -14.0
+
+[node name="RewriteLift" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("lift")
+volume_db = -8.0
+
+[node name="RewriteSeal" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("seal")
+volume_db = -10.0
+
+[node name="Pattern" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("pattern")
+volume_db = -14.0

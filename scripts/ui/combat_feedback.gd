@@ -6,7 +6,7 @@ func _ready() -> void:
 	z_index = 30
 
 
-func present(changes: Array[Dictionary]) -> void:
+func present(changes: Array[Dictionary], motion: bool = true) -> void:
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
@@ -35,6 +35,7 @@ func present(changes: Array[Dictionary]) -> void:
 		badge.position = Vector2((size.x - badge.size.x) / 2, -index * 24)
 		var tween := badge.create_tween()
 		tween.set_parallel(true)
-		tween.tween_property(badge, "position:y", badge.position.y - 22, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		if motion:
+			tween.tween_property(badge, "position:y", badge.position.y - 22, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tween.tween_property(badge, "modulate:a", 0.0, 0.35).set_delay(0.55)
 		tween.chain().tween_callback(badge.queue_free)

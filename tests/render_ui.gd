@@ -46,6 +46,9 @@ func run() -> void:
 	table.session.enemy.apply_poison(3)
 	table.refresh()
 	await capture("res://.godot/table-preview.png")
+	table.inspect_pile("Draw", table.player_piles.draw_pile)
+	await capture("res://.godot/pile-preview.png")
+	table.get_node("PileBrowser").get_node("%Close").pressed.emit()
 	root.mode = Window.MODE_MAXIMIZED
 	await capture("res://.godot/table-maximized-preview.png")
 	ui.library.decks.assign([{"name": "Effects demo", "cards": {"strike": 1, "block": 1, "mend": 1, "insight": 1, "siphon": 1, "venom": 1}}])
@@ -90,6 +93,9 @@ func run() -> void:
 	table.play_card(followup)
 	await capture("res://.godot/cadence-preview.png")
 	table.rewrite_card(table.enemy_piles.hand[0])
+	await create_timer(0.25).timeout
+	await capture("res://.godot/rewrite-flight-preview.png")
+	await create_timer(0.53).timeout
 	await capture("res://.godot/rewrite-preview.png")
 	root.mode = Window.MODE_WINDOWED
 	root.size = Vector2i(1100, 700)

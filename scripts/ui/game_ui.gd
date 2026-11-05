@@ -4,7 +4,11 @@ extends Control
 const Style = preload("res://scripts/ui/ui_style.gd")
 const Library = preload("res://scripts/content/deck_library.gd")
 const Table = preload("res://scenes/ui/combat_table.tscn")
-const CombatResult = preload("res://scripts/ui/combat_result.gd")
+const TableToolbar = preload("res://scenes/ui/table_toolbar.tscn")
+const CombatResult = preload("res://scenes/ui/combat_result.tscn")
+const DeckEditor = preload("res://scenes/ui/deck_editor.tscn")
+const DeckCard = preload("res://scenes/ui/deck_card.tscn")
+const CardBrowser = preload("res://scenes/ui/card_browser.tscn")
 const Rivals = preload("res://scripts/content/rival_catalog.gd")
 const DuelArt = preload("res://scripts/ui/duel_art.gd")
 const Journey = preload("res://scripts/combat/journey_state.gd")
@@ -23,6 +27,8 @@ var editing: int = -1
 var screen: String = ""
 var use_war_drum: bool = true
 var fast_rival_turns: bool = false
+var combat_sound: bool = true
+var combat_motion: bool = true
 var result_overlay: Control
 
 
@@ -126,10 +132,16 @@ func show_library(selecting: bool) -> void:
 		library.decks.append({"name": deck_name, "cards": {"strike": 0, "block": 0}})
 		library.save()
 		show_editor(library.decks.size() - 1, selecting))
-	Style.button(toolbar, "Add Counterpoint", func():
-		library.decks.append(library.counterpoint_recipe())
+	var presets := OptionButton.new()
+	presets.add_item("Add a preset…")
+	presets.set_item_disabled(0, true)
+	presets.add_item("Counterpoint")
+	presets.add_item("Palimpsest")
+	presets.item_selected.connect(func(item: int):
+		library.decks.append(library.counterpoint_recipe() if item == 1 else library.palimpsest_recipe())
 		library.save()
 		show_editor(library.decks.size() - 1, selecting))
+	toolbar.add_child(presets)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(scroll)
@@ -142,6 +154,7 @@ func show_library(selecting: bool) -> void:
 		var line := Style.row(item)
 		var name_label := Style.label(line, "%s   /   %d cards" % [recipe.name, library.total(recipe)], 22)
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		Style.button(line, "View cards", show_deck_cards.bind(index))
 		Style.button(line, "Edit cards", show_editor.bind(index, selecting))
 		Style.button(line, "Remove", confirm_remove.bind(index, selecting))
 	Style.button(body, "← Back", show_setup if selecting else show_menu)
@@ -167,34 +180,46 @@ func show_editor(index: int, selecting: bool) -> void:
 	screen = "editor"
 	editing = index
 	var recipe: Dictionary = library.decks[index]
-	clear(recipe.name, "%d cards  /  Add at least one card to use this deck. Maximum 50 copies per card." % library.total(recipe))
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(scroll)
-	var cards := HFlowContainer.new()
-	cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(cards)
+	clear(recipe.name, "Build your deck from the almanac. Mix Attack, Guard, and Tactic to unlock Patterns.")
+	var editor := DeckEditor.instantiate()
+	body.add_child(editor)
+	editor.get_node("%Done").pressed.connect(show_library.bind(selecting))
+	var cards := editor.get_node("%Cards")
 	for definition in Library.CARDS:
-		var panel := Style.panel(cards)
-		panel.get_parent().custom_minimum_size.x = 300
-		Style.label(panel, definition.display_name, 24, Style.GOLD)
-		Style.label(panel, "%d energy  ·  %s" % [definition.energy_cost, CardDefinition.Category.keys()[definition.category].capitalize()], 14, Style.MUTED)
-		var description := Style.label(panel, definition.description)
-		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		var id := String(definition.id)
-		var count := int(recipe.cards.get(id, 0))
-		Style.label(panel, "Copies in deck: %d" % count, 22)
-		var controls := Style.row(panel)
-		Style.button(controls, "− Remove", change_count.bind(index, id, -1, selecting)).disabled = count == 0
-		Style.button(controls, "+ Add", change_count.bind(index, id, 1, selecting)).disabled = count >= 50
-	Style.label(body, "Change between Attack, Guard, and Tactic to build Cadence. Spend 2 to rewrite rival intent.", 14, Style.MUTED)
-	Style.button(body, "Done  →", show_library.bind(selecting))
+		var entry := DeckCard.instantiate()
+		entry.name = id
+		cards.add_child(entry)
+		entry.get_node("%Card").setup_preview(CardInstance.new(definition))
+		var remove: Button = entry.get_node("%Remove")
+		var add: Button = entry.get_node("%Add")
+		remove.tooltip_text = "Remove one copy of %s" % definition.display_name
+		add.tooltip_text = "Add one copy of %s (maximum 50)" % definition.display_name
+		remove.pressed.connect(change_count.bind(index, id, -1, selecting))
+		add.pressed.connect(change_count.bind(index, id, 1, selecting))
+		update_deck_card(entry, int(recipe.cards.get(id, 0)))
+	editor.get_node("%Total").text = "%d cards in deck" % library.total(recipe)
+
+
+func update_deck_card(entry: Node, count: int) -> void:
+	entry.get_node("%Card").set_caption("%d in deck" % count)
+	entry.get_node("%Remove").disabled = count == 0
+	entry.get_node("%Add").disabled = count >= 50
 
 
 func change_count(index: int, id: String, amount: int, selecting: bool) -> void:
-	library.decks[index].cards[id] = clampi(int(library.decks[index].cards.get(id, 0)) + amount, 0, 50)
-	library.save()
-	show_editor(index, selecting)
+	var recipe: Dictionary = library.decks[index]
+	var count := clampi(int(recipe.cards.get(id, 0)) + amount, 0, 50)
+	recipe.cards[id] = count
+	var saved: bool = library.save()
+	var editor := body.get_node_or_null("DeckEditor")
+	if screen != "editor" or editing != index or editor == null:
+		show_editor(index, selecting)
+		return
+	var entry := editor.get_node("%Cards").get_node_or_null(id)
+	if entry != null:
+		update_deck_card(entry, count)
+	editor.get_node("%Total").text = "%d cards in deck" % library.total(recipe) if saved else library.error_message
 
 
 func show_setup() -> void:
@@ -231,14 +256,7 @@ func show_setup() -> void:
 				enemy_index = item - 1
 			show_setup())
 		if selected >= 0 and selected < library.decks.size():
-			var card_list := GridContainer.new()
-			card_list.columns = 2
-			card_list.add_theme_constant_override("h_separation", 24)
-			panel.add_child(card_list)
-			for definition in Library.CARDS:
-				var count := int(library.decks[selected].cards.get(String(definition.id), 0))
-				if count > 0:
-					Style.label(card_list, "%s × %d" % [definition.display_name, count], 15)
+			Style.button(panel, "View deck cards", show_deck_cards.bind(selected))
 			var counts: Array[int] = library.category_counts(library.decks[selected])
 			Style.label(panel, "Attack %d  ·  Guard %d  ·  Tactic %d" % counts, 13, Style.MUTED)
 			if side == "player" and counts.has(0):
@@ -254,6 +272,14 @@ func show_setup() -> void:
 	Style.primary(confirm)
 	confirm.disabled = not valid_selection()
 	Style.button(body, "← Main menu", show_menu)
+
+
+func show_deck_cards(index: int) -> void:
+	var recipe: Dictionary = library.decks[index]
+	var dialog := CardBrowser.instantiate()
+	add_child(dialog)
+	dialog.close_requested.connect(dialog.queue_free)
+	dialog.show_cards(recipe.name, library.instantiate_deck(recipe), "Saved deck")
 
 
 func use_counterpoint_deck() -> void:
@@ -300,27 +326,38 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	clear("The table", "%s vs %s" % [player_name, enemy_name])
 	for index in range(3):
 		body.get_child(index).hide()
-	var toolbar := Style.row(body)
-	var title := Style.label(toolbar, ("CHAPTER %d/3  ·  " % (journey.stage + 1) if in_journey else "") + "%s / %s" % [player_name.to_upper(), enemy_name.to_upper()], 13, Style.GOLD)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var speed := CheckButton.new()
-	speed.text = "Fast turns"
-	speed.custom_minimum_size.x = 128
-	speed.button_pressed = fast_rival_turns
-	speed.tooltip_text = "Rival card interval: 0.2 seconds when enabled, 0.65 seconds otherwise."
-	Style.quiet(speed)
-	toolbar.add_child(speed)
-	speed.toggled.connect(set_fast_turns)
-	var leave := Style.button(toolbar, "Journey" if in_journey else "← Leave table", show_journey_overview if in_journey else show_setup)
+	var toolbar := TableToolbar.instantiate()
+	body.add_child(toolbar)
+	toolbar.get_node("%Title").text = ("CHAPTER %d/3  ·  " % (journey.stage + 1) if in_journey else "") + "%s / %s" % [player_name.to_upper(), enemy_name.to_upper()]
+	var speed: CheckButton = toolbar.get_node("%FastTurns")
+	var sound: CheckButton = toolbar.get_node("%Sound")
+	var motion: CheckButton = toolbar.get_node("%Motion")
+	speed.set_pressed_no_signal(fast_rival_turns)
+	sound.set_pressed_no_signal(combat_sound)
+	motion.set_pressed_no_signal(combat_motion)
+	for toggle in [speed, sound, motion]:
+		Style.quiet(toggle)
+	var leave: Button = toolbar.get_node("%Leave")
+	leave.text = "Journey" if in_journey else "← Leave table"
+	leave.pressed.connect(show_journey_overview if in_journey else show_setup)
 	Style.quiet(leave)
 	leave.tooltip_text = "JOURNEY\nPause this duel and view your route. Returning resumes the same hand, HP, and rival turn." if in_journey else "LEAVE TABLE\nReturn to deck preparation. This single duel is discarded; saved decks are unchanged."
 	var table := Table.instantiate()
 	table.name = "CombatTable"
 	table.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(table)
+	table.motion_enabled = combat_motion
+	table.combat_audio.set_enabled(combat_sound)
 	table.setup(player_cards, enemy_cards, use_war_drum, rival, existing)
 	table.rival_timer.wait_time = 0.2 if fast_rival_turns else 0.65
 	table.combat_finished.connect(show_result)
+	speed.toggled.connect(set_fast_turns)
+	sound.toggled.connect(func(enabled: bool):
+		combat_sound = enabled
+		table.combat_audio.set_enabled(enabled))
+	motion.toggled.connect(func(enabled: bool):
+		combat_motion = enabled
+		table.set_motion_enabled(enabled))
 	if existing != null and not existing.player_turn and existing.outcome.is_empty():
 		table.rival_timer.start()
 
@@ -349,8 +386,7 @@ func review_result() -> void:
 func show_result(summary: Dictionary) -> void:
 	close_result()
 	screen = "result"
-	result_overlay = CombatResult.new()
-	result_overlay.name = "CombatResult"
+	result_overlay = CombatResult.instantiate()
 	add_child(result_overlay)
 	if _table_is_journey and journey != null:
 		if journey.phase == Journey.Phase.DUEL:

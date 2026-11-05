@@ -1,0 +1,125 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/hand_card.gd" id="card"]
+[ext_resource type="Script" path="res://scripts/ui/card_emblem.gd" id="emblem"]
+[ext_resource type="Script" path="res://scripts/ui/info_label.gd" id="label"]
+[ext_resource type="Script" path="res://scripts/ui/info_button.gd" id="button"]
+[ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
+
+[sub_resource type="StyleBoxFlat" id="PreviewPaper"]
+content_margin_left = 8.0
+content_margin_right = 8.0
+content_margin_top = 8.0
+content_margin_bottom = 8.0
+bg_color = Color(0.918, 0.859, 0.722, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+
+[sub_resource type="StyleBoxFlat" id="PreviewInk"]
+bg_color = Color(0.071, 0.133, 0.161, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+
+[sub_resource type="StyleBoxEmpty" id="Invisible"]
+
+[node name="Card" type="PanelContainer"]
+custom_minimum_size = Vector2(174, 210)
+theme = ExtResource("theme")
+theme_override_styles/panel = SubResource("PreviewPaper")
+script = ExtResource("card")
+
+[node name="Content" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Heading" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Cost" type="Label" parent="Content/Heading"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 26)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.945, 0.808, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("PreviewInk")
+text = "1"
+horizontal_alignment = 1
+vertical_alignment = 1
+script = ExtResource("label")
+
+[node name="Title" type="Label" parent="Content/Heading"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"CardTitle"
+theme_override_colors/font_color = Color(0.149, 0.188, 0.176, 1)
+theme_override_font_sizes/font_size = 18
+text = "Crosscut"
+script = ExtResource("label")
+
+[node name="ArtFrame" type="PanelContainer" parent="Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+theme_override_styles/panel = SubResource("PreviewInk")
+
+[node name="Emblem" type="Control" parent="Content/ArtFrame"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("emblem")
+
+[node name="Category" type="Label" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.361, 0.384, 0.322, 1)
+theme_override_font_sizes/font_size = 10
+text = "ATTACK"
+horizontal_alignment = 1
+script = ExtResource("label")
+
+[node name="Description" type="Label" parent="Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 36)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.149, 0.188, 0.176, 1)
+theme_override_font_sizes/font_size = 14
+text = "Deal 7 damage. Draw 1 card."
+autowrap_mode = 3
+script = ExtResource("label")
+
+[node name="Footer" type="Label" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.239, 0.318, 0.294, 1)
+theme_override_font_sizes/font_size = 11
+text = "CLICK TO PLAY"
+horizontal_alignment = 1
+script = ExtResource("label")
+
+[node name="HitArea" type="Control" parent="."]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Play" type="Button" parent="HitArea"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -8.0
+offset_top = -8.0
+offset_right = 8.0
+offset_bottom = 8.0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("Invisible")
+theme_override_styles/hover = SubResource("Invisible")
+theme_override_styles/pressed = SubResource("Invisible")
+theme_override_styles/disabled = SubResource("Invisible")
+script = ExtResource("button")

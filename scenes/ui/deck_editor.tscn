@@ -1,0 +1,29 @@
+[gd_scene format=3]
+
+[node name="DeckEditor" type="VBoxContainer"]
+theme_override_constants/separation = 16
+
+[node name="Toolbar" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="Total" type="Label" parent="Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "0 cards in deck"
+
+[node name="Done" type="Button" parent="Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+mouse_default_cursor_shape = 2
+text = "Done  →"
+
+[node name="Rule" type="HSeparator" parent="."]
+layout_mode = 2
+
+[node name="Cards" type="HFlowContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 18

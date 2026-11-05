@@ -1,7 +1,20 @@
 extends RefCounted
 ## Saved deck recipes contain IDs/counts, never live CardInstance objects.
 
-const CARDS = [preload("res://data/cards/strike.tres"), preload("res://data/cards/block.tres"), preload("res://data/cards/mend.tres"), preload("res://data/cards/insight.tres"), preload("res://data/cards/siphon.tres"), preload("res://data/cards/venom.tres"), preload("res://data/cards/crosscut.tres"), preload("res://data/cards/switchback.tres")]
+const CARDS = [
+	preload("res://data/cards/strike.tres"),
+	preload("res://data/cards/block.tres"),
+	preload("res://data/cards/mend.tres"),
+	preload("res://data/cards/insight.tres"),
+	preload("res://data/cards/siphon.tres"),
+	preload("res://data/cards/venom.tres"),
+	preload("res://data/cards/crosscut.tres"),
+	preload("res://data/cards/switchback.tres"),
+	preload("res://data/cards/redline.tres"),
+	preload("res://data/cards/iron_seal.tres"),
+	preload("res://data/cards/marginalia.tres"),
+	preload("res://data/cards/inkblot.tres"),
+]
 const SAVE_PATH = "user://decks.json"
 var save_path: String = SAVE_PATH
 var decks: Array[Dictionary] = []
@@ -54,6 +67,10 @@ func instantiate_deck(recipe: Dictionary) -> Array[CardInstance]:
 
 func counterpoint_recipe() -> Dictionary:
 	return {"name": "Counterpoint", "cards": {"strike": 2, "block": 2, "crosscut": 2, "switchback": 2, "venom": 1, "mend": 1}}
+
+
+func palimpsest_recipe() -> Dictionary:
+	return {"name": "Palimpsest", "cards": {"redline": 2, "iron_seal": 2, "marginalia": 2, "inkblot": 1, "crosscut": 2, "block": 1}}
 
 
 func category_counts(recipe: Dictionary) -> Array[int]:

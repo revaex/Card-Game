@@ -1,0 +1,142 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/info_label.gd" id="label"]
+
+[node name="ResultStatistics" type="VBoxContainer"]
+size_flags_horizontal = 3
+
+[node name="ActorName" type="Label" parent="."]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.811765, 0.666667, 0.4, 1)
+theme_override_font_sizes/font_size = 16
+text = "YOU"
+script = ExtResource("label")
+
+
+[node name="cards" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Caption" type="Label" parent="cards"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Cards played:"
+script = ExtResource("label")
+
+[node name="Value" type="Label" parent="cards"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "0"
+script = ExtResource("label")
+
+[node name="energy" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Caption" type="Label" parent="energy"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Energy spent:"
+script = ExtResource("label")
+
+[node name="Value" type="Label" parent="energy"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "0"
+script = ExtResource("label")
+
+[node name="damage" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Caption" type="Label" parent="damage"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "HP damage dealt:"
+script = ExtResource("label")
+
+[node name="Value" type="Label" parent="damage"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "0"
+script = ExtResource("label")
+
+[node name="absorbed" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Caption" type="Label" parent="absorbed"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Damage blocked:"
+script = ExtResource("label")
+
+[node name="Value" type="Label" parent="absorbed"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "0"
+script = ExtResource("label")
+
+[node name="healed" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Caption" type="Label" parent="healed"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "HP healed:"
+script = ExtResource("label")
+
+[node name="Value" type="Label" parent="healed"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "0"
+script = ExtResource("label")
+
+[node name="poison_applied" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Caption" type="Label" parent="poison_applied"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Poison applied:"
+script = ExtResource("label")
+
+[node name="Value" type="Label" parent="poison_applied"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "0"
+script = ExtResource("label")
+
+[node name="rewrites" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Caption" type="Label" parent="rewrites"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Intent rewrites:"
+script = ExtResource("label")
+
+[node name="Value" type="Label" parent="rewrites"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "0"
+script = ExtResource("label")
+
+[node name="patterns" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Caption" type="Label" parent="patterns"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Patterns completed:"
+script = ExtResource("label")
+
+[node name="Value" type="Label" parent="patterns"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "0"
+script = ExtResource("label")

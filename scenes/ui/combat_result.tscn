@@ -1,0 +1,128 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/combat_result.gd" id="controller"]
+[ext_resource type="Script" path="res://scripts/ui/info_label.gd" id="label"]
+[ext_resource type="Script" path="res://scripts/ui/info_button.gd" id="button"]
+[ext_resource type="PackedScene" path="res://scenes/ui/result_statistics.tscn" id="statistics"]
+[ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
+
+[sub_resource type="StyleBoxFlat" id="Panel"]
+content_margin_left = 20.0
+content_margin_top = 10.0
+content_margin_right = 20.0
+content_margin_bottom = 10.0
+bg_color = Color(0.078431, 0.164706, 0.172549, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.270588, 0.27451, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+
+[sub_resource type="SystemFont" id="Serif"]
+font_names = PackedStringArray("Georgia", "Cambria", "Times New Roman")
+
+[node name="CombatResult" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("theme")
+script = ExtResource("controller")
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.06, 0.08, 0.88)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("Panel")
+
+[node name="Content" type="VBoxContainer" parent="Center/Panel"]
+layout_mode = 2
+
+[node name="Kicker" type="Label" parent="Center/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.811765, 0.666667, 0.4, 1)
+theme_override_font_sizes/font_size = 14
+text = "ENCOUNTER COMPLETE"
+script = ExtResource("label")
+
+[node name="Outcome" type="Label" parent="Center/Panel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.545098, 0.823529, 0.67451, 1)
+theme_override_fonts/font = SubResource("Serif")
+theme_override_font_sizes/font_size = 38
+text = "Victory"
+script = ExtResource("label")
+
+[node name="Summary" type="Label" parent="Center/Panel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.607843, 0.662745, 0.643137, 1)
+theme_override_font_sizes/font_size = 16
+text = "0 turns  ·  Your HP 0  ·  Rival HP 0"
+script = ExtResource("label")
+
+[node name="Statistics" type="HBoxContainer" parent="Center/Panel/Content"]
+layout_mode = 2
+
+[node name="PlayerStatistics" parent="Center/Panel/Content/Statistics" instance=ExtResource("statistics")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RivalStatistics" parent="Center/Panel/Content/Statistics" instance=ExtResource("statistics")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ActorName" parent="Center/Panel/Content/Statistics/RivalStatistics" index="0"]
+text = "RIVAL"
+
+[node name="Actions" type="HBoxContainer" parent="Center/Panel/Content"]
+layout_mode = 2
+
+[node name="Rematch" type="Button" parent="Center/Panel/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Rematch"
+script = ExtResource("button")
+
+[node name="ChooseDecks" type="Button" parent="Center/Panel/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Choose decks"
+script = ExtResource("button")
+
+[node name="Review" type="Button" parent="Center/Panel/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Review the table and log"
+script = ExtResource("button")
+
+[editable path="Center/Panel/Content/Statistics/RivalStatistics"]

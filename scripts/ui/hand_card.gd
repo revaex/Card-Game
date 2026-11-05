@@ -6,39 +6,8 @@ signal inspected
 signal inspection_ended
 const Tooltip = preload("res://scripts/ui/board_tooltip.gd")
 
-class Emblem extends Control:
-	var kind: String
-	var accent: Color
-
-	func _draw() -> void:
-		var center := size / 2
-		draw_circle(center, 26, Color(accent, 0.12))
-		draw_arc(center, 26, 0, TAU, 48, Color(accent, 0.4), 1.0, true)
-		match kind:
-			"ATTACK":
-				draw_colored_polygon(PackedVector2Array([center + Vector2(-11, 14), center + Vector2(-5, 16), center + Vector2(18, -18), center + Vector2(9, -14)]), accent)
-				draw_line(center + Vector2(-15, 5), center + Vector2(1, 17), accent, 4, true)
-				draw_line(center + Vector2(-7, 12), center + Vector2(-16, 24), accent, 5, true)
-			"GUARD":
-				var points := PackedVector2Array([center + Vector2(-17, -17), center + Vector2(17, -17), center + Vector2(13, 9), center + Vector2(0, 22), center + Vector2(-13, 9), center + Vector2(-17, -17)])
-				draw_polyline(points, accent, 3, true)
-				draw_line(center + Vector2(0, -13), center + Vector2(0, 15), accent, 2, true)
-			"POISON":
-				draw_colored_polygon(PackedVector2Array([center + Vector2(0, -24), center + Vector2(16, 0), center + Vector2(12, 17), center + Vector2(-12, 17), center + Vector2(-16, 0)]), accent)
-				draw_circle(center + Vector2(-4, 3), 3, Color("122e25"))
-				draw_circle(center + Vector2(5, 10), 2, Color("122e25"))
-			"RESTORE":
-				draw_line(center + Vector2(-18, 0), center + Vector2(18, 0), accent, 10, true)
-				draw_line(center + Vector2(0, -18), center + Vector2(0, 18), accent, 10, true)
-			_:
-				for index in range(3):
-					var offset := Vector2(index * 8 - 18, index * -5 - 10)
-					draw_rect(Rect2(center + offset, Vector2(22, 30)), accent, false, 2)
-
-
 func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_action: Callable = Callable(), effective_text: String = "", details: String = "", pattern_name: String = "", action_hint: String = "Unavailable") -> void:
-	custom_minimum_size = Vector2(174, 210)
-	size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var preview := play_action.is_null()
 	var kind := "TACTIC"
 	var accent := Color("c5ae77")
 	for effect in card.definition.effects:
@@ -56,8 +25,8 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 			accent = Color("8bd2ac")
 	if card.category_override >= 0:
 		accent = [Color("d88b78"), Color("79bce0"), Color("c5ae77")][card.get_category()]
-	var frame := Style.box(Color("dfd3b6"), accent)
-	if not playable:
+	var frame := Style.box(Color("eadbb8"), accent)
+	if not playable and not preview:
 		frame.bg_color = Color("c4bea9")
 	if not pattern_name.is_empty():
 		frame.border_color = Color("f4cc70")
@@ -79,55 +48,30 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	tooltip_text = details if not details.is_empty() else card.definition.description
 	if card.category_override >= 0:
 		tooltip_text += "\nRevised category: %s. Card effects unchanged." % CardDefinition.Category.keys()[card.get_category()].capitalize()
-	var content := Style.column(self)
-	content.add_theme_constant_override("separation", 4)
-	var heading := Style.row(content)
-	heading.add_theme_constant_override("separation", 6)
-	var cost := Style.label(heading, str(card.get_energy_cost()), 18, Color("fff1ce"))
-	cost.custom_minimum_size = Vector2(28, 26)
-	cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cost.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	%Cost.text = str(card.get_energy_cost())
 	var coin := Style.box(Color("263b40"), accent)
 	coin.set_corner_radius_all(13)
 	coin.content_margin_left = 3
 	coin.content_margin_right = 3
 	coin.content_margin_top = 0
 	coin.content_margin_bottom = 0
-	cost.add_theme_stylebox_override("normal", coin)
-	cost.tooltip_text = "%d energy" % card.get_energy_cost()
-	var title := Style.label(heading, card.definition.display_name, 18, Color("26302d"))
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var art_frame := PanelContainer.new()
-	art_frame.custom_minimum_size.y = 64
-	art_frame.add_theme_stylebox_override("panel", Style.box(Color("182d30"), accent))
-	content.add_child(art_frame)
-	var art := Emblem.new()
-	art.kind = kind
-	art.accent = accent
-	art_frame.add_child(art)
+	%Cost.add_theme_stylebox_override("normal", coin)
+	%Cost.tooltip_text = "%d energy" % card.get_energy_cost()
+	%Title.text = card.definition.display_name
+	%ArtFrame.add_theme_stylebox_override("panel", Style.box(Color("122229"), accent))
+	%Emblem.kind = kind
+	%Emblem.accent = accent
+	%Emblem.queue_redraw()
 	var category: String = CardDefinition.Category.keys()[card.get_category()]
 	var detail := pattern_name.to_upper() if not pattern_name.is_empty() else ("REVISED" if card.category_override >= 0 else (kind if kind != category and kind != "TACTIC" else ""))
-	var type_label := Style.label(content, category + (" · " + detail if not detail.is_empty() else ""), 10, Color("5c6252"))
-	type_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var description := Style.label(content, effective_text if not effective_text.is_empty() else card.definition.description, 14, Color("26302d"))
-	description.name = "Description"
-	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	description.custom_minimum_size = Vector2(140, 36)
-	description.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var footer := Style.label(content, "CLICK TO PLAY" if playable else action_hint.to_upper(), 11, Color("3d514b") if playable else Color("555d53"))
-	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var hit_area := Control.new()
-	hit_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(hit_area)
-	var play := Style.button(hit_area, "", play_action)
-	play.name = "Play"
-	play.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	play.offset_left = -8
-	play.offset_right = 8
-	play.offset_top = -8
-	play.offset_bottom = 8
-	for state in ["normal", "hover", "pressed", "disabled"]:
-		play.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+	%Category.text = category + (" · " + detail if not detail.is_empty() else "")
+	%Description.text = effective_text if not effective_text.is_empty() else card.definition.description
+	%Footer.text = "CLICK TO PLAY" if playable else action_hint.to_upper()
+	var play: Button = %Play
+	if preview:
+		play.hide()
+		return
+	play.pressed.connect(play_action)
 	var focus := StyleBoxFlat.new()
 	focus.bg_color = Color(0, 0, 0, 0)
 	focus.border_color = Color("fff0c4")
@@ -148,6 +92,15 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 		exhaust.custom_minimum_size = Vector2(28, 28)
 		Style.quiet(exhaust)
 		exhaust.tooltip_text = "Exhaust this card (testing tool)"
+
+
+func setup_preview(card: CardInstance, caption: String = "") -> void:
+	setup(card, false, Callable())
+	set_caption(caption)
+
+
+func set_caption(caption: String) -> void:
+	%Footer.text = caption.to_upper()
 
 
 func _make_custom_tooltip(text: String) -> Object:

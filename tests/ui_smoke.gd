@@ -22,7 +22,10 @@ func run() -> void:
 	check(ui.screen == "menu", "Main menu opens")
 	ui.show_library(false)
 	ui.show_editor(0, false)
-	ui.change_count(0, "strike", 1, false)
+	var editor: Node = ui.body.get_node("DeckEditor")
+	var strike_entry := editor.get_node("%Cards/strike")
+	strike_entry.get_node("%Add").pressed.emit()
+	check(editor == ui.body.get_node("DeckEditor") and strike_entry.get_node("Card/Content/Footer").text == "6 IN DECK", "Adding a card updates the visible count without rebuilding the editor")
 	check(ui.library.total(ui.library.decks[0]) == 11, "Editor adds cards")
 	ui.library.load_decks()
 	check(ui.library.total(ui.library.decks[0]) == 11, "Deck survives save/reload")
@@ -62,7 +65,7 @@ func run() -> void:
 	check(table.combat_log.text.contains("played"), "Combat log displays resolved actions")
 	check(table.player_block.value == mini(table.session.player.block, table.session.player.max_health), "Player block bar matches combat state")
 	check(table.enemy_block.value == mini(table.session.enemy.block, table.session.enemy.max_health), "Rival block bar matches combat state")
-	check(table.intent_label.text.contains("RIVAL NEXT TURN"), "Rival intent appears during player turn")
+	check(table.intent_scroll.is_visible_in_tree() and table.rewrite_row.get_child_count() > 0, "Rival intent appears during player turn")
 	table.session.player.gain_block(80)
 	table.session.enemy.apply_poison(3)
 	table.refresh()
@@ -93,9 +96,17 @@ func run() -> void:
 		table.next_hand()
 		check(table.player_piles.hand.size() == 4, "UI redraw cannot invent a fifth card")
 		check(table.player_piles.total_cards() == 10, "UI conserves total card count")
-	table.inspect_pile("Draw", table.player_piles.draw_pile)
 	table.end_turn()
 	check(not table.session.player_turn and table.end_button.disabled, "UI locks player input during paced rival turn")
+	var sample: Array[CardInstance] = [CardInstance.new(StarterDeck.STRIKE), CardInstance.new(StarterDeck.BLOCK), CardInstance.new(StarterDeck.STRIKE)]
+	table.inspect_pile("Draw", sample)
+	var pile_view: Window = table.get_node("PileBrowser")
+	var previews := pile_view.get_node("%Cards")
+	check(previews.get_child_count() == 2 and previews.get_child(0).get_node("%Title").text == "Block", "Pile viewer groups copies and sorts independently of draw order")
+	check(previews.get_child(1).get_node("%Footer").text == "×2 COPIES" and not previews.get_child(1).get_node("%Play").visible, "Pile card shows the copy count without a play button")
+	check(table.rival_timer.is_stopped(), "Pile viewer pauses rival playback")
+	pile_view.get_node("%Close").pressed.emit()
+	check(not table.rival_timer.is_stopped(), "Closing the pile viewer resumes rival playback")
 	while not table.session.player_turn and table.session.outcome.is_empty():
 		table.rival_timer.timeout.emit()
 	check(table.rival_timer.is_stopped(), "Paced turn stops its timer on completion")
@@ -186,12 +197,38 @@ func run() -> void:
 	rhythm.play_card(opener)
 	rhythm.play_card(followup)
 	check(rhythm.session.cadence == 2 and rhythm.artifact_label.text.contains("CADENCE 2/3"), "Changing categories updates Cadence in the table")
+	await process_frame
+	await process_frame
 	var rewrite_target: CardInstance = rhythm.enemy_piles.hand[0]
-	var rewrite_button: Button = rhythm.rewrite_row.get_child(1)
+	var rewrite_button: Button = rhythm.rewrite_row.get_child(0)
 	check(not rewrite_button.disabled, "Rival-line button unlocks when Cadence is available")
 	rewrite_button.pressed.emit()
 	check(rhythm.enemy_piles.hand[-1] == rewrite_target and rhythm.session.cadence == 0, "Rival-line button executes Rewrite")
 	check(rhythm.combat_log.text.contains("Rewrite:"), "Rewrite appears in combat log")
+	check(rhythm.rewrite_fx.is_active() and rhythm.rewrite_fx.get_child_count() == 5, "Rewrite animates the selected card and the cards it passes")
+	check(rhythm.get_node("%RewriteStatus").text.contains("LINE REWRITTEN"), "The line immediately confirms the Cadence spend")
+	await rhythm.rewrite_fx.finished
+	check(rhythm.rewrite_fx.get_child_count() == 0 and rhythm.rewrite_row.get_child(-1).modulate.a == 1.0, "Rewrite restores the settled line and frees the animated copies")
+	ui.show_table()
+	var interrupted = ui.body.get_node("CombatTable")
+	interrupted.session.cadence = 2
+	interrupted.refresh_intent()
+	await process_frame
+	await process_frame
+	interrupted.rewrite_card(interrupted.enemy_piles.hand[0])
+	check(interrupted.rewrite_fx.is_active(), "A second duel starts a fresh Rewrite animation")
+	var toolbar := ui.body.get_node("TableToolbar") as HBoxContainer
+	toolbar.get_node("%Motion").button_pressed = false
+	toolbar.get_node("%Sound").button_pressed = false
+	check(not interrupted.rewrite_fx.is_active() and interrupted.rewrite_fx.get_child_count() == 0 and interrupted.rewrite_row.get_child(-1).modulate.a == 1.0, "Disabling Motion during Rewrite settles and reveals the line")
+	ui.show_table()
+	var quiet_table = ui.body.get_node("CombatTable")
+	check(not quiet_table.motion_enabled and not quiet_table.combat_audio.enabled, "Motion and sound preferences carry into the next duel")
+	quiet_table.session.cadence = 2
+	quiet_table.refresh_intent()
+	var quiet_target: CardInstance = quiet_table.enemy_piles.hand[0]
+	quiet_table.rewrite_card(quiet_target)
+	check(quiet_table.enemy_piles.hand[-1] == quiet_target and not quiet_table.rewrite_fx.is_active(), "Rewrite settles immediately with motion disabled")
 	ui.library.decks.assign([{"name": "Patterns", "cards": {"strike": 2, "block": 2, "mend": 2}}])
 	ui.show_table()
 	var patterns = ui.body.get_node("CombatTable")

@@ -3,8 +3,11 @@ extends VBoxContainer
 
 const Style = preload("res://scripts/ui/ui_style.gd")
 const Session = preload("res://scripts/combat/combat_session.gd")
-const HandCard = preload("res://scripts/ui/hand_card.gd")
+const HandCard = preload("res://scenes/ui/card.tscn")
+const CardBrowser = preload("res://scenes/ui/card_browser.tscn")
+const IntentCard = preload("res://scenes/ui/intent_card.tscn")
 const POISON_GREEN = Color("65ef94")
+const REWRITE_READY = "✦   REWRITE READY   /   CHOOSE A CARD"
 
 const PileToken = preload("res://scripts/ui/pile_token.gd")
 
@@ -16,6 +19,12 @@ var _last_presented_by_player: bool = true
 signal combat_finished(summary: Dictionary)
 var _result_reported: bool = false
 var _feedback_tween: Tween
+var _hand_tween: Tween
+var _cadence_tween: Tween
+var _pattern_tween: Tween
+var motion_enabled: bool = true
+@onready var rewrite_fx = %RewriteFX
+@onready var combat_audio = $CombatAudio
 var rival_timer: Timer
 var _last_log_text: String = ""
 var session: RefCounted
@@ -54,6 +63,10 @@ func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 	player_piles = session.player_piles
 	enemy_piles = session.enemy_piles
 	_bind_scene_nodes()
+	rewrite_fx.landed.connect(combat_audio.rewrite_seal)
+	rewrite_fx.finished.connect(show_rewrite_destination)
+	rewrite_fx.resized.connect(rewrite_fx.cancel)
+	intent_scroll.get_h_scroll_bar().value_changed.connect(func(_offset: float): rewrite_fx.cancel())
 	session.changed.connect(on_session_changed)
 	session.card_played.connect(on_card_presented)
 	if existing_session != null and not session.player_turn and not session.last_action.is_empty() and not session.last_action.by_player and not enemy_piles.discard_pile.is_empty():
@@ -63,6 +76,8 @@ func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 			_last_presented_by_player = false
 	refresh()
 	restore_action_message()
+	if session.player_turn and session.outcome.is_empty():
+		animate_hand_arrival()
 
 
 func _bind_scene_nodes() -> void:
@@ -103,7 +118,14 @@ func _on_lab_toggled(enabled: bool) -> void:
 
 
 func read_display_state() -> Dictionary:
-	return {"player": Vector3i(session.player.health, session.player.block, session.player.poison), "enemy": Vector3i(session.enemy.health, session.enemy.block, session.enemy.poison), "player_turn": session.player_turn, "round": session.round_number}
+	return {
+		"player": Vector3i(session.player.health, session.player.block, session.player.poison),
+		"enemy": Vector3i(session.enemy.health, session.enemy.block, session.enemy.poison),
+		"player_turn": session.player_turn,
+		"round": session.round_number,
+		"cadence": session.cadence,
+		"patterns": session.statistics.player.patterns,
+	}
 
 
 func feedback_changes(before: Vector3i, after: Vector3i, starts_turn: bool) -> Array[Dictionary]:
@@ -130,12 +152,22 @@ func present_state_changes() -> void:
 	var enemy_starts: bool = _display_state.player_turn and not current.player_turn
 	var own := feedback_changes(_display_state.player, current.player, player_starts)
 	var rival := feedback_changes(_display_state.enemy, current.enemy, enemy_starts)
-	player_feedback.present(own)
-	enemy_feedback.present(rival)
+	player_feedback.present(own, motion_enabled)
+	enemy_feedback.present(rival, motion_enabled)
+	var player_guard: bool = current.player.y > _display_state.player.y or (not player_starts and current.player.y < _display_state.player.y)
+	var rival_guard: bool = current.enemy.y > _display_state.enemy.y or (not enemy_starts and current.enemy.y < _display_state.enemy.y)
+	if current.player.x < _display_state.player.x or current.enemy.x < _display_state.enemy.x:
+		combat_audio.impact(false)
+	elif player_guard or rival_guard:
+		combat_audio.impact(true)
+	if current.patterns > _display_state.patterns:
+		combat_audio.pattern()
 	if _feedback_tween != null and _feedback_tween.is_valid():
 		_feedback_tween.kill()
 	player_hp.modulate = Color.WHITE
 	enemy_hp.modulate = Color.WHITE
+	if not motion_enabled:
+		return
 	_feedback_tween = create_tween().set_parallel(true)
 	if not own.is_empty():
 		player_hp.modulate = own[0].color.lightened(0.65)
@@ -154,6 +186,9 @@ func empty(container: Node) -> void:
 
 
 func refresh() -> void:
+	if _hand_tween != null:
+		_hand_tween.kill()
+		_hand_tween = null
 	empty(pile_row)
 	empty(hand_row)
 	enemy_label.text = session.rival_definition.display_name.to_upper() if session.rival_definition != null else "RIVAL"
@@ -184,6 +219,8 @@ func refresh() -> void:
 	turn_label.tooltip_text = "TURN\nYour turn: spend energy on cards, then end turn. The rival resolves its revealed line, then both hands are prepared again. Poison ticks at the affected side's turn start."
 	artifact_label.text = "CADENCE %d/3" % session.cadence
 	artifact_label.tooltip_text = "CADENCE & REWRITE\nThe first card each turn or a category change earns 1 Cadence, up to 3. Repeating the previous category earns none. Cadence carries between turns. Spend 2, once per turn, to move a rival card to the back of its hand."
+	%CadencePips.text = "◆ ".repeat(session.cadence) + "◇ ".repeat(session.CADENCE_CAP - session.cadence)
+	%CadencePips.tooltip_text = artifact_label.tooltip_text
 	relic_label.text = "WAR DRUM +%d" % session.war_drum.damage_bonus if session.war_drum != null else "NO ARTIFACT"
 	relic_label.tooltip_text = "WAR DRUM\nEach Strike adds +1 to your attack bonus before that Strike resolves. All your damage effects benefit. Resets each encounter; changing a Strike's category preserves its identity." if session.war_drum != null else "ARTIFACT\nNo artifact is equipped for this encounter. You can enable War Drum on the deck preparation screen."
 	var log_text := "\n".join(session.history)
@@ -192,7 +229,11 @@ func refresh() -> void:
 		var colored: PackedStringArray = []
 		for line in session.history:
 			var escaped: String = line.replace("[", "[lb]")
-			colored.append("[color=#65ef94]%s[/color]" % escaped if line.contains("Poison") else ("[color=#f4cc70]%s[/color]" % escaped if line.begins_with("Pattern ") else escaped))
+			if line.begins_with("Rewrite:") or line.begins_with("Pattern "):
+				escaped = "[color=#f4cc70]%s[/color]" % escaped
+			elif line.contains("Poison"):
+				escaped = "[color=#65ef94]%s[/color]" % escaped
+			colored.append(escaped)
 		combat_log.text = "\n".join(colored)
 	end_button.disabled = not session.player_turn and session.outcome.is_empty()
 	end_button.text = "Encounter results" if not session.outcome.is_empty() else ("End turn →" if session.player_turn else "Rival is playing…")
@@ -211,7 +252,7 @@ func refresh() -> void:
 		pile.tooltip_text = "%s PILE · %d cards\n%s\nClick to inspect the contents. Rival playback pauses while the inspector is open." % [String(entry[0]).to_upper(), entry[1].size(), rules]
 	if player_piles.hand.is_empty():
 		if not session.player_turn and session.outcome.is_empty() and _last_presented_card != null and not _last_presented_by_player:
-			var last_view := HandCard.new()
+			var last_view := HandCard.instantiate()
 			hand_row.add_child(last_view)
 			last_view.name = "LastRivalCard"
 			last_view.setup(_last_presented_card, false, func(): pass, Callable(), session.last_action.description, "LAST RIVAL PLAY\n%s\n%s\nThis card has already resolved. Read the remaining line above to see what comes next." % [session.last_action.card, session.last_action.description], "", "Rival played")
@@ -221,7 +262,7 @@ func refresh() -> void:
 		empty_label.custom_minimum_size.x = 400
 		empty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	for card in player_piles.hand:
-		var view := HandCard.new()
+		var view := HandCard.instantiate()
 		hand_row.add_child(view)
 		var exhaust := move_card.bind(card, true) if sandbox and session.player_turn and session.outcome.is_empty() else Callable()
 		var text: String = session.describe_card(card)
@@ -277,8 +318,10 @@ func card_action_hint(card: CardInstance) -> String:
 
 func refresh_pattern() -> void:
 	pattern_label.tooltip_text = session.pattern_rules()
+	pattern_label.remove_theme_color_override("font_color")
 	if not session.completed_pattern.is_empty():
 		pattern_label.text = "PATTERN COMPLETE · " + session.completed_pattern
+		pattern_label.add_theme_color_override("font_color", Color("f3cf85"))
 		return
 	if not session.player_turn or not session.outcome.is_empty():
 		pattern_label.text = "Patterns reset each player turn"
@@ -367,9 +410,10 @@ func update_status(label: Label, actor: Combatant) -> void:
 
 
 func refresh_intent() -> void:
+	rewrite_fx.cancel()
 	empty(rewrite_row)
 	intent_label.visible = true
-	intent_scroll.visible = false
+	%IntentBand.hide()
 	if not session.outcome.is_empty():
 		intent_label.text = "Combat finished — " + session.outcome
 		return
@@ -377,66 +421,116 @@ func refresh_intent() -> void:
 		intent_label.text = "RIVAL NEXT TURN  ·  Lethal Poison — defeated before playing."
 		intent_label.tooltip_text = "Poison ticks before cards are played."
 		return
-	var entries: PackedStringArray = []
-	var includes_draw := false
-	for card in session.enemy_opening_plan():
-		entries.append("%s (%d)" % [card.definition.display_name, card.get_energy_cost()])
-		for effect in card.definition.effects:
-			if effect is DrawEffect:
-				includes_draw = true
-	intent_label.text = "RIVAL NEXT TURN  ·  " + ("Pass — no affordable cards" if entries.is_empty() else " → ".join(entries))
-	if includes_draw:
-		intent_label.text += "  ·  Drawn cards may add follow-up plays."
-	intent_label.tooltip_text = "Prepared cards in play order; numbers are energy costs. Block can reduce their damage."
+	if enemy_piles.hand.is_empty():
+		intent_label.text = "RIVAL LINE  ·  No prepared cards"
+		return
+
 	intent_label.visible = false
-	intent_scroll.visible = true
+	%IntentBand.show()
 	var opening: Array[CardInstance] = session.enemy_opening_plan()
-	var heading := Style.label(rewrite_row, "RIVAL LINE\nREWRITE · 2 CADENCE" if session.player_turn else "RIVAL ACTING\n%d ENERGY LEFT" % session.enemy_energy, 11, Style.GOLD)
-	heading.tooltip_text = "Click a card to spend 2 Cadence and move it to the back. Once per turn. Bright cards are currently affordable; dim cards are in reserve."
-	if includes_draw:
-		heading.tooltip_text += " Draw effects can add follow-up plays from reserve or newly drawn cards."
+	var ready: bool = session.can_rewrite(enemy_piles.hand[0])
+	var cost: int = session.REWRITE_COST
+	var status: Label = %RewriteStatus
+	status.add_theme_color_override("font_color", Color("f3cf85") if ready or session.rewrote_this_turn else Style.MUTED)
+	if not session.player_turn:
+		status.text = "RIVAL ACTING   /   %d ENERGY LEFT" % session.enemy_energy
+	elif session.rewrote_this_turn:
+		status.text = "LINE REWRITTEN   /   −%d CADENCE" % cost
+	elif ready:
+		status.text = REWRITE_READY
+	else:
+		status.text = "REWRITE   /   %d OF %d CADENCE" % [mini(session.cadence, cost), cost]
+	status.tooltip_text = "Spend %d Cadence to move a card to the back of the rival's line, once per turn. Planned cards are affordable. Reserve cards may still play if the line changes." % cost
+
 	for index in range(enemy_piles.hand.size()):
 		var card: CardInstance = enemy_piles.hand[index]
-		var planned := opening.has(card)
 		var next_play: bool = not session.player_turn and not opening.is_empty() and card == opening[0]
-		var state := "NEXT" if next_play else ("PLANNED" if planned else "RESERVE")
-		var button := Style.button(rewrite_row, "%02d  %s\n%s · %d ENERGY" % [index + 1, card.definition.display_name, state, card.get_energy_cost()], rewrite_card.bind(card))
-		button.set_meta("intent_state", state)
-		button.custom_minimum_size.y = 38
-		button.add_theme_font_size_override("font_size", 12)
-		var compact := Style.box(Color("dbcfb1") if planned else Color("b1b5a7"), Style.GOLD if planned else Color("66796f"))
-		compact.set_corner_radius_all(2)
-		if next_play:
-			compact.border_color = Color("fff0c4")
-			compact.set_border_width_all(2)
-		compact.content_margin_left = 8
-		compact.content_margin_right = 8
-		compact.content_margin_top = 5
-		compact.content_margin_bottom = 5
-		button.add_theme_stylebox_override("normal", compact)
-		button.add_theme_stylebox_override("disabled", compact)
-		var hover := compact.duplicate() as StyleBoxFlat
-		hover.bg_color = Color("f1e4c6")
-		hover.border_color = Color("f4cc70")
-		button.add_theme_stylebox_override("hover", hover)
-		button.add_theme_stylebox_override("pressed", compact)
-		for color in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
-			button.add_theme_color_override(color, Color("26352e") if planned else Color("4d5d53"))
-		button.disabled = not session.can_rewrite(card)
-		var reason := "Click to rewrite this card."
+		var state := "NEXT" if next_play else ("PLANNED" if opening.has(card) else "RESERVE")
+		var button := IntentCard.instantiate()
+		rewrite_row.add_child(button)
+		button.show_card(card, index, state, session.can_rewrite(card))
+		button.pressed.connect(rewrite_card.bind(card))
+		if not button.disabled:
+			button.mouse_entered.connect(show_rewrite_hint.bind(card))
+			button.mouse_exited.connect(clear_rewrite_hint.bind(card))
+			button.focus_entered.connect(show_rewrite_hint.bind(card))
+			button.focus_exited.connect(clear_rewrite_hint.bind(card))
+		var reason := "Move this card to the back of the line."
 		if not session.player_turn:
-			reason = "Wait for your next turn. The rival follows this line; Rewrite is unavailable while it acts."
+			reason = "Rewrite is available on your turn."
 		elif session.rewrote_this_turn:
-			reason = "Already used this turn."
-		elif session.cadence < 2:
-			reason = "Build more Cadence by changing card categories."
+			reason = "Rewrite was already used this turn."
 		elif index == enemy_piles.hand.size() - 1:
 			reason = "This card is already at the back."
-		button.tooltip_text = "%s · %s\n%s\n%s\nRewrite costs 2 Cadence and moves this card to the back of the prepared hand. Once per turn.\n%s" % [card.definition.display_name, state, "%s · %d energy" % [CardDefinition.Category.keys()[card.get_category()].capitalize(), card.get_energy_cost()], session.describe_card(card, false), reason]
+		elif session.cadence < cost:
+			reason = "Build Cadence by changing card categories."
+		button.tooltip_text = "%s · %s\n%s · %d energy\n%s\n%s" % [card.definition.display_name, state, CardDefinition.Category.keys()[card.get_category()].capitalize(), card.get_energy_cost(), session.describe_card(card, false), reason]
+
+
+func show_rewrite_hint(card: CardInstance) -> void:
+	if session.can_rewrite(card):
+		%RewriteStatus.text = "%s   →   BACK OF LINE   /   −%d CADENCE" % [card.definition.display_name.to_upper(), session.REWRITE_COST]
+
+
+func clear_rewrite_hint(card: CardInstance) -> void:
+	if session.can_rewrite(card):
+		%RewriteStatus.text = REWRITE_READY
 
 
 func rewrite_card(card: CardInstance) -> void:
-	session.rewrite_intent(card)
+	if not session.can_rewrite(card):
+		return
+	var index := enemy_piles.hand.find(card)
+	var snapshot: Array[Dictionary] = []
+	if motion_enabled:
+		snapshot = rewrite_fx.capture(rewrite_row)
+	var old_tile := rewrite_row.get_child(index) as Control
+	var had_focus := old_tile != null and old_tile.has_focus()
+	if not session.rewrite_intent(card):
+		return
+	message.text = "Rewrite · %s moved to the back of the rival's line." % card.definition.display_name
+	if had_focus:
+		end_button.grab_focus()
+	if motion_enabled and rewrite_fx.play(snapshot, rewrite_row, index):
+		combat_audio.rewrite_lift()
+	else:
+		combat_audio.rewrite_seal()
+
+
+func show_rewrite_destination() -> void:
+	if rewrite_row.get_child_count() > 0:
+		intent_scroll.ensure_control_visible(rewrite_row.get_child(-1))
+
+
+func set_motion_enabled(enabled: bool) -> void:
+	motion_enabled = enabled
+	if not enabled:
+		rewrite_fx.cancel()
+		for tween in [_hand_tween, _feedback_tween, _cadence_tween, _pattern_tween]:
+			if tween != null:
+				tween.kill()
+		for card in hand_row.get_children():
+			card.modulate = Color.WHITE
+		%CadencePips.modulate = Color.WHITE
+		pattern_label.modulate = Color.WHITE
+		player_hp.modulate = Color.WHITE
+		enemy_hp.modulate = Color.WHITE
+		var no_changes: Array[Dictionary] = []
+		player_feedback.present(no_changes, false)
+		enemy_feedback.present(no_changes, false)
+
+
+func animate_hand_arrival() -> void:
+	combat_audio.paper(true)
+	if not motion_enabled or hand_row.get_child_count() == 0:
+		return
+	if _hand_tween != null:
+		_hand_tween.kill()
+	_hand_tween = create_tween().set_parallel(true)
+	for index in range(hand_row.get_child_count()):
+		var card: Control = hand_row.get_child(index)
+		card.modulate = Color(0.88, 0.73, 0.55, 0.45)
+		_hand_tween.tween_property(card, "modulate", Color.WHITE, 0.21).set_delay(index * 0.035)
 
 
 func draw_one() -> void:
@@ -486,15 +580,34 @@ func advance_rival_presentation() -> void:
 
 
 func on_card_presented(card: CardInstance, by_player: bool) -> void:
+	combat_audio.paper()
 	_last_presented_card = card
 	_last_presented_by_player = by_player
 	message.text = "%s played %s." % ["You" if by_player else "Rival", card.definition.display_name]
 
 
 func on_session_changed() -> void:
+	var new_hand: bool = session.player_turn and session.outcome.is_empty() and session.round_number > _display_state.get("round", 0)
+	var gained_cadence: bool = session.cadence > _display_state.get("cadence", 0)
+	var completed_pattern: bool = session.statistics.player.patterns > _display_state.get("patterns", 0)
 	present_state_changes()
 	restore_action_message()
 	refresh()
+	if new_hand:
+		animate_hand_arrival()
+	if gained_cadence and motion_enabled:
+		var pips: Label = %CadencePips
+		if _cadence_tween != null:
+			_cadence_tween.kill()
+		pips.modulate = Color(1.4, 1.22, 0.9)
+		_cadence_tween = create_tween()
+		_cadence_tween.tween_property(pips, "modulate", Color.WHITE, 0.30)
+	if completed_pattern and motion_enabled:
+		if _pattern_tween != null:
+			_pattern_tween.kill()
+		pattern_label.modulate = Color(1.4, 1.23, 0.9)
+		_pattern_tween = create_tween()
+		_pattern_tween.tween_property(pattern_label, "modulate", Color.WHITE, 0.50)
 	if not session.outcome.is_empty():
 		rival_timer.stop()
 		if not _result_reported:
@@ -506,17 +619,11 @@ func inspect_pile(title: String, cards: Array[CardInstance]) -> void:
 	var resume_rival := not rival_timer.is_stopped()
 	if resume_rival:
 		rival_timer.stop()
-	var dialog := AcceptDialog.new()
-	dialog.title = title + " pile" + (" — rival playback paused" if resume_rival else "")
-	var counts: Dictionary = {}
-	for card in cards:
-		var name: String = card.definition.display_name
-		counts[name] = int(counts.get(name, 0)) + 1
-	var lines: PackedStringArray = []
-	for name in counts:
-		lines.append("%s × %d" % [name, counts[name]])
-	dialog.dialog_text = "Empty" if lines.is_empty() else "\n".join(lines)
+	var dialog := CardBrowser.instantiate()
+	dialog.name = "PileBrowser"
 	add_child(dialog)
-	dialog.confirmed.connect(close_board_dialog.bind(dialog, resume_rival))
-	dialog.canceled.connect(close_board_dialog.bind(dialog, resume_rival))
-	dialog.popup_centered(Vector2i(360, 200))
+	dialog.close_requested.connect(close_board_dialog.bind(dialog, resume_rival))
+	var note := "Draw order is hidden." if title == "Draw" else ("Returns after a reshuffle." if title == "Discard" else "Out of play for this encounter.")
+	if resume_rival:
+		note += " Rival playback paused."
+	dialog.show_cards(title + " pile", cards, note)

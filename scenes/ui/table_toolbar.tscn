@@ -1,0 +1,45 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/info_label.gd" id="label"]
+[ext_resource type="Script" path="res://scripts/ui/info_button.gd" id="button"]
+
+[node name="TableToolbar" type="HBoxContainer"]
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.812, 0.667, 0.4, 1)
+theme_override_font_sizes/font_size = 13
+text = "YOUR DECK / RIVAL DECK"
+text_overrun_behavior = 3
+script = ExtResource("label")
+
+[node name="Sound" type="CheckButton" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Sound"
+tooltip_text = "Play combat sound effects."
+
+[node name="Motion" type="CheckButton" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Motion"
+tooltip_text = "Animate Rewrite, arriving hands, and combat feedback."
+
+[node name="FastTurns" type="CheckButton" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Fast turns"
+tooltip_text = "Rival card interval: 0.2 seconds when enabled, 0.65 seconds otherwise."
+
+[node name="Leave" type="Button" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "← Leave table"
+script = ExtResource("button")

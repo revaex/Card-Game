@@ -28,6 +28,7 @@ func board(own: CardDefinition, rival: CardDefinition) -> Control:
 	var view := Table.instantiate()
 	view.theme = Style.theme()
 	root.add_child(view)
+	view.combat_audio.set_enabled(false)
 	view.setup(copies(own), copies(rival))
 	return view
 
@@ -45,9 +46,9 @@ func run() -> void:
 	check(texts(view.player_feedback).has("+8 BLOCK"), "Block gain displays on the source combatant")
 	check(texts(view.enemy_feedback).is_empty(), "Support cards do not flash the opposing combatant")
 	view.end_turn()
-	check(view.intent_scroll.visible and view.rewrite_row.get_child_count() == 6, "Rival line stays visible during execution")
-	check(view.rewrite_row.get_child(1).get_meta("intent_state") == "NEXT", "Next affordable rival card is marked")
-	check(view.rewrite_row.get_child(4).get_meta("intent_state") == "RESERVE", "Cards outside the energy budget are explicitly marked reserve")
+	check(view.intent_scroll.is_visible_in_tree() and view.rewrite_row.get_child_count() == 5, "Rival line stays visible during execution")
+	check(view.rewrite_row.get_child(0).get_meta("intent_state") == "NEXT", "Next affordable rival card is marked")
+	check(view.rewrite_row.get_child(3).get_meta("intent_state") == "RESERVE", "Cards outside the energy budget are explicitly marked reserve")
 	check(view.energy_label.text == "WAITING" and view.enemy_energy_label.visible, "Energy display identifies the acting side")
 	view.advance_rival_presentation()
 	check(texts(view.player_feedback).has("−2 HP") and texts(view.player_feedback).has("8 BLOCKED"), "Partially blocked attack shows separate actual HP loss and absorption")
@@ -56,7 +57,7 @@ func run() -> void:
 	check(view.hand_title.text == "LAST RIVAL PLAY", "Hand area clearly identifies the rival's reference card")
 	var last: Control = view.hand_row.get_node("LastRivalCard")
 	check(last.find_child("Play", true, false).disabled and last.tooltip_text.contains("already resolved"), "Last rival card is informational and cannot be played")
-	check(view.rewrite_row.get_child(1).get_meta("intent_state") == "NEXT", "Next marker advances after a resolved card")
+	check(view.rewrite_row.get_child(0).get_meta("intent_state") == "NEXT", "Next marker advances after a resolved card")
 	view.show_pattern_guide()
 	check(view.rival_timer.is_stopped(), "Reading the Pattern guide pauses rival presentation")
 	view.get_node("PatternGuide").confirmed.emit()
@@ -66,6 +67,7 @@ func run() -> void:
 	await process_frame
 	view = Table.instantiate()
 	root.add_child(view)
+	view.combat_audio.set_enabled(false)
 	var empty_cards: Array[CardInstance] = []
 	view.setup(empty_cards, empty_cards, false, null, retained)
 	check(view.hand_row.has_node("LastRivalCard"), "Resuming a rival turn restores the last played card")
