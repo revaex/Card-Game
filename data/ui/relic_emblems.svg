@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="64" viewBox="0 0 320 64">
+  <defs>
+    <g id="plate">
+      <path d="M13 4H51L60 13V51L51 60H13L4 51V13Z" fill="#0d1c23" stroke="#756043"/>
+      <circle cx="32" cy="32" r="23" fill="none" stroke="#584b38" stroke-dasharray="2 4"/>
+    </g>
+  </defs>
+  <g fill="none" stroke="#e1bc79" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <g>
+      <use href="#plate" stroke-width="1"/>
+      <path d="M19 25 13 16m31 9 8-11M17 28v16c0 4 7 7 15 7s15-3 15-7V28"/>
+      <ellipse cx="32" cy="28" rx="15" ry="6" fill="#342b23"/>
+      <path d="m18 33 8 16 6-15 6 15 8-16"/>
+    </g>
+    <g transform="translate(64)">
+      <use href="#plate" stroke-width="1"/>
+      <path d="M32 13 46 20V33c0 7-5 13-14 19-9-6-14-12-14-19V20Z" fill="#253138"/>
+      <path d="M32 20v24m-7-14h14"/>
+    </g>
+    <g transform="translate(128)">
+      <use href="#plate" stroke-width="1"/>
+      <path d="M21 49c5-9 12-17 23-27m-21 21c-5-13 8-25 24-28-2 11-10 21-21 24m7-6-2-6m6 3 5 1M15 50h23"/>
+    </g>
+    <g transform="translate(192)">
+      <use href="#plate" stroke-width="1"/>
+      <path d="m24 40-4 12 7-3 5 4 5-4 7 3-4-12" fill="#53382d"/>
+      <circle cx="32" cy="28" r="15" fill="#493729"/>
+      <circle cx="32" cy="28" r="10"/>
+      <path d="m32 22 4 6-4 6-4-6Z" fill="#e1bc79"/>
+    </g>
+    <g transform="translate(256)">
+      <use href="#plate" stroke-width="1"/>
+      <path d="M18 31v-7c0-8 6-12 14-12s14 4 14 12v7l-3 13-11 7-11-7Z" fill="#26363c"/>
+      <path d="M18 28h28M24 35h16m-8-17v9m-4 13v4m8-4v4"/>
+    </g>
+  </g>
+</svg>

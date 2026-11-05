@@ -6,6 +6,8 @@ const Library = preload("res://scripts/content/deck_library.gd")
 const RelicCollection = preload("res://scripts/content/relic_collection.gd")
 const RelicPage = preload("res://scenes/ui/relic_collection.tscn")
 const RelicTile = preload("res://scenes/ui/relic_tile.tscn")
+const PageHeading = preload("res://scenes/ui/page_heading.tscn")
+const RELIC_EMBLEMS = preload("res://data/ui/relic_emblems.svg")
 const Table = preload("res://scenes/ui/combat_table.tscn")
 const TableToolbar = preload("res://scenes/ui/table_toolbar.tscn")
 const OptionsMenu = preload("res://scenes/ui/options_menu.tscn")
@@ -86,9 +88,10 @@ func clear(title: String, subtitle: String) -> void:
 	for child in body.get_children():
 		body.remove_child(child)
 		child.queue_free()
-	Style.label(body, "THE CARD TABLE", 14, Style.GOLD)
-	Style.heading(body, title, 30)
-	Style.label(body, subtitle, 16, Style.MUTED)
+	var heading := PageHeading.instantiate()
+	body.add_child(heading)
+	heading.get_node("%Title").text = title
+	heading.get_node("%Subtitle").text = subtitle
 	if not library.error_message.is_empty():
 		Style.label(body, library.error_message, 16, Color("eea89b"))
 
@@ -312,12 +315,17 @@ func show_relics(from_setup: bool = false) -> void:
 	var page := RelicPage.instantiate()
 	body.add_child(page)
 	page.get_node("%Balance").text = "%d MARKS" % relics.marks
+	page.get_node("%Collected").text = "%d / %d collected" % [relics.owned.size(), RelicCollection.CATALOG.size()]
 	page.get_node("%Earnings").text = "Named rival victories earn %d Marks. Completing a Journey earns %d more." % [RelicCollection.DUEL_MARKS, RelicCollection.JOURNEY_BONUS]
 	page.get_node("%Back").pressed.connect(show_setup if from_setup else show_menu)
 	for relic in RelicCollection.CATALOG:
 		var tile := RelicTile.instantiate()
 		tile.name = relic.id
 		page.get_node("%Relics").add_child(tile)
+		var emblem := AtlasTexture.new()
+		emblem.atlas = RELIC_EMBLEMS
+		emblem.region = Rect2(relic.perk * 64, 0, 64, 64)
+		tile.get_node("%Emblem").texture = emblem
 		tile.get_node("%Title").text = relic.title
 		tile.get_node("%Description").text = relic.description
 		var tier := "STARTER" if relic.price == 0 else ("JOURNEY RELIC" if relic.requires_journey else ("RIVAL RELIC" if not relic.required_rival.is_empty() else "COLLECTION RELIC"))
@@ -326,6 +334,11 @@ func show_relics(from_setup: bool = false) -> void:
 		if relics.owned.has(relic.id):
 			var equipped: bool = relics.equipped_id == relic.id
 			tile.get_node("%Status").text = "EQUIPPED" if equipped else "OWNED"
+			if equipped:
+				var frame := tile.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
+				frame.border_color = Style.GOLD
+				tile.add_theme_stylebox_override("panel", frame)
+				tile.get_node("%Status").add_theme_color_override("font_color", Style.GOLD)
 			action.text = "Unequip" if equipped else "Equip"
 			action.pressed.connect(change_equipped_relic.bind("" if equipped else relic.id, from_setup))
 		else:
@@ -420,8 +433,7 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	screen = "table"
 	_table_is_journey = in_journey
 	clear("The table", "%s vs %s" % [player_name, enemy_name])
-	for index in range(3):
-		body.get_child(index).hide()
+	body.get_node("PageHeading").hide()
 	var toolbar := TableToolbar.instantiate()
 	body.add_child(toolbar)
 	toolbar.get_node("%Title").text = ("CHAPTER %d/3  ·  " % (journey.stage + 1) if in_journey else "") + "%s / %s" % [player_name.to_upper(), enemy_name.to_upper()]
