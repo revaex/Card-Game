@@ -5,6 +5,7 @@ const Style = preload("res://scripts/ui/ui_style.gd")
 const Library = preload("res://scripts/content/deck_library.gd")
 const Table = preload("res://scenes/ui/combat_table.tscn")
 const TableToolbar = preload("res://scenes/ui/table_toolbar.tscn")
+const OptionsMenu = preload("res://scenes/ui/options_menu.tscn")
 const CombatResult = preload("res://scenes/ui/combat_result.tscn")
 const DeckEditor = preload("res://scenes/ui/deck_editor.tscn")
 const DeckCard = preload("res://scenes/ui/deck_card.tscn")
@@ -29,14 +30,18 @@ var use_war_drum: bool = true
 var fast_rival_turns: bool = false
 var combat_sound: bool = true
 var combat_motion: bool = true
+var master_volume: float = 100.0
+var options_path: String = "user://options.cfg"
 var result_overlay: Control
 
 
 func _ready() -> void:
+	load_options()
 	main_menu.journey_requested.connect(_on_menu_journey)
 	main_menu.single_duel_requested.connect(show_rivals)
 	main_menu.custom_duel_requested.connect(start_custom_duel)
 	main_menu.decks_requested.connect(func(): show_library(false))
+	main_menu.options_requested.connect(show_options)
 	main_menu.quit_requested.connect(func(): get_tree().quit())
 	library.load_decks()
 	show_menu()
@@ -338,6 +343,7 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	for toggle in [speed, sound, motion]:
 		Style.quiet(toggle)
 	var leave: Button = toolbar.get_node("%Leave")
+	Style.quiet(toolbar.get_node("%Options"))
 	leave.text = "Journey" if in_journey else "← Leave table"
 	leave.pressed.connect(show_journey_overview if in_journey else show_setup)
 	Style.quiet(leave)
@@ -351,13 +357,10 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	table.setup(player_cards, enemy_cards, use_war_drum, rival, existing)
 	table.rival_timer.wait_time = 0.2 if fast_rival_turns else 0.65
 	table.combat_finished.connect(show_result)
-	speed.toggled.connect(set_fast_turns)
-	sound.toggled.connect(func(enabled: bool):
-		combat_sound = enabled
-		table.combat_audio.set_enabled(enabled))
-	motion.toggled.connect(func(enabled: bool):
-		combat_motion = enabled
-		table.set_motion_enabled(enabled))
+	speed.toggled.connect(func(enabled: bool): change_option("fast_turns", enabled))
+	sound.toggled.connect(func(enabled: bool): change_option("sound", enabled))
+	motion.toggled.connect(func(enabled: bool): change_option("motion", enabled))
+	toolbar.get_node("%Options").pressed.connect(show_options)
 	if existing != null and not existing.player_turn and existing.outcome.is_empty():
 		table.rival_timer.start()
 
@@ -369,6 +372,70 @@ func set_fast_turns(enabled: bool) -> void:
 		table.rival_timer.wait_time = 0.2 if enabled else 0.65
 		if not table.rival_timer.is_stopped():
 			table.rival_timer.start()
+
+
+func load_options() -> void:
+	var config := ConfigFile.new()
+	if config.load(options_path) == OK:
+		combat_sound = bool(config.get_value("table", "sound", true))
+		combat_motion = bool(config.get_value("table", "motion", true))
+		fast_rival_turns = bool(config.get_value("table", "fast_turns", false))
+		master_volume = clampf(float(config.get_value("table", "volume", 100.0)), 0.0, 100.0)
+	apply_volume()
+
+
+func apply_volume() -> void:
+	AudioServer.set_bus_volume_linear(0, master_volume / 100.0)
+
+
+func change_option(key: String, value: Variant) -> void:
+	var table := body.get_node_or_null("CombatTable")
+	var toolbar := body.get_node_or_null("TableToolbar")
+	match key:
+		"sound":
+			combat_sound = value
+			if table != null:
+				table.combat_audio.set_enabled(combat_sound)
+				toolbar.get_node("%Sound").set_pressed_no_signal(combat_sound)
+		"motion":
+			combat_motion = value
+			if table != null:
+				table.set_motion_enabled(combat_motion)
+				toolbar.get_node("%Motion").set_pressed_no_signal(combat_motion)
+		"fast_turns":
+			set_fast_turns(value)
+			if toolbar != null:
+				toolbar.get_node("%FastTurns").set_pressed_no_signal(fast_rival_turns)
+		"volume":
+			master_volume = value
+			apply_volume()
+	var config := ConfigFile.new()
+	config.set_value("table", "sound", combat_sound)
+	config.set_value("table", "motion", combat_motion)
+	config.set_value("table", "fast_turns", fast_rival_turns)
+	config.set_value("table", "volume", master_volume)
+	var error := config.save(options_path)
+	if error != OK:
+		push_warning("Could not save options: " + error_string(error))
+
+
+func show_options() -> void:
+	var previous_focus := get_viewport().gui_get_focus_owner()
+	var table := body.get_node_or_null("CombatTable")
+	var resume: bool = table != null and not table.rival_timer.is_stopped()
+	if resume:
+		table.rival_timer.stop()
+	var menu := OptionsMenu.instantiate()
+	add_child(menu)
+	menu.preference_changed.connect(change_option)
+	menu.close_requested.connect(func():
+		menu.hide()
+		menu.queue_free()
+		if is_instance_valid(previous_focus):
+			previous_focus.grab_focus()
+		if resume and is_instance_valid(table) and not table.session.player_turn and table.session.outcome.is_empty():
+			table.rival_timer.start())
+	menu.open(combat_sound, combat_motion, fast_rival_turns, master_volume)
 
 
 func close_result() -> void:

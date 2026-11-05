@@ -8,6 +8,7 @@ const CardBrowser = preload("res://scenes/ui/card_browser.tscn")
 const IntentCard = preload("res://scenes/ui/intent_card.tscn")
 const POISON_GREEN = Color("65ef94")
 const REWRITE_READY = "✦   REWRITE READY   /   CHOOSE A CARD"
+const CATEGORY_COLORS = [Color("efa58e"), Color("96d4f0"), Color("ebc77b")]
 
 const PileToken = preload("res://scripts/ui/pile_token.gd")
 
@@ -22,6 +23,10 @@ var _feedback_tween: Tween
 var _hand_tween: Tween
 var _cadence_tween: Tween
 var _pattern_tween: Tween
+var _hand_order: Array[CardInstance] = []
+var _dragging: CardInstance
+var _drag_face: Control
+@onready var card_stage = %CardStage
 var motion_enabled: bool = true
 @onready var rewrite_fx = %RewriteFX
 @onready var combat_audio = $CombatAudio
@@ -63,6 +68,7 @@ func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 	player_piles = session.player_piles
 	enemy_piles = session.enemy_piles
 	_bind_scene_nodes()
+	card_stage.table = self
 	rewrite_fx.landed.connect(combat_audio.rewrite_seal)
 	rewrite_fx.finished.connect(show_rewrite_destination)
 	rewrite_fx.resized.connect(rewrite_fx.cancel)
@@ -124,6 +130,7 @@ func read_display_state() -> Dictionary:
 		"player_turn": session.player_turn,
 		"round": session.round_number,
 		"cadence": session.cadence,
+		"cards": session.statistics.player.cards,
 		"patterns": session.statistics.player.patterns,
 	}
 
@@ -261,7 +268,13 @@ func refresh() -> void:
 		empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		empty_label.custom_minimum_size.x = 400
 		empty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	for card in _hand_order.duplicate():
+		if not player_piles.hand.has(card):
+			_hand_order.erase(card)
 	for card in player_piles.hand:
+		if not _hand_order.has(card):
+			_hand_order.append(card)
+	for card in _hand_order:
 		var view := HandCard.instantiate()
 		hand_row.add_child(view)
 		var exhaust := move_card.bind(card, true) if sandbox and session.player_turn and session.outcome.is_empty() else Callable()
@@ -269,6 +282,8 @@ func refresh() -> void:
 		var details := forecast_text(card)
 		var pattern: Resource = session.preview_pattern(card)
 		view.setup(card, session.can_play(card), play_card.bind(card), exhaust, text, details, pattern.display_name if pattern != null else "", card_action_hint(card))
+		view.enable_hand_drag(self, card)
+		view.set_meta("card", card)
 		view.inspected.connect(show_card_forecast.bind(card))
 		view.inspection_ended.connect(restore_action_message)
 	_display_state = read_display_state()
@@ -318,6 +333,15 @@ func card_action_hint(card: CardInstance) -> String:
 
 func refresh_pattern() -> void:
 	pattern_label.tooltip_text = session.pattern_rules()
+	var steps_history: Array[int] = session.pattern_history
+	var offset := maxi(0, steps_history.size() - 2) if session.completed_pattern.is_empty() else 0
+	for index in range(3):
+		var step: Label = %PatternSteps.get_child(index)
+		var filled: bool = session.player_turn and index + offset < steps_history.size()
+		var category := steps_history[index + offset] if filled else -1
+		step.text = CardDefinition.Category.keys()[category].capitalize() if filled else "◇"
+		step.add_theme_color_override("font_color", CATEGORY_COLORS[category] if filled else Style.MUTED)
+		step.tooltip_text = pattern_label.tooltip_text
 	pattern_label.remove_theme_color_override("font_color")
 	if not session.completed_pattern.is_empty():
 		pattern_label.text = "PATTERN COMPLETE · " + session.completed_pattern
@@ -330,12 +354,15 @@ func refresh_pattern() -> void:
 	var sequence: PackedStringArray = []
 	for index in session.pattern_history:
 		sequence.append(names[index].capitalize())
-	pattern_label.text = "Build a 3-card Pattern" if sequence.is_empty() else " → ".join(sequence) + " → ?"
+	pattern_label.text = "PATTERN  /  Play 3 cards in sequence" if sequence.is_empty() else "PATTERN  /  " + " → ".join(sequence.slice(-2)) + " → ?"
 	if sequence.size() >= 2:
 		var history: Array[int] = session.pattern_history
 		for pattern in session.PATTERNS:
 			if history[-2] == pattern.first and history[-1] == pattern.second:
-				pattern_label.text = "%s → %s → %s = %s" % [names[pattern.first].capitalize(), names[pattern.second].capitalize(), names[pattern.third].capitalize(), pattern.display_name]
+				var next_step: Label = %PatternSteps.get_child(2)
+				next_step.text = names[pattern.third].capitalize() + "?"
+				next_step.add_theme_color_override("font_color", Style.GOLD)
+				pattern_label.text = "%s next  /  %s" % [pattern.display_name, pattern.payoff]
 				break
 
 
@@ -449,6 +476,7 @@ func refresh_intent() -> void:
 		var button := IntentCard.instantiate()
 		rewrite_row.add_child(button)
 		button.show_card(card, index, state, session.can_rewrite(card))
+		button.set_meta("card", card)
 		button.pressed.connect(rewrite_card.bind(card))
 		if not button.disabled:
 			button.mouse_entered.connect(show_rewrite_hint.bind(card))
@@ -506,13 +534,17 @@ func set_motion_enabled(enabled: bool) -> void:
 	motion_enabled = enabled
 	if not enabled:
 		rewrite_fx.cancel()
+		card_stage.settle()
 		for tween in [_hand_tween, _feedback_tween, _cadence_tween, _pattern_tween]:
 			if tween != null:
 				tween.kill()
 		for card in hand_row.get_children():
 			card.modulate = Color.WHITE
 		%CadencePips.modulate = Color.WHITE
+		%CadencePips.scale = Vector2.ONE
 		pattern_label.modulate = Color.WHITE
+		for step in %PatternSteps.get_children():
+			step.scale = Vector2.ONE
 		player_hp.modulate = Color.WHITE
 		enemy_hp.modulate = Color.WHITE
 		var no_changes: Array[Dictionary] = []
@@ -565,6 +597,40 @@ func play_card(card: CardInstance) -> void:
 	session.play_card(card)
 
 
+func can_drag_card(card: CardInstance) -> bool:
+	return session != null and session.player_turn and session.outcome.is_empty() and player_piles.hand.has(card)
+
+
+func begin_hand_drag(face: Control, card: CardInstance) -> void:
+	_dragging = card
+	_drag_face = face
+	face.modulate.a = 0.35
+	card_stage.show_drag(session.can_play(card), true)
+
+
+func is_hand_drag(data: Variant) -> bool:
+	return data is Dictionary and data.get("table") == get_instance_id() and data.get("card") == _dragging and can_drag_card(_dragging)
+
+
+func reorder_hand(card: CardInstance, before: CardInstance) -> void:
+	var destination := _hand_order.find(before)
+	var from := _hand_order.find(card)
+	if destination < 0 or from < 0 or destination == from:
+		return
+	_hand_order.remove_at(from)
+	_hand_order.insert(destination, card)
+	hand_row.move_child(hand_row.get_child(from), destination)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_END and _dragging != null:
+		if is_instance_valid(_drag_face):
+			_drag_face.modulate = Color.WHITE
+		_dragging = null
+		_drag_face = null
+		card_stage.show_drag(false, false)
+
+
 func end_turn() -> void:
 	if not session.outcome.is_empty():
 		combat_finished.emit(session.combat_summary())
@@ -581,6 +647,17 @@ func advance_rival_presentation() -> void:
 
 func on_card_presented(card: CardInstance, by_player: bool) -> void:
 	combat_audio.paper()
+	var row := hand_row if by_player else rewrite_row
+	var origin: Vector2 = card_stage.get_global_transform_with_canvas() * (card_stage.size * 0.5)
+	var has_origin := false
+	for node: Control in row.get_children():
+		if node.get_meta("card", null) == card:
+			origin = node.get_global_transform_with_canvas() * (node.size * 0.5)
+			has_origin = true
+			break
+	if card == _dragging:
+		origin = get_viewport().get_mouse_position()
+	card_stage.present(card, by_player, origin, motion_enabled and has_origin, session.last_action.get("description", ""))
 	_last_presented_card = card
 	_last_presented_by_player = by_player
 	message.text = "%s played %s." % ["You" if by_player else "Rival", card.definition.display_name]
@@ -588,25 +665,37 @@ func on_card_presented(card: CardInstance, by_player: bool) -> void:
 
 func on_session_changed() -> void:
 	var new_hand: bool = session.player_turn and session.outcome.is_empty() and session.round_number > _display_state.get("round", 0)
-	var gained_cadence: bool = session.cadence > _display_state.get("cadence", 0)
+	var previous_cadence: int = _display_state.get("cadence", 0)
+	var cadence_changed: bool = session.cadence != previous_cadence
 	var completed_pattern: bool = session.statistics.player.patterns > _display_state.get("patterns", 0)
+	var played_player_card: bool = session.player_turn and session.statistics.player.cards > _display_state.get("cards", 0)
 	present_state_changes()
 	restore_action_message()
 	refresh()
 	if new_hand:
 		animate_hand_arrival()
-	if gained_cadence and motion_enabled:
+	if cadence_changed and motion_enabled:
 		var pips: Label = %CadencePips
 		if _cadence_tween != null:
 			_cadence_tween.kill()
 		pips.modulate = Color(1.4, 1.22, 0.9)
-		_cadence_tween = create_tween()
+		_cadence_tween = create_tween().set_parallel()
 		_cadence_tween.tween_property(pips, "modulate", Color.WHITE, 0.30)
-	if completed_pattern and motion_enabled:
+		pips.pivot_offset = pips.size * 0.5
+		pips.scale = Vector2.ONE * (1.22 if session.cadence > previous_cadence else 0.78)
+		_cadence_tween.tween_property(pips, "scale", Vector2.ONE, 0.33).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if played_player_card and motion_enabled:
 		if _pattern_tween != null:
 			_pattern_tween.kill()
-		pattern_label.modulate = Color(1.4, 1.23, 0.9)
-		_pattern_tween = create_tween()
+		_pattern_tween = create_tween().set_parallel()
+		for index in range(3):
+			var step: Label = %PatternSteps.get_child(index)
+			step.scale = Vector2.ONE
+			if completed_pattern or index == mini(session.pattern_history.size(), 2) - 1:
+				step.pivot_offset = step.size * 0.5
+				step.scale = Vector2.ONE * (1.20 if completed_pattern else 1.13)
+				_pattern_tween.tween_property(step, "scale", Vector2.ONE, 0.30).set_delay(index * 0.045 if completed_pattern else 0.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		pattern_label.modulate = Color(1.4, 1.23, 0.9) if completed_pattern else Color.WHITE
 		_pattern_tween.tween_property(pattern_label, "modulate", Color.WHITE, 0.50)
 	if not session.outcome.is_empty():
 		rival_timer.stop()

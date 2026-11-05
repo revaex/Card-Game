@@ -99,6 +99,26 @@ func setup_preview(card: CardInstance, caption: String = "") -> void:
 	set_caption(caption)
 
 
+func enable_hand_drag(table: Control, card: CardInstance) -> void:
+	%Play.table = table
+	%Play.card = card
+	%Play.face = self
+	if not %Play.disabled:
+		set_caption("Click or drag to play")
+		%Play.tooltip_text = tooltip_text + "\nClick, press Enter / Space, or drag this card onto the table. Drag it onto another card to reorder your hand."
+
+
+func make_snapshot() -> Control:
+	var copy: Control = duplicate(Node.DUPLICATE_SCRIPTS)
+	copy.get_node("HitArea").hide()
+	copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child: Control in copy.find_children("*", "Control", true, false):
+		child.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	copy.modulate = Color.WHITE
+	copy.size = size
+	return copy
+
+
 func set_caption(caption: String) -> void:
 	%Footer.text = caption.to_upper()
 

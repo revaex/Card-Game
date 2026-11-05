@@ -150,6 +150,12 @@ mouse_default_cursor_shape = 2
 text = "Your decks"
 script = ExtResource("button")
 
+[node name="OptionsButton" type="Button" parent="Hero/Copy/SecondaryActions"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Options"
+script = ExtResource("button")
+
 [node name="QuitButton" type="Button" parent="Hero/Copy/SecondaryActions"]
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
@@ -190,4 +196,5 @@ script = ExtResource("label")
 [connection signal="pressed" from="Hero/Copy/SecondaryActions/SingleDuelButton" to="." method="_on_single_pressed"]
 [connection signal="pressed" from="Hero/Copy/SecondaryActions/CustomDuelButton" to="." method="_on_custom_pressed"]
 [connection signal="pressed" from="Hero/Copy/SecondaryActions/DecksButton" to="." method="_on_decks_pressed"]
+[connection signal="pressed" from="Hero/Copy/SecondaryActions/OptionsButton" to="." method="_on_options_pressed"]
 [connection signal="pressed" from="Hero/Copy/SecondaryActions/QuitButton" to="." method="_on_quit_pressed"]

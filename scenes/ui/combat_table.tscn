@@ -7,6 +7,7 @@
 [ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
 [ext_resource type="Script" path="res://scripts/ui/rewrite_fx.gd" id="rewrite"]
 [ext_resource type="PackedScene" path="res://scenes/ui/combat_audio.tscn" id="audio"]
+[ext_resource type="PackedScene" path="res://scenes/ui/card_stage.tscn" id="stage"]
 
 [sub_resource type="StyleBoxFlat" id="EnemyHealth"]
 bg_color = Color(0.808, 0.471, 0.443, 1)
@@ -197,7 +198,7 @@ script = ExtResource("label")
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.91, 0.72, 0.44, 1)
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 16
 text = "◇ ◇ ◇"
 script = ExtResource("label")
 
@@ -254,6 +255,10 @@ text = "Redraw up to 5"
 tooltip_text = "LAB REDRAW\nDiscard and redraw up to five cards without advancing the turn."
 script = ExtResource("button")
 
+[node name="CardStage" parent="Middle" instance=ExtResource("stage")]
+unique_name_in_owner = true
+layout_mode = 2
+
 [node name="RecordPanel" type="PanelContainer" parent="Middle"]
 custom_minimum_size = Vector2(340, 0)
 layout_mode = 2
@@ -302,6 +307,32 @@ size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 13
 horizontal_alignment = 2
 script = ExtResource("label")
+
+[node name="PatternSteps" type="HBoxContainer" parent="HandHeading"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Step1" type="Label" parent="HandHeading/PatternSteps"]
+custom_minimum_size = Vector2(52, 22)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "◇"
+horizontal_alignment = 1
+
+[node name="Step2" type="Label" parent="HandHeading/PatternSteps"]
+custom_minimum_size = Vector2(52, 22)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "◇"
+horizontal_alignment = 1
+
+[node name="Step3" type="Label" parent="HandHeading/PatternSteps"]
+custom_minimum_size = Vector2(52, 22)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "◇"
+horizontal_alignment = 1
 
 [node name="PatternGuideButton" type="Button" parent="HandHeading"]
 layout_mode = 2

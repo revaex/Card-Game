@@ -1,0 +1,82 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/options_menu.gd" id="options"]
+[ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
+
+[node name="OptionsMenu" type="Window"]
+title = "Options"
+visible = false
+transient = true
+exclusive = true
+unresizable = true
+theme = ExtResource("theme")
+script = ExtResource("options")
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"BrowserPanel"
+
+[node name="Content" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Heading" type="Label" parent="Panel/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 25
+theme_type_variation = &"CardTitle"
+text = "Table preferences"
+
+[node name="Rule" type="HSeparator" parent="Panel/Content"]
+layout_mode = 2
+
+[node name="VolumeRow" type="HBoxContainer" parent="Panel/Content"]
+layout_mode = 2
+
+[node name="Volume" type="Label" parent="Panel/Content/VolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(130, 0)
+text = "Volume 100%"
+
+[node name="Level" type="HSlider" parent="Panel/Content/VolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+step = 5.0
+value = 100.0
+tooltip_text = "Master volume"
+
+[node name="Sound" type="CheckButton" parent="Panel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Combat sound effects"
+tooltip_text = "Play paper, impact, and Rewrite sounds."
+
+[node name="Motion" type="CheckButton" parent="Panel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Combat animations"
+tooltip_text = "Animate card plays, Rewrite, and combat feedback."
+
+[node name="Speed" type="CheckButton" parent="Panel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Fast rival turns"
+tooltip_text = "Shorten the pause between rival plays."
+
+[node name="Close" type="Button" parent="Panel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+custom_minimum_size = Vector2(110, 38)
+text = "Done"
+
+[connection signal="value_changed" from="Panel/Content/VolumeRow/Level" to="." method="_on_level_changed"]
+[connection signal="toggled" from="Panel/Content/Sound" to="." method="_on_sound_toggled"]
+[connection signal="toggled" from="Panel/Content/Motion" to="." method="_on_motion_toggled"]
+[connection signal="toggled" from="Panel/Content/Speed" to="." method="_on_speed_toggled"]
+[connection signal="pressed" from="Panel/Content/Close" to="." method="_on_close_pressed"]

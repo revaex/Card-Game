@@ -5,6 +5,7 @@ signal journey_requested
 signal single_duel_requested
 signal custom_duel_requested
 signal decks_requested
+signal options_requested
 signal quit_requested
 
 
@@ -30,3 +31,7 @@ func _on_decks_pressed() -> void:
 
 func _on_quit_pressed() -> void:
 	quit_requested.emit()
+
+
+func _on_options_pressed() -> void:
+	options_requested.emit()

@@ -14,12 +14,44 @@ func check(condition: bool, text: String) -> void:
 		push_error(text)
 
 
+func drag_card(from: Vector2, to: Vector2) -> void:
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = from
+	root.push_input(press, true)
+	var lift := InputEventMouseMotion.new()
+	lift.button_mask = MOUSE_BUTTON_MASK_LEFT
+	lift.relative = Vector2(18, 0)
+	lift.position = from + lift.relative
+	root.push_input(lift, true)
+	var travel := lift.duplicate() as InputEventMouseMotion
+	travel.position = to
+	travel.relative = to - lift.position
+	root.push_input(travel, true)
+	var release := press.duplicate() as InputEventMouseButton
+	release.pressed = false
+	release.position = to
+	root.push_input(release, true)
+
+
 func run() -> void:
 	var ui := GameUI.instantiate()
+	ui.options_path = "res://.godot/ui-test-options-%d.cfg" % Time.get_ticks_usec()
 	root.add_child(ui)
 	ui.library.save_path = "res://.godot/ui-test-decks.json"
 	ui.library.decks.assign([{"name": "Test", "cards": {"strike": 5, "block": 5}}])
 	check(ui.screen == "menu", "Main menu opens")
+	ui.main_menu.find_child("OptionsButton", true, false).pressed.emit()
+	var options := ui.get_node("OptionsMenu")
+	check(options.visible, "Options opens from the main menu")
+	options.get_node("%Level").value = 65
+	check(is_equal_approx(AudioServer.get_bus_volume_linear(0), 0.65), "Options volume updates the live audio bus")
+	ui.master_volume = 100.0
+	ui.load_options()
+	check(ui.master_volume == 65.0, "Options reload the saved volume")
+	options.get_node("%Level").value = 100
+	options.get_node("%Close").pressed.emit()
 	ui.show_library(false)
 	ui.show_editor(0, false)
 	var editor: Node = ui.body.get_node("DeckEditor")
@@ -34,6 +66,22 @@ func run() -> void:
 	check(ui.valid_selection() and ui.player_index == 0 and ui.enemy_index == 0, "First usable deck is selected for both sides")
 	ui.player_index = 0
 	ui.enemy_index = 0
+	ui.show_table()
+	var drag_table: Control = ui.body.get_node("CombatTable")
+	await process_frame
+	await process_frame
+	var drag_row: HBoxContainer = drag_table.hand_row
+	var first: Control = drag_row.get_child(0)
+	var second: Control = drag_row.get_child(1)
+	var dragged: CardInstance = first.get_meta("card")
+	drag_card(first.get_global_rect().get_center(), second.get_global_rect().get_center())
+	check(drag_row.get_child(1) == first and drag_table.session.statistics.player.cards == 0, "Dragging within the hand reorders cards without playing them")
+	await process_frame
+	drag_card(first.get_global_rect().get_center(), drag_table.player_hp.get_global_rect().get_center())
+	check(drag_table.session.statistics.player.cards == 0 and first.modulate.a == 1.0, "Dropping outside the table returns the card to hand")
+	drag_card(first.get_global_rect().get_center(), drag_table.card_stage.get_global_rect().get_center())
+	check(drag_table.session.statistics.player.cards == 1 and drag_table.player_piles.discard_pile.has(dragged), "Dropping a card on the table plays it exactly once")
+	check(drag_table.card_stage.get_node("%CardMotion").get_child_count() == 1, "A played card appears on the board")
 	ui.show_table()
 	var table = ui.body.get_node("CombatTable")
 	await process_frame
@@ -98,6 +146,11 @@ func run() -> void:
 		check(table.player_piles.total_cards() == 10, "UI conserves total card count")
 	table.end_turn()
 	check(not table.session.player_turn and table.end_button.disabled, "UI locks player input during paced rival turn")
+	ui.body.get_node("TableToolbar").get_node("%Options").pressed.emit()
+	var combat_options := ui.get_node("OptionsMenu")
+	check(table.rival_timer.is_stopped(), "Opening Options from combat pauses rival playback")
+	combat_options.get_node("%Close").pressed.emit()
+	check(not table.rival_timer.is_stopped(), "Closing Options resumes rival playback")
 	var sample: Array[CardInstance] = [CardInstance.new(StarterDeck.STRIKE), CardInstance.new(StarterDeck.BLOCK), CardInstance.new(StarterDeck.STRIKE)]
 	table.inspect_pile("Draw", sample)
 	var pile_view: Window = table.get_node("PileBrowser")

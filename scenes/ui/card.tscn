@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/ui/hand_card.gd" id="card"]
 [ext_resource type="Script" path="res://scripts/ui/card_emblem.gd" id="emblem"]
 [ext_resource type="Script" path="res://scripts/ui/info_label.gd" id="label"]
-[ext_resource type="Script" path="res://scripts/ui/info_button.gd" id="button"]
+[ext_resource type="Script" path="res://scripts/ui/hand_play_button.gd" id="button"]
 [ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
 
 [sub_resource type="StyleBoxFlat" id="PreviewPaper"]

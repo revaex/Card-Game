@@ -11,6 +11,8 @@ Open this copy's `project.godot`, then open a scene from `scenes/ui`:
 - `combatant_panel.tscn`: reusable health, block, energy, and Poison display. The board uses two instances.
 - `combat_result.tscn`: encounter outcome, summary, and navigation buttons. It uses two instances of `result_statistics.tscn` for the player and rival totals.
 - `card.tscn`: shared card face for the combat hand, deck editor, and read-only viewers.
+- `card_stage.tscn`: the board's card drop target and latest-play display.
+- `options_menu.tscn`: audio, animation, and rival playback settings.
 - `deck_editor.tscn` and `deck_card.tscn`: collection layout and per-card copy controls.
 - `card_browser.tscn`: scrollable deck and pile viewer with grouped copies.
 
@@ -20,4 +22,4 @@ For new UI, put screens, reusable components, and fixed child nodes in `.tscn` f
 
 Hands, piles, and rival intent fill from the combat session at runtime. The deck editor fills its grid from the card catalog. Setup, journey screens, and some dialogs still use code-built layouts. Gameplay rules remain separate from the scenes.
 
-Both versions are available as local branches. Use `git switch master` for the original scripted layouts and `git switch codex/editor-scenes` for the editor-authored layouts. The editor branch tracks `Card-Game/codex/editor-scenes`.
+Local `master` uses the editor-authored layouts. The original scripted layouts are preserved on `backup/scripted-layout`.
