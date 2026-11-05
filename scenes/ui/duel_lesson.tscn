@@ -1,0 +1,47 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/duel_lesson.gd" id="lesson"]
+
+[node name="DuelLesson" type="PanelContainer"]
+visible = false
+custom_minimum_size = Vector2(340, 0)
+size_flags_horizontal = 3
+theme_type_variation = &"BrowserPanel"
+script = ExtResource("lesson")
+
+[node name="Content" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Heading" type="Label" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CardTitle"
+theme_override_font_sizes/font_size = 17
+text = "01 / Read the line"
+
+[node name="Instruction" type="Label" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 14
+autowrap_mode = 3
+
+[node name="Actions" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Continue" type="Button" parent="Content/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Ready"
+mouse_default_cursor_shape = 2
+
+[node name="Skip" type="Button" parent="Content/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Skip lesson"
+mouse_default_cursor_shape = 2
+
+[connection signal="pressed" from="Content/Actions/Continue" to="." method="_on_continue"]
+[connection signal="pressed" from="Content/Actions/Skip" to="." method="_on_skip"]

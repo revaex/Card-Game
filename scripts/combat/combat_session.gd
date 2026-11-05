@@ -45,6 +45,8 @@ func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 		war_drum = WarDrum.new()
 	player_piles = CardPiles.new(player_cards, shuffle)
 	enemy_piles = CardPiles.new(enemy_cards, shuffle)
+	if rival_definition != null:
+		rival_definition.arrange_opening_draw(enemy_piles)
 	player_piles.draw_cards(5)
 	prepare_rival_hand()
 	log_event("Turn 1 — You drew %d cards. Energy 3." % player_piles.hand.size())

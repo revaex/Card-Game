@@ -2,6 +2,15 @@ extends PanelContainer
 ## Card presentation only: shared definitions describe content; callbacks request actions.
 
 const Style = preload("res://scripts/ui/ui_style.gd")
+const CATEGORY_INK = [Color("862b22"), Color("155479"), Color("684c19")]
+const EFFECT_INK = {
+	"deal": "#862b22",
+	"gain": "#155479",
+	"apply": "#285524",
+	"heal": "#14604f",
+	"draw": "#66346f",
+}
+static var effect_phrase := RegEx.create_from_string("(?i)\\b(deal|gain|apply|heal|draw) (?:up to )?\\d+ (?:damage|block|poison|hp|cards?)\\b")
 signal inspected
 signal inspection_ended
 const Tooltip = preload("res://scripts/ui/board_tooltip.gd")
@@ -49,6 +58,7 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	if card.category_override >= 0:
 		tooltip_text += "\nRevised category: %s. Card effects unchanged." % CardDefinition.Category.keys()[card.get_category()].capitalize()
 	%Cost.text = str(card.get_energy_cost())
+	%Cost.add_theme_color_override("font_color", Color("a6efbd") if card.get_energy_cost() == 0 else Color("ffe0a0"))
 	var coin := Style.box(Color("263b40"), accent)
 	coin.set_corner_radius_all(13)
 	coin.content_margin_left = 3
@@ -65,7 +75,8 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	var category: String = CardDefinition.Category.keys()[card.get_category()]
 	var detail := pattern_name.to_upper() if not pattern_name.is_empty() else ("REVISED" if card.category_override >= 0 else (kind if kind != category and kind != "TACTIC" else ""))
 	%Category.text = category + (" · " + detail if not detail.is_empty() else "")
-	%Description.text = effective_text if not effective_text.is_empty() else card.definition.description
+	%Category.add_theme_color_override("font_color", CATEGORY_INK[card.get_category()])
+	%Description.text = color_effects(effective_text if not effective_text.is_empty() else card.definition.description)
 	%Footer.text = "CLICK TO PLAY" if playable else action_hint.to_upper()
 	var play: Button = %Play
 	if preview:
@@ -99,6 +110,18 @@ func setup_preview(card: CardInstance, caption: String = "") -> void:
 	set_caption(caption)
 
 
+static func color_effects(description: String) -> String:
+	var colored := ""
+	var cursor := 0
+	for match_result in effect_phrase.search_all(description):
+		var start := match_result.get_start()
+		colored += description.substr(cursor, start - cursor).replace("[", "[lb]")
+		var color: String = EFFECT_INK[match_result.get_string(1).to_lower()]
+		colored += "[color=%s]%s[/color]" % [color, match_result.get_string()]
+		cursor = match_result.get_end()
+	return colored + description.substr(cursor).replace("[", "[lb]")
+
+
 func enable_hand_drag(table: Control, card: CardInstance) -> void:
 	%Play.table = table
 	%Play.card = card
@@ -106,6 +129,11 @@ func enable_hand_drag(table: Control, card: CardInstance) -> void:
 	if not %Play.disabled:
 		set_caption("Click or drag to play")
 		%Play.tooltip_text = tooltip_text + "\nClick, press Enter / Space, or drag this card onto the table. Drag it onto another card to reorder your hand."
+
+
+func set_touch_selected(selected: bool) -> void:
+	self_modulate = Color(1.15, 1.06, 0.86) if selected else Color.WHITE
+	set_caption("Selected · tap again to cancel" if selected else "Click or drag to play")
 
 
 func make_snapshot() -> Control:

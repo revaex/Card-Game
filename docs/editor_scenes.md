@@ -12,7 +12,9 @@ Open this copy's `project.godot`, then open a scene from `scenes/ui`:
 - `combat_result.tscn`: encounter outcome, summary, and navigation buttons. It uses two instances of `result_statistics.tscn` for the player and rival totals.
 - `card.tscn`: shared card face for the combat hand, deck editor, and read-only viewers.
 - `card_stage.tscn`: the board's card drop target and latest-play display.
-- `options_menu.tscn`: audio, animation, and rival playback settings.
+- `duel_lesson.tscn`: the optional first-duel prompts shown in the encounter record area.
+- `journey_reward.tscn` and `draft_card.tscn`: the reward screen and shared draft card tiles.
+- `options_menu.tscn`: full-screen display, sound, controller, and gameplay settings.
 - `deck_editor.tscn` and `deck_card.tscn`: collection layout and per-card copy controls.
 - `card_browser.tscn`: scrollable deck and pile viewer with grouped copies.
 

@@ -37,9 +37,7 @@ static func label(parent: Node, text: String, size: int = 18, color: Color = INK
 
 static func heading(parent: Node, text: String, size: int = 32, color: Color = INK) -> Label:
 	var node := label(parent, text, size, color)
-	var serif := SystemFont.new()
-	serif.font_names = PackedStringArray(["Georgia", "Cambria", "Times New Roman"])
-	node.add_theme_font_override("font", serif)
+	node.theme_type_variation = &"CardTitle"
 	return node
 
 

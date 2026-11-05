@@ -83,16 +83,19 @@ text = "ATTACK"
 horizontal_alignment = 1
 script = ExtResource("label")
 
-[node name="Description" type="Label" parent="Content"]
+[node name="Description" type="RichTextLabel" parent="Content"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(140, 36)
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_colors/font_color = Color(0.149, 0.188, 0.176, 1)
-theme_override_font_sizes/font_size = 14
-text = "Deal 7 damage. Draw 1 card."
+mouse_filter = 2
+theme_override_colors/default_color = Color(0.149, 0.188, 0.176, 1)
+theme_override_font_sizes/normal_font_size = 14
+bbcode_enabled = true
+text = "[color=#862b22]Deal 7 damage[/color]. [color=#66346f]Draw 1 card[/color]."
+fit_content = true
+scroll_active = false
 autowrap_mode = 3
-script = ExtResource("label")
 
 [node name="Footer" type="Label" parent="Content"]
 unique_name_in_owner = true

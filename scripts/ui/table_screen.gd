@@ -28,6 +28,15 @@ var _dragging: CardInstance
 var _drag_face: Control
 @onready var card_stage = %CardStage
 var motion_enabled: bool = true
+var _controller_shortcuts: bool = true
+var _swap_shoulders: bool = false
+var _end_shortcut: bool = false
+var _controller_hand_focus: bool = false
+var _touch_pointer: bool = false
+var _selected_card: CardInstance
+var _selected_face: Control
+var guided: bool = false
+@onready var lesson = %DuelLesson
 @onready var rewrite_fx = %RewriteFX
 @onready var combat_audio = $CombatAudio
 var rival_timer: Timer
@@ -68,6 +77,9 @@ func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 	player_piles = session.player_piles
 	enemy_piles = session.enemy_piles
 	_bind_scene_nodes()
+	if guided:
+		lesson.changed.connect(_on_lesson_changed)
+		lesson.start()
 	card_stage.table = self
 	rewrite_fx.landed.connect(combat_audio.rewrite_seal)
 	rewrite_fx.finished.connect(show_rewrite_destination)
@@ -193,6 +205,11 @@ func empty(container: Node) -> void:
 
 
 func refresh() -> void:
+	cancel_card_selection()
+	var previous_lesson_step: int = lesson.step
+	lesson.observe(session)
+	$Middle/RecordPanel.visible = not lesson.active
+	$Middle/Field/Actions/LabToggle.visible = not lesson.active
 	if _hand_tween != null:
 		_hand_tween.kill()
 		_hand_tween = null
@@ -242,7 +259,7 @@ func refresh() -> void:
 				escaped = "[color=#65ef94]%s[/color]" % escaped
 			colored.append(escaped)
 		combat_log.text = "\n".join(colored)
-	end_button.disabled = not session.player_turn and session.outcome.is_empty()
+	end_button.disabled = (not session.player_turn or not lesson.allows_end_turn()) and session.outcome.is_empty()
 	end_button.text = "Encounter results" if not session.outcome.is_empty() else ("End turn →" if session.player_turn else "Rival is playing…")
 	end_button.tooltip_text = "ENCOUNTER RESULTS\nOpen the summary without changing the finished encounter." if not session.outcome.is_empty() else ("END TURN\nDiscard your remaining hand and energy. The rival acts next. Your next turn restores 3 energy and draws up to five cards." if session.player_turn else "RIVAL TURN\nWait for the rival's revealed cards to resolve. Player actions are unavailable until your next turn.")
 	draw_button.visible = sandbox
@@ -281,12 +298,34 @@ func refresh() -> void:
 		var text: String = session.describe_card(card)
 		var details := forecast_text(card)
 		var pattern: Resource = session.preview_pattern(card)
-		view.setup(card, session.can_play(card), play_card.bind(card), exhaust, text, details, pattern.display_name if pattern != null else "", card_action_hint(card))
+		view.setup(card, can_play_card(card), activate_hand_card.bind(card, view), exhaust, text, details, pattern.display_name if pattern != null else "", card_action_hint(card))
 		view.enable_hand_drag(self, card)
 		view.set_meta("card", card)
 		view.inspected.connect(show_card_forecast.bind(card))
 		view.inspection_ended.connect(restore_action_message)
 	_display_state = read_display_state()
+	if lesson.active and lesson.step != previous_lesson_step:
+		focus_lesson_action()
+
+
+func _on_lesson_changed() -> void:
+	refresh()
+	if lesson.active:
+		focus_lesson_action()
+
+
+func focus_lesson_action() -> void:
+	var next: Button = lesson.get_node("%Continue")
+	if next.visible:
+		next.grab_focus()
+	elif not end_button.disabled:
+		end_button.grab_focus()
+	else:
+		for tile: Button in rewrite_row.get_children():
+			if not tile.disabled:
+				tile.grab_focus()
+				return
+		focus_hand()
 
 
 func forecast_text(card: CardInstance) -> String:
@@ -328,6 +367,8 @@ func card_action_hint(card: CardInstance) -> String:
 		return "Wait for your turn"
 	if card.get_energy_cost() > session.energy:
 		return "Need %d energy; you have %d" % [card.get_energy_cost(), session.energy]
+	if not lesson.allows_card(card):
+		return "Follow the lesson"
 	return "This card has no playable effects"
 
 
@@ -455,7 +496,7 @@ func refresh_intent() -> void:
 	intent_label.visible = false
 	%IntentBand.show()
 	var opening: Array[CardInstance] = session.enemy_opening_plan()
-	var ready: bool = session.can_rewrite(enemy_piles.hand[0])
+	var ready: bool = can_rewrite_card(enemy_piles.hand[0])
 	var cost: int = session.REWRITE_COST
 	var status: Label = %RewriteStatus
 	status.add_theme_color_override("font_color", Color("f3cf85") if ready or session.rewrote_this_turn else Style.MUTED)
@@ -475,7 +516,7 @@ func refresh_intent() -> void:
 		var state := "NEXT" if next_play else ("PLANNED" if opening.has(card) else "RESERVE")
 		var button := IntentCard.instantiate()
 		rewrite_row.add_child(button)
-		button.show_card(card, index, state, session.can_rewrite(card))
+		button.show_card(card, index, state, can_rewrite_card(card), lesson.marks_threat(card))
 		button.set_meta("card", card)
 		button.pressed.connect(rewrite_card.bind(card))
 		if not button.disabled:
@@ -496,17 +537,17 @@ func refresh_intent() -> void:
 
 
 func show_rewrite_hint(card: CardInstance) -> void:
-	if session.can_rewrite(card):
+	if can_rewrite_card(card):
 		%RewriteStatus.text = "%s   →   BACK OF LINE   /   −%d CADENCE" % [card.definition.display_name.to_upper(), session.REWRITE_COST]
 
 
 func clear_rewrite_hint(card: CardInstance) -> void:
-	if session.can_rewrite(card):
+	if can_rewrite_card(card):
 		%RewriteStatus.text = REWRITE_READY
 
 
 func rewrite_card(card: CardInstance) -> void:
-	if not session.can_rewrite(card):
+	if not can_rewrite_card(card):
 		return
 	var index := enemy_piles.hand.find(card)
 	var snapshot: Array[Dictionary] = []
@@ -517,7 +558,7 @@ func rewrite_card(card: CardInstance) -> void:
 	if not session.rewrite_intent(card):
 		return
 	message.text = "Rewrite · %s moved to the back of the rival's line." % card.definition.display_name
-	if had_focus:
+	if had_focus and not lesson.active:
 		end_button.grab_focus()
 	if motion_enabled and rewrite_fx.play(snapshot, rewrite_row, index):
 		combat_audio.rewrite_lift()
@@ -593,8 +634,108 @@ func move_card(card: CardInstance, exhaust: bool) -> void:
 	refresh()
 
 
+func can_rewrite_card(card: CardInstance) -> bool:
+	return session.can_rewrite(card) and lesson.allows_rewrite(card)
+
+
+func can_play_card(card: CardInstance) -> bool:
+	return session.can_play(card) and lesson.allows_card(card)
+
+
 func play_card(card: CardInstance) -> void:
-	session.play_card(card)
+	if can_play_card(card):
+		session.play_card(card)
+
+
+func activate_hand_card(card: CardInstance, face: Control) -> void:
+	if not _touch_pointer:
+		play_card(card)
+		return
+	if not can_play_card(card):
+		return
+	var same_card := _selected_card == card
+	cancel_card_selection()
+	if same_card:
+		return
+	_selected_card = card
+	_selected_face = face
+	face.set_touch_selected(true)
+	show_card_forecast(card)
+	card_stage.show_selection(card.definition.display_name)
+
+
+func has_selected_card() -> bool:
+	return _selected_card != null
+
+
+func confirm_selected_card() -> void:
+	var selected := _selected_card
+	cancel_card_selection()
+	if selected != null and can_play_card(selected):
+		play_card(selected)
+
+
+func cancel_card_selection() -> void:
+	if _selected_card == null:
+		return
+	if is_instance_valid(_selected_face):
+		_selected_face.set_touch_selected(false)
+	_selected_card = null
+	_selected_face = null
+	card_stage.show_selection("")
+
+
+func configure_controller(shortcuts: bool, swap: bool, quick_end: bool) -> void:
+	_controller_shortcuts = shortcuts
+	_swap_shoulders = swap
+	_end_shortcut = quick_end
+	if not shortcuts:
+		_controller_hand_focus = false
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		_controller_hand_focus = false
+		_touch_pointer = event.device == InputEvent.DEVICE_ID_EMULATION
+	elif event is InputEventKey or event is InputEventJoypadButton:
+		_touch_pointer = false
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _selected_card != null and event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		cancel_card_selection()
+		restore_action_message()
+		return
+	if not _controller_shortcuts or session == null or not session.player_turn or not session.outcome.is_empty():
+		return
+	if not event is InputEventJoypadButton or not event.pressed:
+		return
+	match event.button_index:
+		JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER:
+			get_viewport().set_input_as_handled()
+			_controller_hand_focus = (event.button_index == JOY_BUTTON_LEFT_SHOULDER) != _swap_shoulders
+			if _controller_hand_focus:
+				focus_hand()
+			else:
+				for button: Button in rewrite_row.get_children():
+					if not button.disabled:
+						button.grab_focus()
+						return
+				message.text = "No rival card can be rewritten right now."
+		JOY_BUTTON_Y:
+			if _end_shortcut:
+				get_viewport().set_input_as_handled()
+				end_turn()
+
+
+func focus_hand() -> void:
+	for card: Control in hand_row.get_children():
+		var play := card.get_node_or_null("%Play") as Button
+		if play != null and not play.disabled:
+			play.grab_focus()
+			return
+	end_button.grab_focus()
 
 
 func can_drag_card(card: CardInstance) -> bool:
@@ -602,10 +743,11 @@ func can_drag_card(card: CardInstance) -> bool:
 
 
 func begin_hand_drag(face: Control, card: CardInstance) -> void:
+	cancel_card_selection()
 	_dragging = card
 	_drag_face = face
 	face.modulate.a = 0.35
-	card_stage.show_drag(session.can_play(card), true)
+	card_stage.show_drag(can_play_card(card), true)
 
 
 func is_hand_drag(data: Variant) -> bool:
@@ -634,6 +776,8 @@ func _notification(what: int) -> void:
 func end_turn() -> void:
 	if not session.outcome.is_empty():
 		combat_finished.emit(session.combat_summary())
+		return
+	if not lesson.allows_end_turn():
 		return
 	if session.begin_rival_turn() and session.outcome.is_empty():
 		rival_timer.start()
@@ -672,6 +816,8 @@ func on_session_changed() -> void:
 	present_state_changes()
 	restore_action_message()
 	refresh()
+	if _controller_hand_focus and not lesson.active and session.player_turn and session.outcome.is_empty():
+		focus_hand()
 	if new_hand:
 		animate_hand_arrival()
 	if cadence_changed and motion_enabled:

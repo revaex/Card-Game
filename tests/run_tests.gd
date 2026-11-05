@@ -563,6 +563,16 @@ func test_rival_doctrines() -> void:
 				check(rank >= previous_rank, "Next prepared hand reapplies doctrine")
 				previous_rank = rank
 		check(rival.create_deck()[0].definition == cards[0].definition, "Rivals share definitions without sharing runtime cards")
+	for example in [
+		[1, [&"iron_seal", &"block"], [&"block", &"strike", &"strike"]],
+		[2, [&"inkblot", &"venom"], [&"venom", &"insight", &"siphon"]],
+	]:
+		var rival: Resource = catalog.ALL[example[0]]
+		var session = Session.new(StarterDeck.create(), rival.create_deck(), true, false, rival)
+		check(session.enemy_opening_plan().map(func(card): return card.definition.id) == example[1], "Authored opening matches the briefing after a shuffled draw")
+		session.cadence = 2
+		session.rewrite_intent(session.enemy_piles.hand[0])
+		check(session.enemy_opening_plan().map(func(card): return card.definition.id) == example[2], "Rewrite exposes the advertised risk or opportunity")
 
 
 func test_journey() -> void:
@@ -627,4 +637,5 @@ func test_journey() -> void:
 	win.check_outcome()
 	full.finish_encounter(win)
 	check(not full.take_recovery() and full.phase == Journey.Phase.REWARD, "Full-health recovery does not consume a reward")
+	check(not full.draft_card(StarterDeck.STRIKE) and full.phase == Journey.Phase.REWARD, "Cards outside the offered draft cannot consume the reward")
 	check(full.skip_reward() and full.stage == 1, "Player may skip the reward")

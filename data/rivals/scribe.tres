@@ -5,13 +5,16 @@
 [ext_resource type="Resource" path="res://data/cards/insight.tres" id="insight"]
 [ext_resource type="Resource" path="res://data/cards/siphon.tres" id="siphon"]
 [ext_resource type="Resource" path="res://data/cards/block.tres" id="block"]
+[ext_resource type="Resource" path="res://data/cards/inkblot.tres" id="inkblot"]
 
 [resource]
 script = ExtResource("rival")
 display_name = "The Scribe"
 epithet = "A quiet word can outlast a blade."
-description = "Leads with Poison and drawing. Displace a dangerous tactic before its effects become tomorrow's problem."
+description = "Leads with Poison and drawing. Block can catch Siphon's damage, but Poison ticks through it."
 doctrine = 2
 health = 32
 accent = Color(0.48, 0.77, 0.55, 1)
-cards = Array[ExtResource("card")]([ExtResource("venom"), ExtResource("venom"), ExtResource("venom"), ExtResource("insight"), ExtResource("insight"), ExtResource("siphon"), ExtResource("siphon"), ExtResource("siphon"), ExtResource("block"), ExtResource("block")])
+cards = Array[ExtResource("card")]([ExtResource("inkblot"), ExtResource("inkblot"), ExtResource("venom"), ExtResource("insight"), ExtResource("insight"), ExtResource("siphon"), ExtResource("siphon"), ExtResource("siphon"), ExtResource("block"), ExtResource("block")])
+opening_line = Array[ExtResource("card")]([ExtResource("inkblot"), ExtResource("venom"), ExtResource("insight"), ExtResource("siphon"), ExtResource("block")])
+opening_advice = "Inkblot and Venom threaten 7 Poison. Moving Inkblot back leaves 3 Poison and makes room for Siphon, whose damage you can Block."

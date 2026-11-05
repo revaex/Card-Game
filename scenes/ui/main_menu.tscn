@@ -1,13 +1,10 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="controller"]
 [ext_resource type="Script" path="res://scripts/ui/info_label.gd" id="label"]
 [ext_resource type="Script" path="res://scripts/ui/info_button.gd" id="button"]
 [ext_resource type="Texture2D" path="res://data/ui/duelist_plate.svg" id="art"]
 [ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
-
-[sub_resource type="SystemFont" id="Serif"]
-font_names = PackedStringArray("Georgia", "Cambria", "Times New Roman")
 
 [sub_resource type="StyleBoxFlat" id="PrimaryNormal"]
 bg_color = Color(0.878, 0.725, 0.475, 1)
@@ -94,7 +91,7 @@ script = ExtResource("label")
 
 [node name="Title" type="Label" parent="Hero/Copy"]
 layout_mode = 2
-theme_override_fonts/font = SubResource("Serif")
+theme_type_variation = &"CardTitle"
 theme_override_font_sizes/font_size = 67
 text = "Ink & Intent"
 script = ExtResource("label")
@@ -120,6 +117,12 @@ theme_override_styles/normal = SubResource("PrimaryNormal")
 theme_override_styles/hover = SubResource("PrimaryHover")
 theme_override_styles/pressed = SubResource("PrimaryNormal")
 text = "Begin a journey  →"
+script = ExtResource("button")
+
+[node name="LessonButton" type="Button" parent="Hero/Copy"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Learn to duel"
 script = ExtResource("button")
 
 [node name="SecondaryActions" type="HBoxContainer" parent="Hero/Copy"]
@@ -193,6 +196,7 @@ text = "YOUR DECKS ARE SAVED ON THIS DEVICE"
 script = ExtResource("label")
 
 [connection signal="pressed" from="Hero/Copy/JourneyButton" to="." method="_on_journey_pressed"]
+[connection signal="pressed" from="Hero/Copy/LessonButton" to="." method="_on_lesson_pressed"]
 [connection signal="pressed" from="Hero/Copy/SecondaryActions/SingleDuelButton" to="." method="_on_single_pressed"]
 [connection signal="pressed" from="Hero/Copy/SecondaryActions/CustomDuelButton" to="." method="_on_custom_pressed"]
 [connection signal="pressed" from="Hero/Copy/SecondaryActions/DecksButton" to="." method="_on_decks_pressed"]

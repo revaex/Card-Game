@@ -31,8 +31,11 @@ energy. Cadence, Rewrite, and Patterns are the chosen core pillars. The working
 creative direction is a travelling duelist who edits an opponent's written future.
 Three rival doctrines are now playable: the Duelist prioritizes attacks, the
 Warden guards, and the Scribe tactics. Their identities are expressed through
-content, prepared order, accent colors, and illustrated seals. The next milestone
+content, prepared order, accent colors, and illustrated seals. The Warden opens
+with Iron Seal and Block. Rewriting the Seal trades defense for incoming Strikes.
+The Scribe opens with Inkblot and Venom. Rewriting Inkblot reduces Poison and
+brings forward a hit that Block can absorb. Later draws still vary. The next milestone
 is playtesting the three-duel journey and its card-editing sidegrades. HP now
-carries through the route, and between wins the player chooses recovery or one
-category revision. These changes belong to that journey, not the saved collection.
+carries through the route. Between duels the player can recover, draft one of
+three cards, or revise a card's category. These changes belong to that journey.
 See feature_shortlist.md for the wider candidate pool and implementation priorities.

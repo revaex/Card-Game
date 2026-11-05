@@ -4,7 +4,7 @@ extends "res://scripts/ui/info_button.gd"
 const ACCENTS = [Color("b65f4b"), Color("487d99"), Color("88702c")]
 
 
-func show_card(card: CardInstance, index: int, state: String, rewritable: bool) -> void:
+func show_card(card: CardInstance, index: int, state: String, rewritable: bool, highlighted: bool = false) -> void:
 	set_meta("intent_state", state)
 	%Index.text = "%02d   /   %s" % [index + 1, state]
 	%CardName.text = card.definition.display_name
@@ -19,6 +19,9 @@ func show_card(card: CardInstance, index: int, state: String, rewritable: bool) 
 	if rewritable:
 		paper.shadow_color = Color("c7914850")
 		paper.shadow_size = 3
+	if highlighted:
+		paper.border_color = Color("e5ab52")
+		paper.set_border_width_all(3)
 	var hover := paper.duplicate() as StyleBoxFlat
 	hover.bg_color = Color("fff0cc")
 	hover.border_color = Color("b97a42")

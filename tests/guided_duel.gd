@@ -1,0 +1,70 @@
+extends SceneTree
+
+var failures := 0
+
+
+func _initialize() -> void:
+	call_deferred("run")
+
+
+func check(condition: bool, description: String) -> void:
+	if not condition:
+		failures += 1
+		push_error(description)
+
+
+func play_named(table: Control, id: StringName) -> void:
+	for face: Control in table.hand_row.get_children():
+		var card: CardInstance = face.get_meta("card")
+		if card.definition.id == id:
+			var button: Button = face.get_node("%Play")
+			check(not button.disabled, "The lesson enables %s" % id)
+			button.pressed.emit()
+			return
+	check(false, "Missing lesson card: %s" % id)
+
+
+func run() -> void:
+	var ui := preload("res://scenes/ui/game_ui.tscn").instantiate()
+	ui.options_path = "res://.godot/guided-duel-test.cfg"
+	root.add_child(ui)
+	ui.combat_sound = false
+	ui.combat_motion = false
+	ui.main_menu.find_child("LessonButton", true, false).pressed.emit()
+	var table: Control = ui.body.get_node("CombatTable")
+	var lesson = table.lesson
+	var original_decks: Array = ui.library.decks.duplicate(true)
+	check(lesson.visible and table.end_button.disabled, "First prompt asks the player to read before acting")
+	check(table.session.enemy_opening_plan()[0].definition.id == &"strike", "The visible opening plan starts with Strike")
+	table.end_turn()
+	check(table.session.player_turn, "End turn shortcuts cannot skip a required step")
+	lesson.get_node("%Continue").pressed.emit()
+	table.play_card(table.player_piles.hand[1])
+	check(table.session.energy == 3, "Out-of-sequence cards cannot be played through another input path")
+	play_named(table, &"strike")
+	play_named(table, &"block")
+	check(table.session.cadence == 2 and lesson.get_node("%Heading").text.contains("Rewrite"), "Changing categories makes Rewrite the next step")
+	check(table.rewrite_row.get_child(1).disabled, "The lesson highlights and enables only the threatening intent")
+	table.rewrite_row.get_child(0).pressed.emit()
+	check(table.session.cadence == 0 and table.enemy_piles.hand.back().definition.id == &"strike", "Rewrite spends Cadence and moves Strike to the back")
+	for card in table.session.enemy_opening_plan():
+		check(card.definition.id != &"strike", "The new affordable line excludes Strike")
+	play_named(table, &"insight")
+	check(table.session.completed_pattern == "Shelter" and not table.end_button.disabled, "The correct sequence completes Shelter and unlocks End turn")
+	table.end_button.pressed.emit()
+	for index in range(8):
+		if table.session.player_turn:
+			break
+		table.advance_rival_presentation()
+	check(table.session.round_number == 2 and table.session.player.health == 30, "Rival completes its revised line without damaging the player")
+	check(lesson.get_node("%Heading").text == "Lesson complete", "Lesson confirms the result")
+	lesson.get_node("%Continue").pressed.emit()
+	check(ui.screen == "setup" and ui.preparing_journey and ui.library.decks == original_decks, "Lesson leads into journey setup without changing the saved decks")
+	ui.show_lesson()
+	table = ui.body.get_node("CombatTable")
+	table.lesson.get_node("%Skip").pressed.emit()
+	check(not table.lesson.visible and not table.end_button.disabled, "Skip removes guidance and restores free play")
+	ui.free()
+	await process_frame
+	print("Guided duel: ", "PASSED" if failures == 0 else "FAILED")
+	quit(0 if failures == 0 else 1)

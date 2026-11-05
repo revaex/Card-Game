@@ -9,19 +9,24 @@
 script = ExtResource("controller")
 
 [node name="Paper" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
 volume_db = -13.0
 
 [node name="Impact" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
 volume_db = -14.0
 
 [node name="RewriteLift" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
 stream = ExtResource("lift")
 volume_db = -8.0
 
 [node name="RewriteSeal" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
 stream = ExtResource("seal")
 volume_db = -10.0
 
 [node name="Pattern" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
 stream = ExtResource("pattern")
 volume_db = -14.0

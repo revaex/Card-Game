@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/combat_result.gd" id="controller"]
 [ext_resource type="Script" path="res://scripts/ui/info_label.gd" id="label"]
@@ -21,9 +21,6 @@ corner_radius_top_left = 6
 corner_radius_top_right = 6
 corner_radius_bottom_left = 6
 corner_radius_bottom_right = 6
-
-[sub_resource type="SystemFont" id="Serif"]
-font_names = PackedStringArray("Georgia", "Cambria", "Times New Roman")
 
 [node name="CombatResult" type="Control"]
 layout_mode = 3
@@ -71,7 +68,7 @@ script = ExtResource("label")
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.545098, 0.823529, 0.67451, 1)
-theme_override_fonts/font = SubResource("Serif")
+theme_type_variation = &"CardTitle"
 theme_override_font_sizes/font_size = 38
 text = "Victory"
 script = ExtResource("label")

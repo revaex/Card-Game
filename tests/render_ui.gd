@@ -24,6 +24,8 @@ func run() -> void:
 	ui.show_options()
 	await capture("res://.godot/options-preview.png")
 	ui.get_node("OptionsMenu").close_requested.emit()
+	ui.show_lesson()
+	await capture("res://.godot/lesson-preview.png")
 	ui.show_rivals()
 	await capture("res://.godot/rivals-preview.png")
 	ui.select_rival(0)

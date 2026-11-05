@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://scripts/ui/rewrite_fx.gd" id="rewrite"]
 [ext_resource type="PackedScene" path="res://scenes/ui/combat_audio.tscn" id="audio"]
 [ext_resource type="PackedScene" path="res://scenes/ui/card_stage.tscn" id="stage"]
+[ext_resource type="PackedScene" path="res://scenes/ui/duel_lesson.tscn" id="lesson"]
 
 [sub_resource type="StyleBoxFlat" id="EnemyHealth"]
 bg_color = Color(0.808, 0.471, 0.443, 1)
@@ -289,6 +290,10 @@ theme_override_font_sizes/normal_font_size = 14
 bbcode_enabled = true
 scroll_following = true
 tooltip_text = "ENCOUNTER RECORD\nScroll to review earlier actions and actual resolved changes."
+
+[node name="DuelLesson" parent="Middle" instance=ExtResource("lesson")]
+unique_name_in_owner = true
+layout_mode = 2
 
 [node name="HandHeading" type="HBoxContainer" parent="."]
 layout_mode = 2

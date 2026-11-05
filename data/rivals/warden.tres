@@ -5,13 +5,16 @@
 [ext_resource type="Resource" path="res://data/cards/block.tres" id="block"]
 [ext_resource type="Resource" path="res://data/cards/mend.tres" id="mend"]
 [ext_resource type="Resource" path="res://data/cards/switchback.tres" id="switchback"]
+[ext_resource type="Resource" path="res://data/cards/iron_seal.tres" id="seal"]
 
 [resource]
 script = ExtResource("rival")
 display_name = "The Warden"
 epithet = "Every wall has a missing word."
-description = "Builds a guard before attacking. Rewrite a defensive move to open a gap, or prepare a Pattern to break through."
+description = "Builds a guard before attacking. Moving a defensive card may let a Strike move up."
 doctrine = 1
 health = 46
 accent = Color(0.45, 0.68, 0.79, 1)
-cards = Array[ExtResource("card")]([ExtResource("block"), ExtResource("block"), ExtResource("block"), ExtResource("block"), ExtResource("strike"), ExtResource("strike"), ExtResource("strike"), ExtResource("mend"), ExtResource("mend"), ExtResource("switchback")])
+cards = Array[ExtResource("card")]([ExtResource("seal"), ExtResource("seal"), ExtResource("block"), ExtResource("block"), ExtResource("strike"), ExtResource("strike"), ExtResource("strike"), ExtResource("mend"), ExtResource("mend"), ExtResource("switchback")])
+opening_line = Array[ExtResource("card")]([ExtResource("seal"), ExtResource("block"), ExtResource("strike"), ExtResource("strike"), ExtResource("mend")])
+opening_advice = "Iron Seal and Block spend all three energy on defense. Move Iron Seal back to weaken that guard, but be ready for the two Strikes it lets through."

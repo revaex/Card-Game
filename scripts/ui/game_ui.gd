@@ -6,6 +6,8 @@ const Library = preload("res://scripts/content/deck_library.gd")
 const Table = preload("res://scenes/ui/combat_table.tscn")
 const TableToolbar = preload("res://scenes/ui/table_toolbar.tscn")
 const OptionsMenu = preload("res://scenes/ui/options_menu.tscn")
+const WINDOW_MODES = [Window.MODE_WINDOWED, Window.MODE_MAXIMIZED, Window.MODE_FULLSCREEN]
+const WINDOW_SIZES = [Vector2i(1100, 700), Vector2i(1280, 800), Vector2i(1600, 900), Vector2i(1920, 1080)]
 const CombatResult = preload("res://scenes/ui/combat_result.tscn")
 const DeckEditor = preload("res://scenes/ui/deck_editor.tscn")
 const DeckCard = preload("res://scenes/ui/deck_card.tscn")
@@ -13,6 +15,10 @@ const CardBrowser = preload("res://scenes/ui/card_browser.tscn")
 const Rivals = preload("res://scripts/content/rival_catalog.gd")
 const DuelArt = preload("res://scripts/ui/duel_art.gd")
 const Journey = preload("res://scripts/combat/journey_state.gd")
+const JourneyReward = preload("res://scenes/ui/journey_reward.tscn")
+const DraftCard = preload("res://scenes/ui/draft_card.tscn")
+const CombatSession = preload("res://scripts/combat/combat_session.gd")
+const INSIGHT = preload("res://data/cards/insight.tres")
 var journey: RefCounted
 var preparing_journey: bool = false
 var journey_deck_name: String = ""
@@ -31,13 +37,23 @@ var fast_rival_turns: bool = false
 var combat_sound: bool = true
 var combat_motion: bool = true
 var master_volume: float = 100.0
+var effects_volume: float = 100.0
+var window_mode: int = 1
+var window_size: int = 0
+var vsync: bool = true
+var controller_shortcuts: bool = true
+var swap_shoulders: bool = false
+var end_shortcut: bool = false
 var options_path: String = "user://options.cfg"
 var result_overlay: Control
 
 
 func _ready() -> void:
 	load_options()
+	if OS.has_feature("web"):
+		main_menu.find_child("QuitButton", true, false).hide()
 	main_menu.journey_requested.connect(_on_menu_journey)
+	main_menu.lesson_requested.connect(show_lesson)
 	main_menu.single_duel_requested.connect(show_rivals)
 	main_menu.custom_duel_requested.connect(start_custom_duel)
 	main_menu.decks_requested.connect(func(): show_library(false))
@@ -232,7 +248,7 @@ func show_setup() -> void:
 	screen = "setup"
 	clear("Choose your approach." if selected_rival != null else "Choose both sides", "Your deck is your argument. The rival's doctrine is a promise." if selected_rival != null else "Choose both decks for a custom duel.")
 	if preparing_journey:
-		Style.label(body, "THREE DUELS  ·  HP carries forward  ·  Recover or edit a card between wins", 13, Style.GOLD)
+		Style.label(body, "THREE DUELS  ·  HP carries forward  ·  Recover, draft, or revise between wins", 13, Style.GOLD)
 	var sides := Style.row(body)
 	for side in ["player", "enemy"]:
 		var panel := Style.panel(sides)
@@ -242,6 +258,8 @@ func show_setup() -> void:
 			var description := Style.label(panel, selected_rival.description, 16, Style.MUTED)
 			description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			Style.label(panel, "%d HP  ·  %s" % [selected_rival.health, selected_rival.doctrine_text()], 14, selected_rival.accent)
+			if not selected_rival.opening_advice.is_empty():
+				Style.label(panel, selected_rival.opening_advice, 14, Style.MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			Style.button(panel, "Choose a different rival", show_rivals)
 			continue
 		var picker := OptionButton.new()
@@ -325,7 +343,17 @@ func show_table() -> void:
 	mount_table(library.instantiate_deck(library.decks[player_index]), enemy_cards, library.decks[player_index].name, enemy_name, selected_rival)
 
 
-func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], player_name: String, enemy_name: String, rival: Resource, existing: RefCounted = null, in_journey: bool = false) -> void:
+func show_lesson() -> void:
+	var player_cards: Array[CardInstance] = [CardInstance.new(INSIGHT), CardInstance.new(StarterDeck.BLOCK), CardInstance.new(StarterDeck.STRIKE)]
+	var rival_cards: Array[CardInstance] = []
+	for index in range(4):
+		rival_cards.append(CardInstance.new(StarterDeck.BLOCK))
+	rival_cards.append(CardInstance.new(StarterDeck.STRIKE))
+	var practice := CombatSession.new(player_cards, rival_cards, false)
+	mount_table(player_cards, rival_cards, "First lesson", "Practice rival", null, practice, false, true)
+
+
+func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], player_name: String, enemy_name: String, rival: Resource, existing: RefCounted = null, in_journey: bool = false, guided: bool = false) -> void:
 	screen = "table"
 	_table_is_journey = in_journey
 	clear("The table", "%s vs %s" % [player_name, enemy_name])
@@ -344,8 +372,8 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 		Style.quiet(toggle)
 	var leave: Button = toolbar.get_node("%Leave")
 	Style.quiet(toolbar.get_node("%Options"))
-	leave.text = "Journey" if in_journey else "← Leave table"
-	leave.pressed.connect(show_journey_overview if in_journey else show_setup)
+	leave.text = "Journey" if in_journey else ("← Main menu" if guided else "← Leave table")
+	leave.pressed.connect(show_journey_overview if in_journey else (show_menu if guided else show_setup))
 	Style.quiet(leave)
 	leave.tooltip_text = "JOURNEY\nPause this duel and view your route. Returning resumes the same hand, HP, and rival turn." if in_journey else "LEAVE TABLE\nReturn to deck preparation. This single duel is discarded; saved decks are unchanged."
 	var table := Table.instantiate()
@@ -353,8 +381,13 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	table.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(table)
 	table.motion_enabled = combat_motion
+	table.guided = guided
+	table.configure_controller(controller_shortcuts, swap_shoulders, end_shortcut)
 	table.combat_audio.set_enabled(combat_sound)
 	table.setup(player_cards, enemy_cards, use_war_drum, rival, existing)
+	if guided:
+		table.lesson.completed.connect(show_journey_setup)
+		table.lesson.get_node("%Continue").grab_focus()
 	table.rival_timer.wait_time = 0.2 if fast_rival_turns else 0.65
 	table.combat_finished.connect(show_result)
 	speed.toggled.connect(func(enabled: bool): change_option("fast_turns", enabled))
@@ -381,11 +414,54 @@ func load_options() -> void:
 		combat_motion = bool(config.get_value("table", "motion", true))
 		fast_rival_turns = bool(config.get_value("table", "fast_turns", false))
 		master_volume = clampf(float(config.get_value("table", "volume", 100.0)), 0.0, 100.0)
+		effects_volume = clampf(float(config.get_value("table", "effects_volume", 100.0)), 0.0, 100.0)
+		window_mode = clampi(int(config.get_value("table", "window_mode", 1)), 0, WINDOW_MODES.size() - 1)
+		window_size = clampi(int(config.get_value("table", "window_size", 0)), 0, WINDOW_SIZES.size() - 1)
+		vsync = bool(config.get_value("table", "vsync", true))
+		controller_shortcuts = bool(config.get_value("table", "controller", true))
+		swap_shoulders = bool(config.get_value("table", "swap_shoulders", false))
+		end_shortcut = bool(config.get_value("table", "end_shortcut", false))
+		if config.has_section_key("table", "window_mode"):
+			apply_window.call_deferred()
+		if config.has_section_key("table", "vsync"):
+			apply_vsync()
 	apply_volume()
 
 
 func apply_volume() -> void:
 	AudioServer.set_bus_volume_linear(0, master_volume / 100.0)
+	var bus := AudioServer.get_bus_index("Effects")
+	if bus >= 0:
+		AudioServer.set_bus_volume_linear(bus, effects_volume / 100.0)
+
+
+func apply_window() -> void:
+	if not supports_desktop_display() or DisplayServer.get_name() == "headless":
+		return
+	var window := get_window()
+	window.mode = WINDOW_MODES[window_mode]
+	if window.mode == Window.MODE_WINDOWED:
+		var usable := DisplayServer.screen_get_usable_rect(window.current_screen)
+		window.size = WINDOW_SIZES[window_size].min(usable.size - Vector2i(32, 64))
+		window.position = usable.position + (usable.size - window.size) / 2
+
+
+func apply_vsync() -> void:
+	if supports_desktop_display() and DisplayServer.get_name() != "headless":
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED, get_window().get_window_id())
+
+
+func supports_desktop_display() -> bool:
+	return not OS.has_feature("web") and not OS.has_feature("mobile")
+
+
+func option_values() -> Dictionary:
+	return {
+		"sound": combat_sound, "motion": combat_motion, "fast_turns": fast_rival_turns,
+		"volume": master_volume, "effects_volume": effects_volume,
+		"window_mode": window_mode, "window_size": window_size, "vsync": vsync,
+		"controller": controller_shortcuts, "swap_shoulders": swap_shoulders, "end_shortcut": end_shortcut,
+	}
 
 
 func change_option(key: String, value: Variant) -> void:
@@ -409,17 +485,37 @@ func change_option(key: String, value: Variant) -> void:
 		"volume":
 			master_volume = value
 			apply_volume()
+		"effects_volume":
+			effects_volume = value
+			apply_volume()
+		"window_mode":
+			window_mode = value
+			apply_window()
+		"window_size":
+			window_size = value
+			apply_window()
+		"vsync":
+			vsync = value
+			apply_vsync()
+		"controller", "swap_shoulders", "end_shortcut":
+			match key:
+				"controller": controller_shortcuts = value
+				"swap_shoulders": swap_shoulders = value
+				"end_shortcut": end_shortcut = value
+			if table != null:
+				table.configure_controller(controller_shortcuts, swap_shoulders, end_shortcut)
 	var config := ConfigFile.new()
-	config.set_value("table", "sound", combat_sound)
-	config.set_value("table", "motion", combat_motion)
-	config.set_value("table", "fast_turns", fast_rival_turns)
-	config.set_value("table", "volume", master_volume)
+	var values := option_values()
+	for option in values:
+		config.set_value("table", option, values[option])
 	var error := config.save(options_path)
 	if error != OK:
 		push_warning("Could not save options: " + error_string(error))
 
 
 func show_options() -> void:
+	if has_node("OptionsMenu"):
+		return
 	var previous_focus := get_viewport().gui_get_focus_owner()
 	var table := body.get_node_or_null("CombatTable")
 	var resume: bool = table != null and not table.rival_timer.is_stopped()
@@ -435,7 +531,20 @@ func show_options() -> void:
 			previous_focus.grab_focus()
 		if resume and is_instance_valid(table) and not table.session.player_turn and table.session.outcome.is_empty():
 			table.rival_timer.start())
-	menu.open(combat_sound, combat_motion, fast_rival_turns, master_volume)
+	menu.open(option_values(), supports_desktop_display())
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if screen == "menu" and event is InputEventJoypadMotion and event.axis in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y] and absf(event.axis_value) >= 0.5 and get_viewport().gui_get_focus_owner() == null:
+		main_menu.get_node("%JourneyButton").grab_focus()
+		return
+	if not event is InputEventJoypadButton or not event.pressed:
+		return
+	if event.button_index == JOY_BUTTON_START and (screen == "menu" or screen == "table"):
+		get_viewport().set_input_as_handled()
+		show_options()
+	elif screen == "menu" and get_viewport().gui_get_focus_owner() == null and event.button_index in [JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
+		main_menu.get_node("%JourneyButton").grab_focus()
 
 
 func close_result() -> void:
@@ -455,7 +564,9 @@ func show_result(summary: Dictionary) -> void:
 	screen = "result"
 	result_overlay = CombatResult.instantiate()
 	add_child(result_overlay)
-	if _table_is_journey and journey != null:
+	if body.get_node("CombatTable").guided:
+		result_overlay.setup(summary, show_lesson, show_menu, review_result, "Retry lesson", "Main menu")
+	elif _table_is_journey and journey != null:
 		if journey.phase == Journey.Phase.DUEL:
 			journey.finish_encounter(body.get_node("CombatTable").session)
 		var next := show_journey_reward if journey.phase == Journey.Phase.REWARD else show_journey_summary
@@ -493,7 +604,7 @@ func show_journey_overview() -> void:
 		show_journey_summary()
 		return
 	screen = "journey"
-	clear("Three names. One unwritten ending.", "Your deck and HP carry forward. Each victory offers recovery or a card edit.")
+	clear("Three names. One unwritten ending.", "Your deck and HP carry forward. Between duels, recover, draft, or revise a card.")
 	var hp: int = journey.active_session.player.health if journey.active_session != null else journey.health
 	Style.label(body, "%s  ·  HP %d / 30  ·  %d cards" % [journey_deck_name, hp, journey.roster.size()], 17, Style.GOLD)
 	var route := Style.row(body)
@@ -503,8 +614,11 @@ func show_journey_overview() -> void:
 		Style.label(panel, "CLEARED" if index < journey.stage else ("NEXT DUEL" if index == journey.stage else "AHEAD"), 12, rival.accent)
 		Style.heading(panel, rival.display_name, 25)
 		Style.label(panel, "%d HP" % rival.health, 14, Style.MUTED)
+	var next_rival: Resource = journey.current_rival()
+	if journey.phase == Journey.Phase.READY and not next_rival.opening_advice.is_empty():
+		Style.label(body, "OPENING NOTE  /  " + next_rival.opening_advice, 15, Style.MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if not journey.edits.is_empty():
-		Style.label(body, "YOUR REVISIONS", 13, Style.GOLD)
+		Style.label(body, "JOURNEY DECK CHANGES", 13, Style.GOLD)
 		for edit in journey.edits:
 			Style.label(body, edit, 15)
 	Style.primary(Style.button(body, "Resume the duel  →" if journey.phase == Journey.Phase.DUEL else "Enter chapter %d  →" % (journey.stage + 1), show_journey_encounter))
@@ -526,16 +640,40 @@ func show_journey_reward() -> void:
 	if journey == null or journey.phase != Journey.Phase.REWARD:
 		return
 	screen = "journey_reward"
-	clear("A pause between the lines.", "Choose one: recover 8 HP, or change one card's category for the rest of this journey.")
-	Style.label(body, "HP %d / 30  ·  Next: %s" % [journey.health, Rivals.ALL[journey.stage + 1].display_name], 17, Style.GOLD)
-	var recover := Style.button(body, "Recover 8 HP  →", take_journey_recovery)
-	recover.name = "Recover"
-	recover.disabled = journey.health >= journey.max_health
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size.y = 220
-	body.add_child(scroll)
-	var list := Style.column(scroll, true)
+	clear("A pause between the lines.", "Choose one reward for this journey. Your saved deck stays as it was.")
+	var next_rival: Resource = Rivals.ALL[journey.stage + 1]
+	var reward := JourneyReward.instantiate()
+	body.add_child(reward)
+	reward.get_node("%Context").text = "HP %d / %d   ·   NEXT: %s   ·   %s" % [journey.health, journey.max_health, next_rival.display_name, next_rival.doctrine_text()]
+	reward.get_node("%Briefing").text = next_rival.opening_advice
+	reward.get_node("%Briefing").visible = not next_rival.opening_advice.is_empty()
+	var recover: Button = reward.get_node("%Recover")
+	var missing: int = journey.max_health - journey.health
+	recover.text = "Recover %d HP" % mini(missing, journey.RECOVERY) if missing > 0 else "Already at full HP"
+	recover.disabled = missing == 0
+	recover.pressed.connect(take_journey_recovery)
+	reward.get_node("%Skip").pressed.connect(skip_journey_reward)
+	for definition in journey.draft_offers():
+		var entry := DraftCard.instantiate()
+		entry.name = String(definition.id)
+		reward.get_node("%Offers").add_child(entry)
+		entry.get_node("%Card").setup_preview(CardInstance.new(definition))
+		var button: Button = entry.get_node("%Draft")
+		button.text = "Draft " + definition.display_name
+		button.pressed.connect(take_journey_draft.bind(definition))
+	var toggle: Button = reward.get_node("%RevisionToggle")
+	var revisions: VBoxContainer = reward.get_node("%Revisions")
+	toggle.toggled.connect(func(enabled: bool):
+		toggle.text = "Back to draft" if enabled else "Revise a card"
+		reward.get_node("%Draft").visible = not enabled
+		revisions.visible = enabled
+		if enabled and revisions.get_child_count() == 0:
+			build_journey_revisions(revisions))
+
+
+func build_journey_revisions(list: VBoxContainer) -> void:
+	Style.heading(list, "Revise a card", 23)
+	Style.label(list, "Change one card’s category for Cadence and Patterns. Its effects stay the same.", 15, Style.MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var names := CardDefinition.Category.keys()
 	for index in range(journey.roster.size()):
 		var card: CardInstance = journey.roster[index]
@@ -546,7 +684,11 @@ func show_journey_reward() -> void:
 		for category in range(3):
 			var button := Style.button(row, names[category].capitalize(), take_journey_edit.bind(index, category))
 			button.disabled = category == card.get_category()
-	Style.button(body, "Continue without a reward", skip_journey_reward)
+
+
+func take_journey_draft(definition: CardDefinition) -> void:
+	if journey != null and journey.draft_card(definition):
+		show_journey_overview()
 
 
 func take_journey_recovery() -> void:

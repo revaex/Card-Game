@@ -35,6 +35,25 @@ func drag_card(from: Vector2, to: Vector2) -> void:
 	root.push_input(release, true)
 
 
+func controller_press(button: JoyButton) -> void:
+	var event := InputEventJoypadButton.new()
+	event.button_index = button
+	event.pressed = true
+	root.push_input(event, true)
+
+
+func tap(point: Vector2) -> void:
+	var event := InputEventMouseButton.new()
+	event.device = InputEvent.DEVICE_ID_EMULATION
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.position = point
+	event.pressed = true
+	root.push_input(event, true)
+	var release := event.duplicate() as InputEventMouseButton
+	release.pressed = false
+	root.push_input(release, true)
+
+
 func run() -> void:
 	var ui := GameUI.instantiate()
 	ui.options_path = "res://.godot/ui-test-options-%d.cfg" % Time.get_ticks_usec()
@@ -47,15 +66,28 @@ func run() -> void:
 	check(options.visible, "Options opens from the main menu")
 	options.get_node("%Level").value = 65
 	check(is_equal_approx(AudioServer.get_bus_volume_linear(0), 0.65), "Options volume updates the live audio bus")
+	options.get_node("%Effects").value = 40
+	check(is_equal_approx(AudioServer.get_bus_volume_linear(AudioServer.get_bus_index("Effects")), 0.4), "Effects volume uses its own audio bus")
+	options.get_node("%WindowMode").item_selected.emit(0)
+	check(ui.window_mode == 0 and not options.get_node("%WindowSize").disabled, "Windowed mode enables the window size selector")
+	options.get_node("%WindowSize").item_selected.emit(2)
+	options.get_node("%SwapShoulders").button_pressed = true
 	ui.master_volume = 100.0
+	ui.effects_volume = 100.0
+	ui.window_size = 0
+	ui.swap_shoulders = false
 	ui.load_options()
-	check(ui.master_volume == 65.0, "Options reload the saved volume")
+	check(ui.master_volume == 65.0 and ui.effects_volume == 40.0 and ui.window_size == 2 and ui.swap_shoulders, "Options reload audio, display, and controller preferences")
 	options.get_node("%Level").value = 100
+	options.get_node("%Effects").value = 100
 	options.get_node("%Close").pressed.emit()
 	ui.show_library(false)
 	ui.show_editor(0, false)
 	var editor: Node = ui.body.get_node("DeckEditor")
 	var strike_entry := editor.get_node("%Cards/strike")
+	var inkblot: RichTextLabel = editor.get_node("%Cards/inkblot/Card/Content/Description")
+	check(inkblot.text.contains("[color=#155479]Gain 4 block") and inkblot.text.contains("[color=#285524]Apply 4 Poison"), "A single card distinguishes its Block and Poison effects")
+	check(inkblot.get_parsed_text() == "Gain 4 block. Apply 4 Poison.", "Color preserves the readable card description")
 	strike_entry.get_node("%Add").pressed.emit()
 	check(editor == ui.body.get_node("DeckEditor") and strike_entry.get_node("Card/Content/Footer").text == "6 IN DECK", "Adding a card updates the visible count without rebuilding the editor")
 	check(ui.library.total(ui.library.decks[0]) == 11, "Editor adds cards")
@@ -72,6 +104,12 @@ func run() -> void:
 	await process_frame
 	var drag_row: HBoxContainer = drag_table.hand_row
 	var first: Control = drag_row.get_child(0)
+	controller_press(JOY_BUTTON_RIGHT_SHOULDER)
+	check(root.gui_get_focus_owner() == first.get_node("%Play"), "Swapped controller shoulders focus the hand")
+	drag_table.session.cadence = 2
+	drag_table.refresh_intent()
+	controller_press(JOY_BUTTON_LEFT_SHOULDER)
+	check(root.gui_get_focus_owner() == drag_table.rewrite_row.get_child(0), "Controller shortcut focuses a rewritable rival card")
 	var second: Control = drag_row.get_child(1)
 	var dragged: CardInstance = first.get_meta("card")
 	drag_card(first.get_global_rect().get_center(), second.get_global_rect().get_center())
@@ -82,6 +120,17 @@ func run() -> void:
 	drag_card(first.get_global_rect().get_center(), drag_table.card_stage.get_global_rect().get_center())
 	check(drag_table.session.statistics.player.cards == 1 and drag_table.player_piles.discard_pile.has(dragged), "Dropping a card on the table plays it exactly once")
 	check(drag_table.card_stage.get_node("%CardMotion").get_child_count() == 1, "A played card appears on the board")
+	await process_frame
+	await process_frame
+	var touch_card: Control = drag_row.get_child(0)
+	var touch_point := touch_card.get_global_rect().get_center()
+	tap(touch_point)
+	check(drag_table.has_selected_card() and drag_table.session.statistics.player.cards == 1, "First touch selects the card without playing it")
+	tap(touch_point)
+	check(not drag_table.has_selected_card() and drag_table.session.statistics.player.cards == 1, "Tapping the selected card again cancels it")
+	tap(touch_point)
+	tap(drag_table.card_stage.get_global_rect().get_center())
+	check(not drag_table.has_selected_card() and drag_table.session.statistics.player.cards == 2, "Tapping the table plays the selected card exactly once")
 	ui.show_table()
 	var table = ui.body.get_node("CombatTable")
 	await process_frame
@@ -218,7 +267,7 @@ func run() -> void:
 	ui.show_table()
 	var attacks = ui.body.get_node("CombatTable")
 	var first_view = attacks.hand_row.get_child(0)
-	check(first_view.find_child("Description", true, false).text == "Deal 11 damage.", "Hand card displays effective attack including pending artifact trigger")
+	check(first_view.find_child("Description", true, false).get_parsed_text() == "Deal 11 damage.", "Hand card displays effective attack including pending artifact trigger")
 	first_view.inspected.emit()
 	check(attacks.message.text.contains("11 HP") and attacks.session.statistics.player.cards == 0, "Card inspection shows forecast without playing the card")
 	var keyboard_play: Button = first_view.find_child("Play", true, false)
@@ -231,7 +280,7 @@ func run() -> void:
 	key_release.pressed = false
 	root.push_input(key_release, true)
 	check(attacks.session.statistics.player.cards == 1, "Keyboard Enter plays the focused card")
-	check(attacks.hand_row.get_child(0).find_child("Description", true, false).text == "Deal 12 damage.", "Card text refreshes after artifact activation")
+	check(attacks.hand_row.get_child(0).find_child("Description", true, false).get_parsed_text() == "Deal 12 damage.", "Card text refreshes after artifact activation")
 	attacks.session.enemy.take_damage(28)
 	attacks.hand_row.get_child(0).find_child("Play", true, false).pressed.emit()
 	check(ui.screen == "result" and attacks.session.outcome == "Victory", "Lethal player card also opens encounter results")
@@ -295,7 +344,7 @@ func run() -> void:
 		var finisher: CardInstance = patterns.player_piles.hand[index]
 		if finisher.definition.category == CardDefinition.Category.ATTACK:
 			var view = patterns.hand_row.get_child(index)
-			check(view.find_child("Description", true, false).text == "Deal 17 damage.", "Pattern-ready card shows its full effective damage")
+			check(view.find_child("Description", true, false).get_parsed_text() == "Deal 17 damage.", "Pattern-ready card shows its full effective damage")
 			view.inspected.emit()
 			check(patterns.message.text.contains("Pattern Riposte") and view.tooltip_text.contains("War Drum bonus: +1"), "Forecast distinguishes Pattern and artifact bonuses")
 			view.find_child("Play", true, false).pressed.emit()
@@ -350,10 +399,21 @@ func run() -> void:
 	check(ui.screen == "result", "Journey duel shows encounter results")
 	ui.result_overlay.find_child("Rematch", true, false).pressed.emit()
 	check(ui.screen == "journey_reward", "Journey result offers reward instead of rematch")
-	ui.take_journey_edit(0, (ui.journey.roster[0].get_category() + 1) % 3)
-	check(ui.screen == "journey" and ui.journey.stage == 1, "UI card edit advances the journey")
+	var reward: Control = ui.body.get_node("JourneyReward")
+	var roster_size: int = ui.journey.roster.size()
+	var original_recipe: Dictionary = ui.library.decks[ui.player_index].duplicate(true)
+	reward.get_node("%RevisionToggle").button_pressed = true
+	check(reward.get_node("%Revisions").visible and not reward.get_node("%Draft").visible, "Revision choices are available alongside the draft")
+	reward.get_node("%RevisionToggle").button_pressed = false
+	reward.get_node("%Offers/redline").get_node("%Draft").pressed.emit()
+	check(ui.screen == "journey" and ui.journey.stage == 1 and ui.journey.roster.size() == roster_size + 1, "Drafting adds exactly one card and advances the journey")
+	check(ui.library.decks[ui.player_index] == original_recipe, "A draft leaves the saved deck unchanged")
+	check(not ui.journey.draft_card(preload("res://data/cards/redline.tres")), "The same reward cannot be claimed twice")
 	ui.show_journey_encounter()
-	check(ui.body.get_node("CombatTable").session.enemy.max_health == 46, "UI advances to Warden after reward")
+	var next_table: Control = ui.body.get_node("CombatTable")
+	check(next_table.session.enemy.max_health == 46, "UI advances to Warden after reward")
+	check(next_table.player_piles.total_cards() == roster_size + 1, "The next encounter uses the larger deck")
+	check((next_table.player_piles.hand + next_table.player_piles.draw_pile).any(func(card): return card.definition.id == &"redline"), "The drafted Redline is available in the next encounter")
 	ui.end_journey()
 	check(ui.screen == "menu" and ui.journey == null, "Ending a journey clears run state")
 	ui.show_library(false)

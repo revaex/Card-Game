@@ -3,80 +3,345 @@
 [ext_resource type="Script" path="res://scripts/ui/options_menu.gd" id="options"]
 [ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
 
+[sub_resource type="StyleBoxFlat" id="SelectedTab"]
+content_margin_left = 20.0
+content_margin_right = 20.0
+content_margin_top = 7.0
+content_margin_bottom = 7.0
+bg_color = Color(0.16, 0.22, 0.23, 1)
+border_width_top = 2
+border_color = Color(0.87, 0.71, 0.47, 1)
+
+[sub_resource type="StyleBoxFlat" id="UnselectedTab"]
+content_margin_left = 20.0
+content_margin_right = 20.0
+content_margin_top = 7.0
+content_margin_bottom = 7.0
+bg_color = Color(0.08, 0.13, 0.15, 1)
+
+[sub_resource type="StyleBoxFlat" id="TabPanel"]
+bg_color = Color(0.069, 0.112, 0.128, 1)
+border_width_top = 1
+border_width_bottom = 1
+border_color = Color(0.34, 0.29, 0.23, 1)
+
 [node name="OptionsMenu" type="Window"]
 title = "Options"
 visible = false
 transient = true
 exclusive = true
 unresizable = true
+borderless = true
 theme = ExtResource("theme")
 script = ExtResource("options")
 
-[node name="Panel" type="PanelContainer" parent="."]
+[node name="Background" type="ColorRect" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_type_variation = &"BrowserPanel"
+color = Color(0.052, 0.092, 0.111, 1)
 
-[node name="Content" type="VBoxContainer" parent="Panel"]
+[node name="Margin" type="MarginContainer" parent="Background"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_bottom = 26
+
+[node name="Content" type="VBoxContainer" parent="Background/Margin"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Heading" type="Label" parent="Panel/Content"]
+[node name="Kicker" type="Label" parent="Background/Margin/Content"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 25
+theme_override_colors/font_color = Color(0.87, 0.71, 0.47, 1)
+theme_override_font_sizes/font_size = 13
+text = "INK & INTENT   /   TABLE PREFERENCES"
+
+[node name="Heading" type="Label" parent="Background/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 40
 theme_type_variation = &"CardTitle"
-text = "Table preferences"
+text = "Options"
 
-[node name="Rule" type="HSeparator" parent="Panel/Content"]
+[node name="Rule" type="HSeparator" parent="Background/Margin/Content"]
 layout_mode = 2
 
-[node name="VolumeRow" type="HBoxContainer" parent="Panel/Content"]
-layout_mode = 2
-
-[node name="Volume" type="Label" parent="Panel/Content/VolumeRow"]
+[node name="Tabs" type="TabContainer" parent="Background/Margin/Content"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(130, 0)
-text = "Volume 100%"
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("TabPanel")
+theme_override_styles/tab_selected = SubResource("SelectedTab")
+theme_override_styles/tab_hovered = SubResource("SelectedTab")
+theme_override_styles/tab_unselected = SubResource("UnselectedTab")
 
-[node name="Level" type="HSlider" parent="Panel/Content/VolumeRow"]
-unique_name_in_owner = true
+[node name="Display" type="ScrollContainer" parent="Background/Margin/Content/Tabs"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Inset" type="MarginContainer" parent="Background/Margin/Content/Tabs/Display"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Rows" type="VBoxContainer" parent="Background/Margin/Content/Tabs/Display/Inset"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Section" type="Label" parent="Background/Margin/Content/Tabs/Display/Inset/Rows"]
+layout_mode = 2
+theme_type_variation = &"CardTitle"
+theme_override_font_sizes/font_size = 27
+text = "Window & display"
+
+[node name="DisplayDetail" type="Label" parent="Background/Margin/Content/Tabs/Display/Inset/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
+text = "Window size is available in Windowed mode. Larger presets fit to the current monitor."
+autowrap_mode = 3
+
+[node name="WindowModeRow" type="HBoxContainer" parent="Background/Margin/Content/Tabs/Display/Inset/Rows"]
+layout_mode = 2
+
+[node name="Caption" type="Label" parent="Background/Margin/Content/Tabs/Display/Inset/Rows/WindowModeRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+text = "Window mode"
+
+[node name="WindowMode" type="OptionButton" parent="Background/Margin/Content/Tabs/Display/Inset/Rows/WindowModeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 38)
+layout_mode = 2
+item_count = 3
+selected = 0
+popup/item_0/text = "Windowed"
+popup/item_0/id = 0
+popup/item_1/text = "Maximized"
+popup/item_1/id = 1
+popup/item_2/text = "Fullscreen"
+popup/item_2/id = 2
+
+[node name="WindowSizeRow" type="HBoxContainer" parent="Background/Margin/Content/Tabs/Display/Inset/Rows"]
+layout_mode = 2
+
+[node name="Caption" type="Label" parent="Background/Margin/Content/Tabs/Display/Inset/Rows/WindowSizeRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+text = "Window size"
+
+[node name="WindowSize" type="OptionButton" parent="Background/Margin/Content/Tabs/Display/Inset/Rows/WindowSizeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 38)
+layout_mode = 2
+item_count = 4
+selected = 0
+popup/item_0/text = "1100 × 700"
+popup/item_0/id = 0
+popup/item_1/text = "1280 × 800"
+popup/item_1/id = 1
+popup/item_2/text = "1600 × 900"
+popup/item_2/id = 2
+popup/item_3/text = "1920 × 1080"
+popup/item_3/id = 3
+
+[node name="VSync" type="CheckButton" parent="Background/Margin/Content/Tabs/Display/Inset/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Vertical sync"
+
+[node name="WindowReadout" type="Label" parent="Background/Margin/Content/Tabs/Display/Inset/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
+text = "Current window area: 1100 × 700"
+
+[node name="Sound" type="ScrollContainer" parent="Background/Margin/Content/Tabs"]
+visible = false
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Inset" type="MarginContainer" parent="Background/Margin/Content/Tabs/Sound"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Rows" type="VBoxContainer" parent="Background/Margin/Content/Tabs/Sound/Inset"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Section" type="Label" parent="Background/Margin/Content/Tabs/Sound/Inset/Rows"]
+layout_mode = 2
+theme_type_variation = &"CardTitle"
+theme_override_font_sizes/font_size = 27
+text = "Sound levels"
+
+[node name="Detail" type="Label" parent="Background/Margin/Content/Tabs/Sound/Inset/Rows"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
+text = "Set the overall volume and balance the combat cues."
+autowrap_mode = 3
+
+[node name="LevelRow" type="HBoxContainer" parent="Background/Margin/Content/Tabs/Sound/Inset/Rows"]
+layout_mode = 2
+
+[node name="Volume" type="Label" parent="Background/Margin/Content/Tabs/Sound/Inset/Rows/LevelRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+text = "Master volume 100%"
+
+[node name="Level" type="HSlider" parent="Background/Margin/Content/Tabs/Sound/Inset/Rows/LevelRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 100.0
 step = 5.0
 value = 100.0
-tooltip_text = "Master volume"
 
-[node name="Sound" type="CheckButton" parent="Panel/Content"]
+[node name="EffectsRow" type="HBoxContainer" parent="Background/Margin/Content/Tabs/Sound/Inset/Rows"]
+layout_mode = 2
+
+[node name="EffectsVolume" type="Label" parent="Background/Margin/Content/Tabs/Sound/Inset/Rows/EffectsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+text = "Effects volume 100%"
+
+[node name="Effects" type="HSlider" parent="Background/Margin/Content/Tabs/Sound/Inset/Rows/EffectsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 100.0
+step = 5.0
+value = 100.0
+
+[node name="Sound" type="CheckButton" parent="Background/Margin/Content/Tabs/Sound/Inset/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Combat sound effects"
-tooltip_text = "Play paper, impact, and Rewrite sounds."
 
-[node name="Motion" type="CheckButton" parent="Panel/Content"]
+[node name="Controls" type="ScrollContainer" parent="Background/Margin/Content/Tabs"]
+visible = false
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Inset" type="MarginContainer" parent="Background/Margin/Content/Tabs/Controls"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Rows" type="VBoxContainer" parent="Background/Margin/Content/Tabs/Controls/Inset"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Section" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+layout_mode = 2
+theme_type_variation = &"CardTitle"
+theme_override_font_sizes/font_size = 27
+text = "Controller"
+
+[node name="Detail" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
+text = "D-pad or left stick to navigate  /  A to confirm\nB closes Options. LB and RB switch tabs here."
+autowrap_mode = 3
+
+[node name="Controller" type="CheckButton" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Combat shortcuts"
+
+[node name="SwapShoulders" type="CheckButton" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Swap hand and rival shoulder buttons"
+
+[node name="EndShortcut" type="CheckButton" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Y ends your turn"
+
+[node name="Mapping" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "LB: hand   /   RB: rival line   /   Start: Options"
+
+[node name="Gameplay" type="ScrollContainer" parent="Background/Margin/Content/Tabs"]
+visible = false
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Inset" type="MarginContainer" parent="Background/Margin/Content/Tabs/Gameplay"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Rows" type="VBoxContainer" parent="Background/Margin/Content/Tabs/Gameplay/Inset"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Section" type="Label" parent="Background/Margin/Content/Tabs/Gameplay/Inset/Rows"]
+layout_mode = 2
+theme_type_variation = &"CardTitle"
+theme_override_font_sizes/font_size = 27
+text = "Combat pacing"
+
+[node name="Detail" type="Label" parent="Background/Margin/Content/Tabs/Gameplay/Inset/Rows"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
+text = "Choose how quickly the rival acts and how much motion the board uses."
+autowrap_mode = 3
+
+[node name="Motion" type="CheckButton" parent="Background/Margin/Content/Tabs/Gameplay/Inset/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Combat animations"
-tooltip_text = "Animate card plays, Rewrite, and combat feedback."
 
-[node name="Speed" type="CheckButton" parent="Panel/Content"]
+[node name="Speed" type="CheckButton" parent="Background/Margin/Content/Tabs/Gameplay/Inset/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Fast rival turns"
-tooltip_text = "Shorten the pause between rival plays."
 
-[node name="Close" type="Button" parent="Panel/Content"]
+[node name="Footer" type="HBoxContainer" parent="Background/Margin/Content"]
+layout_mode = 2
+
+[node name="Note" type="Label" parent="Background/Margin/Content/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
+text = "Changes are saved on this device."
+
+[node name="Close" type="Button" parent="Background/Margin/Content/Footer"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 8
-custom_minimum_size = Vector2(110, 38)
+custom_minimum_size = Vector2(130, 40)
 text = "Done"
 
-[connection signal="value_changed" from="Panel/Content/VolumeRow/Level" to="." method="_on_level_changed"]
-[connection signal="toggled" from="Panel/Content/Sound" to="." method="_on_sound_toggled"]
-[connection signal="toggled" from="Panel/Content/Motion" to="." method="_on_motion_toggled"]
-[connection signal="toggled" from="Panel/Content/Speed" to="." method="_on_speed_toggled"]
-[connection signal="pressed" from="Panel/Content/Close" to="." method="_on_close_pressed"]
+[connection signal="pressed" from="Background/Margin/Content/Footer/Close" to="." method="_on_close_pressed"]
+[connection signal="item_selected" from="Background/Margin/Content/Tabs/Display/Inset/Rows/WindowModeRow/WindowMode" to="." method="_on_window_mode"]
+[connection signal="item_selected" from="Background/Margin/Content/Tabs/Display/Inset/Rows/WindowSizeRow/WindowSize" to="." method="_on_window_size"]
+[connection signal="value_changed" from="Background/Margin/Content/Tabs/Sound/Inset/Rows/LevelRow/Level" to="." method="_on_level_changed"]
+[connection signal="value_changed" from="Background/Margin/Content/Tabs/Sound/Inset/Rows/EffectsRow/Effects" to="." method="_on_effects_changed"]

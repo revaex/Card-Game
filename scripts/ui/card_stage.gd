@@ -9,14 +9,35 @@ var _flight: Tween
 var _card: Control
 var _hot: bool = false
 var _seal: float = 1.0
+var _confirm_pressed: bool = false
 
 
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
-	return table != null and table.is_hand_drag(data) and table.session.can_play(data.card)
+	return table != null and table.is_hand_drag(data) and table.can_play_card(data.card)
 
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	table.play_card(data.card)
+
+
+func _gui_input(event: InputEvent) -> void:
+	if table == null or not table.has_selected_card() or not event is InputEventMouseButton or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	accept_event()
+	if event.pressed:
+		_confirm_pressed = true
+		return
+	var confirmed := _confirm_pressed and Rect2(Vector2.ZERO, size).has_point(event.position)
+	_confirm_pressed = false
+	if confirmed:
+		table.confirm_selected_card()
+
+
+func show_selection(card_name: String) -> void:
+	_confirm_pressed = false
+	show_drag(not card_name.is_empty(), not card_name.is_empty())
+	if not card_name.is_empty():
+		%Prompt.text = "Tap here to play\n" + card_name
 
 
 func show_drag(playable: bool, dragging: bool) -> void:

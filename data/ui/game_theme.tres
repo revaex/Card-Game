@@ -1,11 +1,11 @@
 [gd_resource type="Theme" format=3]
 
+[ext_resource type="FontFile" path="res://data/fonts/DejaVuSans.ttf" id="sans"]
+[ext_resource type="FontFile" path="res://data/fonts/DejaVuSerif.ttf" id="serif"]
+
 [sub_resource type="StyleBoxLine" id="EngravedRule"]
 color = Color(0.42, 0.34, 0.25, 1)
 thickness = 1
-
-[sub_resource type="SystemFont" id="AlmanacSerif"]
-font_names = PackedStringArray("Georgia", "Cambria", "Times New Roman")
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_um8m7"]
 content_margin_left = 20.0
@@ -184,6 +184,7 @@ corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
 [resource]
+default_font = ExtResource("sans")
 default_font_size = 16
 AcceptDialog/styles/panel = SubResource("StyleBoxFlat_um8m7")
 BrowserPanel/base_type = &"PanelContainer"
@@ -198,7 +199,7 @@ Button/styles/hover = SubResource("StyleBoxFlat_f2wwf")
 Button/styles/normal = SubResource("StyleBoxFlat_jlwae")
 Button/styles/pressed = SubResource("StyleBoxFlat_qil00")
 CardTitle/base_type = &"Label"
-CardTitle/fonts/font = SubResource("AlmanacSerif")
+CardTitle/fonts/font = ExtResource("serif")
 HBoxContainer/constants/separation = 14
 HSeparator/styles/separator = SubResource("EngravedRule")
 Label/colors/font_color = Color(0.93333334, 0.8862745, 0.7882353, 1)

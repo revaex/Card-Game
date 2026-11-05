@@ -5,6 +5,10 @@ enum Phase { READY, DUEL, REWARD, COMPLETE, DEFEAT }
 const Session = preload("res://scripts/combat/combat_session.gd")
 const Rivals = preload("res://scripts/content/rival_catalog.gd")
 const RECOVERY: int = 8
+const DRAFTS = [
+	[preload("res://data/cards/redline.tres"), preload("res://data/cards/iron_seal.tres"), preload("res://data/cards/marginalia.tres")],
+	[preload("res://data/cards/crosscut.tres"), preload("res://data/cards/inkblot.tres"), preload("res://data/cards/siphon.tres")],
+]
 var roster: Array[CardInstance] = []
 var phase: Phase = Phase.READY
 var stage: int = 0
@@ -58,6 +62,22 @@ func take_recovery() -> bool:
 	if phase != Phase.REWARD or health >= max_health:
 		return false
 	health = mini(max_health, health + RECOVERY)
+	_advance_after_reward()
+	return true
+
+
+func draft_offers() -> Array[CardDefinition]:
+	var offers: Array[CardDefinition] = []
+	if phase == Phase.REWARD and stage < DRAFTS.size():
+		offers.assign(DRAFTS[stage])
+	return offers
+
+
+func draft_card(definition: CardDefinition) -> bool:
+	if not draft_offers().has(definition):
+		return false
+	roster.append(CardInstance.new(definition))
+	edits.append("Drafted %s" % definition.display_name)
 	_advance_after_reward()
 	return true
 

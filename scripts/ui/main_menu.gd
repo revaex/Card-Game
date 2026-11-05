@@ -2,6 +2,7 @@ extends VBoxContainer
 ## Editor-authored view: layout lives in main_menu.tscn; navigation stays in GameUI.
 
 signal journey_requested
+signal lesson_requested
 signal single_duel_requested
 signal custom_duel_requested
 signal decks_requested
@@ -15,6 +16,10 @@ func set_has_journey(active: bool) -> void:
 
 func _on_journey_pressed() -> void:
 	journey_requested.emit()
+
+
+func _on_lesson_pressed() -> void:
+	lesson_requested.emit()
 
 
 func _on_single_pressed() -> void:

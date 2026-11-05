@@ -1,0 +1,70 @@
+[gd_scene format=3]
+
+[node name="JourneyReward" type="VBoxContainer"]
+theme_override_constants/separation = 12
+
+[node name="Context" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.87, 0.71, 0.47, 1)
+autowrap_mode = 3
+text = "HP 30 / 30"
+
+[node name="Briefing" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
+
+[node name="Actions" type="HFlowContainer" parent="."]
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="Recover" type="Button" parent="Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Recover 8 HP"
+
+[node name="RevisionToggle" type="Button" parent="Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+mouse_default_cursor_shape = 2
+text = "Revise a card"
+
+[node name="Skip" type="Button" parent="Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Skip reward"
+
+[node name="Rule" type="HSeparator" parent="."]
+layout_mode = 2
+
+[node name="Draft" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Heading" type="Label" parent="Draft"]
+layout_mode = 2
+theme_type_variation = &"CardTitle"
+theme_override_font_sizes/font_size = 23
+text = "Draft a card"
+
+[node name="Detail" type="Label" parent="Draft"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Add one copy to your deck for the remaining duels."
+
+[node name="Offers" type="HFlowContainer" parent="Draft"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 12
+
+[node name="Revisions" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
