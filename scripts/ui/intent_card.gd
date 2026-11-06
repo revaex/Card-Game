@@ -4,7 +4,7 @@ extends "res://scripts/ui/info_button.gd"
 const ACCENTS = [Color("b65f4b"), Color("487d99"), Color("88702c")]
 
 
-func show_card(card: CardInstance, index: int, state: String, rewritable: bool, highlighted: bool = false) -> void:
+func show_card(card: CardInstance, index: int, state: String, rewritable: bool, highlighted: bool = false, inspectable: bool = false) -> void:
 	set_meta("intent_state", state)
 	%Index.text = "%02d   /   %s" % [index + 1, state]
 	%CardName.text = card.definition.display_name
@@ -30,5 +30,14 @@ func show_card(card: CardInstance, index: int, state: String, rewritable: bool, 
 	add_theme_stylebox_override("disabled", paper)
 	add_theme_stylebox_override("hover", hover)
 	add_theme_stylebox_override("pressed", hover)
-	disabled = not rewritable
+	var focus := paper.duplicate() as StyleBoxFlat
+	focus.draw_center = false
+	focus.border_color = Color("79f4c8")
+	focus.set_border_width_all(4)
+	focus.shadow_size = 0
+	add_theme_stylebox_override("focus", focus)
+	var caption: String = %Index.text
+	focus_entered.connect(func(): %Index.text = "▶ " + caption)
+	focus_exited.connect(func(): %Index.text = caption)
+	disabled = not (rewritable or inspectable)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if rewritable else Control.CURSOR_ARROW

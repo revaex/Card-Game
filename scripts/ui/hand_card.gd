@@ -8,8 +8,10 @@ const PATTERN_BADGES = preload("res://data/ui/pattern_badges.svg")
 const PATTERN_INK = [Color("155479"), Color("862b22"), Color("684c19")]
 signal inspected
 signal inspection_ended
+signal reward_focus_changed
 const Tooltip = preload("res://scripts/ui/board_tooltip.gd")
 var _resting_frame: StyleBoxFlat
+var _reward_focused := false
 
 func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_action: Callable = Callable(), effective_text: String = "", details: String = "", pattern_name: String = "", action_hint: String = "Unavailable") -> void:
 	var preview := play_action.is_null()
@@ -56,7 +58,7 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	var art := Style.box(Color("122229"), accent)
 	var focused_art := Style.box(Color("1a3838"), focused.border_color)
 	var update_frame := func():
-		var has_focus: bool = %Play.has_focus()
+		var has_focus: bool = %Play.has_focus() or _reward_focused
 		var style := focused if has_focus else (hover if %Play.is_hovered() else frame)
 		add_theme_stylebox_override("panel", style)
 		%ArtFrame.add_theme_stylebox_override("panel", focused_art if has_focus else art)
@@ -66,6 +68,7 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 			size_flags_vertical = Control.SIZE_SHRINK_CENTER if has_focus else Control.SIZE_SHRINK_END
 	mouse_entered.connect(update_frame)
 	mouse_exited.connect(update_frame)
+	reward_focus_changed.connect(update_frame)
 	mouse_entered.connect(func(): inspected.emit())
 	mouse_exited.connect(func(): inspection_ended.emit())
 	tooltip_text = details if not details.is_empty() else card.definition.description
@@ -121,6 +124,11 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 func setup_preview(card: CardInstance, caption: String = "") -> void:
 	setup(card, false, Callable())
 	set_caption(caption)
+
+
+func set_reward_focus(focused: bool) -> void:
+	_reward_focused = focused
+	reward_focus_changed.emit()
 
 
 func show_pattern_badge(pattern: Resource) -> void:

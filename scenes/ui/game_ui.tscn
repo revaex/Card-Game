@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/ui/ink_backdrop.gd" id="backdrop"]
 [ext_resource type="PackedScene" path="res://scenes/ui/main_menu.tscn" id="menu"]
 [ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
+[ext_resource type="Script" path="res://scripts/ui/focus_help.gd" id="focus_help"]
 
 [node name="GameUI" type="Control"]
 layout_mode = 3
@@ -59,6 +60,12 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 10
+
+[node name="FocusHelp" type="Control" parent="."]
+unique_name_in_owner = true
+mouse_filter = 2
+z_index = 100
+script = ExtResource("focus_help")
 
 [node name="EndJourneyDialog" type="ConfirmationDialog" parent="."]
 unique_name_in_owner = true

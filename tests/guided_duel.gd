@@ -37,6 +37,7 @@ func finish_folio(table: Control) -> void:
 
 func run() -> void:
 	var ui := preload("res://scenes/ui/game_ui.tscn").instantiate()
+	ui.journey_checkpoint.path = "res://.godot/guided_duel-journey-%d.checkpoint" % Time.get_ticks_usec()
 	ui.options_path = "res://.godot/guided-duel-test.cfg"
 	root.add_child(ui)
 	ui.combat_sound = false
@@ -59,8 +60,14 @@ func run() -> void:
 	await finish_folio(table)
 	table.play_card(table.player_piles.hand[1])
 	check(table.session.energy == 3, "Out-of-sequence cards cannot be played through another input path")
+	table.set_motion_enabled(true)
 	play_named(table, &"strike")
+	await process_frame
+	check(table.get_node_or_null("LessonFolio") == null and table.lesson_briefing_pending(), "The board stays visible after playing a tutorial card")
+	check(table.card_stage.get_node("%CardMotion").get_child_count() == 1, "The card presentation starts before the next folio")
+	await create_timer(1.35).timeout
 	await finish_folio(table)
+	table.set_motion_enabled(false)
 	play_named(table, &"block")
 	await finish_folio(table)
 	check(table.session.cadence == 2 and lesson.get_node("%Heading").text.contains("Rewrite"), "Changing categories makes Rewrite the next step")

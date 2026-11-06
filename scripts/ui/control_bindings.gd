@@ -10,7 +10,8 @@ const ACTIONS := {
 	&"combat_pile": ["Inspect draw pile", KEY_P, JOY_BUTTON_X],
 	&"combat_guide": ["Open Pattern guide", KEY_G, JOY_BUTTON_BACK],
 	&"combat_end": ["End turn (optional)", KEY_F, JOY_BUTTON_Y],
-	&"combat_inspect": ["Inspect focused card", KEY_I, JOY_BUTTON_RIGHT_STICK],
+	&"combat_inspect": ["Inspect focused card", KEY_I, JOY_BUTTON_LEFT_STICK],
+	&"focus_tooltips": ["Toggle controller tooltips", KEY_F1, JOY_BUTTON_RIGHT_STICK],
 	&"ui_up": ["Move focus up", KEY_W, -1],
 	&"ui_left": ["Move focus left", KEY_A, -1],
 	&"ui_down": ["Move focus down", KEY_S, -1],
@@ -49,6 +50,12 @@ static func sanitize(saved: Variant) -> Dictionary:
 	var result := defaults()
 	if not saved is Dictionary:
 		return result
+	# Move the old default Inspect binding so R3 can toggle help. Keep custom assignments.
+	var old_inspect: Variant = saved.get(&"combat_inspect")
+	if not saved.has(&"focus_tooltips") and old_inspect is Array and old_inspect.size() == 2 and old_inspect[1] == JOY_BUTTON_RIGHT_STICK:
+		saved = saved.duplicate(true)
+		saved[&"combat_inspect"][1] = JOY_BUTTON_LEFT_STICK
+		saved[&"focus_tooltips"] = [KEY_F1, JOY_BUTTON_RIGHT_STICK]
 	for column in range(2):
 		var replacements := {}
 		var used := []

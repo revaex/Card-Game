@@ -1,5 +1,5 @@
 extends RefCounted
-## Owns one session-length journey. Saved deck recipes and definitions stay untouched.
+## Owns one journey. Saved deck recipes and definitions stay untouched.
 
 enum Phase { READY, DUEL, REWARD, COMPLETE, DEFEAT }
 const Session = preload("res://scripts/combat/combat_session.gd")
@@ -19,6 +19,7 @@ var edits: Array[String] = []
 var active_session: RefCounted
 var use_war_drum: bool
 var equipped_relic: Resource
+var checkpoint_id := ""
 
 
 func _init(cards: Array[CardInstance], artifact_enabled: bool = true, relic: Resource = null) -> void:
@@ -93,6 +94,15 @@ func reclassify(index: int, category: int) -> bool:
 	var names := CardDefinition.Category.keys()
 	edits.append("%s: %s → %s" % [card.definition.display_name, names[card.get_category()].capitalize(), names[category].capitalize()])
 	card.category_override = category
+	_advance_after_reward()
+	return true
+
+
+func remove_card(index: int) -> bool:
+	if phase != Phase.REWARD or roster.size() <= 1 or index < 0 or index >= roster.size():
+		return false
+	var card: CardInstance = roster.pop_at(index)
+	edits.append("Removed %s" % card.definition.display_name)
 	_advance_after_reward()
 	return true
 

@@ -26,6 +26,7 @@ func _init(text: String = "") -> void:
 	panel.shadow_size = 5
 	add_theme_stylebox_override("panel", panel)
 	var content := VBoxContainer.new()
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_theme_constant_override("separation", 8)
 	add_child(content)
 	var first_break := text.find("\n")

@@ -19,6 +19,11 @@ func set_relic_marks(marks: int) -> void:
 	%RelicsButton.text = "Relics · %d Marks" % marks if marks > 0 else "Relic collection"
 
 
+func set_save_notice(notice: String) -> void:
+	%SaveNote.text = notice if not notice.is_empty() else "Decks and relics are saved on this device."
+	%SaveNote.tooltip_text = notice
+
+
 func _on_journey_pressed() -> void:
 	journey_requested.emit()
 

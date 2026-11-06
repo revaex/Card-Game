@@ -98,6 +98,10 @@ layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="JourneyButton" type="Button" parent="Hero/Copy/Featured"]
+focus_neighbor_left = NodePath(".")
+focus_neighbor_right = NodePath("../LessonButton")
+focus_neighbor_top = NodePath(".")
+focus_neighbor_bottom = NodePath("../../ModeGrid/SingleDuelButton")
 unique_name_in_owner = true
 custom_minimum_size = Vector2(230, 50)
 layout_mode = 2
@@ -114,6 +118,10 @@ text = "Begin a journey  →"
 script = ExtResource("button")
 
 [node name="LessonButton" type="Button" parent="Hero/Copy/Featured"]
+focus_neighbor_left = NodePath("../JourneyButton")
+focus_neighbor_right = NodePath(".")
+focus_neighbor_top = NodePath(".")
+focus_neighbor_bottom = NodePath("../../ModeGrid/CustomDuelButton")
 custom_minimum_size = Vector2(146, 50)
 layout_mode = 2
 size_flags_vertical = 1
@@ -129,6 +137,10 @@ theme_override_constants/v_separation = 8
 columns = 2
 
 [node name="SingleDuelButton" type="Button" parent="Hero/Copy/ModeGrid"]
+focus_neighbor_left = NodePath(".")
+focus_neighbor_right = NodePath("../CustomDuelButton")
+focus_neighbor_top = NodePath("../../Featured/JourneyButton")
+focus_neighbor_bottom = NodePath("../DecksButton")
 custom_minimum_size = Vector2(188, 42)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -137,6 +149,10 @@ text = "Challenge a rival"
 script = ExtResource("button")
 
 [node name="CustomDuelButton" type="Button" parent="Hero/Copy/ModeGrid"]
+focus_neighbor_left = NodePath("../SingleDuelButton")
+focus_neighbor_right = NodePath(".")
+focus_neighbor_top = NodePath("../../Featured/LessonButton")
+focus_neighbor_bottom = NodePath("../RelicsButton")
 custom_minimum_size = Vector2(188, 42)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -145,6 +161,10 @@ text = "Custom duel"
 script = ExtResource("button")
 
 [node name="DecksButton" type="Button" parent="Hero/Copy/ModeGrid"]
+focus_neighbor_left = NodePath(".")
+focus_neighbor_right = NodePath("../RelicsButton")
+focus_neighbor_top = NodePath("../SingleDuelButton")
+focus_neighbor_bottom = NodePath("../../../../Footer/OptionsButton")
 custom_minimum_size = Vector2(188, 42)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -153,6 +173,10 @@ text = "Deck library"
 script = ExtResource("button")
 
 [node name="RelicsButton" type="Button" parent="Hero/Copy/ModeGrid"]
+focus_neighbor_left = NodePath("../DecksButton")
+focus_neighbor_right = NodePath(".")
+focus_neighbor_top = NodePath("../CustomDuelButton")
+focus_neighbor_bottom = NodePath("../../../../Footer/QuitButton")
 unique_name_in_owner = true
 custom_minimum_size = Vector2(188, 42)
 layout_mode = 2
@@ -178,20 +202,30 @@ layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="SaveNote" type="Label" parent="Footer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.608, 0.663, 0.643, 1)
 theme_override_font_sizes/font_size = 13
 text = "Decks and relics are saved on this device."
+text_overrun_behavior = 3
 script = ExtResource("label")
 
 [node name="OptionsButton" type="Button" parent="Footer"]
+focus_neighbor_left = NodePath(".")
+focus_neighbor_right = NodePath("../QuitButton")
+focus_neighbor_top = NodePath("../../Hero/Copy/ModeGrid/DecksButton")
+focus_neighbor_bottom = NodePath(".")
 layout_mode = 2
 mouse_default_cursor_shape = 2
 text = "Options"
 script = ExtResource("button")
 
 [node name="QuitButton" type="Button" parent="Footer"]
+focus_neighbor_left = NodePath("../OptionsButton")
+focus_neighbor_right = NodePath(".")
+focus_neighbor_top = NodePath("../../Hero/Copy/ModeGrid/RelicsButton")
+focus_neighbor_bottom = NodePath(".")
 layout_mode = 2
 mouse_default_cursor_shape = 2
 text = "Quit"

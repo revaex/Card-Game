@@ -10,6 +10,14 @@ The pitch: **read the rival's next move, then rewrite their plan.** The first us
 
 ## Milestones
 
+### Next release gate
+
+1. **Prove the three-rival slice is worth replaying.** Test the Windows build with five new players. Record whether they use Rewrite unprompted after the lesson, finish a Journey, and choose to start another. Fix blocked progress, unclear intent, and weak reward decisions first.
+2. **Verify Journey recovery in packaged builds.** Local versioned checkpoints now save before chapters, after fights, and after reward choices. Reopening the game during a duel restarts that chapter from its entry state. Checkpointed victories reconcile Marks on restart without paying twice. Test normal quit, forced exit at each boundary, and an upgrade using a prior checkpoint. Exact mid-duel resume and reproducible encounter openings remain separate work.
+3. **Make one release candidate reproducible.** Record its engine version, revision, and artifact hashes. Test on clean Windows with mouse and controller, then on Steam Deck via Proton. Validate the same slice through a hosted browser build before scheduling a public demo.
+
+Keep the campaign scope at three rivals until those checks identify what is worth expanding. Prioritize a distinctive final encounter and better between-fight choices before adding more regions or cards.
+
 | Milestone | Work | Exit gate |
 |---|---|---|
 | 0. Platform foundation | Add touch selection and repeatable Windows/Web exports. Get a browser build running on a test host. Inventory platform assumptions around display, focus, font fallback, audio, and saves. | A complete duel works in a Windows export and a hosted browser export. Mouse and touch can play and cancel a card without ambiguity. |

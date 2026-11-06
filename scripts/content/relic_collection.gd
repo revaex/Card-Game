@@ -2,6 +2,7 @@ extends RefCounted
 ## The local collection stores Marks, milestone IDs, and the equipped relic ID.
 
 const Relic = preload("res://scripts/artifacts/relic_definition.gd")
+const SaveFile = preload("res://scripts/content/save_file.gd")
 const CATALOG = [
 	preload("res://data/relics/war_drum.tres"),
 	preload("res://data/relics/guard_sigil.tres"),
@@ -19,6 +20,9 @@ var defeated: PackedStringArray = []
 var journey_won := false
 var equipped_id := "war_drum"
 var error_message := ""
+var _journey_receipt_id := ""
+var _journey_receipt_stage := -1
+var _read_failed := false
 
 
 func load_profile() -> void:
@@ -26,6 +30,7 @@ func load_profile() -> void:
 	var error := config.load(save_path)
 	if error != OK:
 		if error != ERR_FILE_NOT_FOUND:
+			_read_failed = true
 			error_message = "Could not read relic progress."
 		return
 	marks = maxi(0, int(config.get_value("relics", "marks", config.get_value("relics", "coins", 0))))
@@ -39,18 +44,24 @@ func load_profile() -> void:
 		defeated = stored_defeated
 	journey_won = bool(config.get_value("relics", "journey_won", false))
 	equipped_id = str(config.get_value("relics", "equipped", "war_drum"))
+	_journey_receipt_id = str(config.get_value("relics", "journey_receipt_id", ""))
+	_journey_receipt_stage = int(config.get_value("relics", "journey_receipt_stage", -1))
 	if not owned.has(equipped_id):
 		equipped_id = ""
 
 
 func save_profile() -> bool:
+	if _read_failed:
+		return false
 	var config := ConfigFile.new()
 	config.set_value("relics", "marks", marks)
 	config.set_value("relics", "owned", owned)
 	config.set_value("relics", "defeated", defeated)
 	config.set_value("relics", "journey_won", journey_won)
 	config.set_value("relics", "equipped", equipped_id)
-	var error := config.save(save_path)
+	config.set_value("relics", "journey_receipt_id", _journey_receipt_id)
+	config.set_value("relics", "journey_receipt_stage", _journey_receipt_stage)
+	var error := SaveFile.replace(save_path, config.encode_to_text().to_utf8_buffer())
 	error_message = "" if error == OK else "Could not save relic progress. Try again."
 	return error == OK
 
@@ -89,12 +100,21 @@ func equip(id: String) -> bool:
 	return false
 
 
-func record_victory(rival_id: String, finished_journey: bool) -> int:
-	if rival_id.is_empty():
+func has_journey_receipt(run_id: String, stage: int) -> bool:
+	return not run_id.is_empty() and _journey_receipt_id == run_id and stage <= _journey_receipt_stage
+
+
+func record_victory(rival_id: String, finished_journey: bool, run_id: String = "", stage: int = -1) -> int:
+	if rival_id.is_empty() or has_journey_receipt(run_id, stage):
 		return 0
 	var amount := DUEL_MARKS + (JOURNEY_BONUS if finished_journey else 0)
 	var was_defeated := defeated.has(rival_id)
 	var old_journey := journey_won
+	var old_receipt_id := _journey_receipt_id
+	var old_receipt_stage := _journey_receipt_stage
+	if not run_id.is_empty():
+		_journey_receipt_id = run_id
+		_journey_receipt_stage = stage
 	if not was_defeated:
 		defeated.append(rival_id)
 	journey_won = journey_won or finished_journey
@@ -105,4 +125,6 @@ func record_victory(rival_id: String, finished_journey: bool) -> int:
 	if not was_defeated:
 		defeated.remove_at(defeated.size() - 1)
 	journey_won = old_journey
+	_journey_receipt_id = old_receipt_id
+	_journey_receipt_stage = old_receipt_stage
 	return 0

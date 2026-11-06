@@ -25,6 +25,10 @@ func setup(journey: RefCounted, enter_encounter: Callable, motion: bool) -> void
 	Style.primary(%Enter)
 	%Enter.pressed.connect(enter_encounter)
 	%Scout.pressed.connect(scout_deck)
+	%Scout.focus_neighbor_left = NodePath(".")
+	%Scout.focus_neighbor_right = %Scout.get_path_to(%Enter)
+	%Enter.focus_neighbor_left = %Enter.get_path_to(%Scout)
+	%Enter.focus_neighbor_right = NodePath(".")
 	for index in range(Rivals.ALL.size()):
 		var stop := %Stops.get_child(index)
 		var rival: Resource = Rivals.ALL[index]
@@ -51,8 +55,29 @@ func setup(journey: RefCounted, enter_encounter: Callable, motion: bool) -> void
 		inspect.add_theme_stylebox_override("focus", seal(Color.TRANSPARENT, Style.GOLD, 3))
 		inspect.focus_entered.connect(select_stop.bind(index))
 		inspect.pressed.connect(select_stop.bind(index))
+		inspect.focus_neighbor_left = inspect.get_path_to(stop_button(maxi(index - 1, 0)))
+		inspect.focus_neighbor_right = inspect.get_path_to(stop_button(mini(index + 1, Rivals.ALL.size() - 1)))
+		inspect.focus_neighbor_top = NodePath(".")
+		inspect.focus_neighbor_bottom = inspect.get_path_to(%Enter)
 	select_stop(journey.stage)
 	%Enter.grab_focus()
+
+
+func stop_button(index: int) -> Button:
+	return %Stops.get_child(index).get_node("Inspect")
+
+
+func connect_footer(leave: Button, end: Button) -> void:
+	%Scout.focus_neighbor_bottom = %Scout.get_path_to(leave)
+	%Enter.focus_neighbor_bottom = %Enter.get_path_to(end)
+	leave.focus_neighbor_top = leave.get_path_to(%Scout)
+	end.focus_neighbor_top = end.get_path_to(%Enter)
+	leave.focus_neighbor_right = leave.get_path_to(end)
+	end.focus_neighbor_left = end.get_path_to(leave)
+	leave.focus_neighbor_left = NodePath(".")
+	end.focus_neighbor_right = NodePath(".")
+	leave.focus_neighbor_bottom = NodePath(".")
+	end.focus_neighbor_bottom = NodePath(".")
 
 
 func seal(paper: Color, ink: Color, weight: int = 1) -> StyleBoxFlat:
@@ -84,11 +109,12 @@ func select_stop(index: int) -> void:
 		opening.append(card.display_name)
 	%Opening.visible = not opening.is_empty() and not cleared
 	%Opening.text = "Scouted opening  ·  " + "  /  ".join(opening)
-	%Enter.disabled = not current
-	if current:
-		%Enter.text = "Resume duel  →" if _journey.phase == Journey.Phase.DUEL else "Enter chapter %d  →" % (index + 1)
-	else:
-		%Enter.text = "Cleared" if cleared else "Ahead on the route"
+	var active_rival: Resource = Rivals.ALL[_journey.stage]
+	%Enter.text = "Resume duel  →" if _journey.phase == Journey.Phase.DUEL else "Enter chapter %d  →" % (_journey.stage + 1)
+	if not current:
+		%Enter.text = ("Resume with the %s  →" if _journey.phase == Journey.Phase.DUEL else "Face the %s  →") % active_rival.display_name.trim_prefix("The ")
+	%Enter.focus_neighbor_top = %Enter.get_path_to(stop_button(index))
+	%Scout.focus_neighbor_top = %Scout.get_path_to(stop_button(index))
 	if _motion and _reveal == null:
 		_reveal = create_tween()
 		$Briefing.modulate.a = 0.78

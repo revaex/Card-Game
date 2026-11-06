@@ -19,6 +19,7 @@ func run() -> void:
 	root.mode = Window.MODE_WINDOWED
 	root.size = Vector2i(1100, 700)
 	var ui := GameUI.instantiate()
+	ui.journey_checkpoint.path = "res://.godot/render_ui-journey-%d.checkpoint" % Time.get_ticks_usec()
 	ui.relics.save_path = "res://.godot/render-relics-%d.cfg" % Time.get_ticks_usec()
 	root.add_child(ui)
 	await capture("res://.godot/menu-preview.png")
@@ -63,6 +64,18 @@ func run() -> void:
 	table.session.enemy.apply_poison(3)
 	table.refresh()
 	await capture("res://.godot/table-preview.png")
+	var controller_help := InputEventJoypadButton.new()
+	controller_help.button_index = JOY_BUTTON_DPAD_RIGHT
+	controller_help.pressed = true
+	root.push_input(controller_help, true)
+	table.get_node("%Brace").grab_focus()
+	await capture("res://.godot/controller-help-preview.png")
+	table.rewrite_row.get_child(0).grab_focus()
+	await capture("res://.godot/rival-focus-preview.png")
+	var keyboard := InputEventKey.new()
+	keyboard.keycode = KEY_SHIFT
+	keyboard.pressed = true
+	root.push_input(keyboard, true)
 	table.focus_hand(1)
 	await capture("res://.godot/hand-focus-preview.png")
 	var focused_card: Control = table.hand_row.get_child(1)
@@ -160,6 +173,10 @@ func run() -> void:
 	table.end_turn()
 	ui.result_overlay.find_child("Rematch", true, false).pressed.emit()
 	await capture("res://.godot/journey-reward-preview.png")
+	var reward: Control = ui.body.get_node("JourneyReward")
+	reward.get_node("%RemovalToggle").button_pressed = true
+	reward.get_node("%Cuts").get_child(0).get_node("%Draft").grab_focus()
+	await capture("res://.godot/journey-cut-preview.png")
 	ui.take_journey_edit(0, (ui.journey.roster[0].get_category() + 1) % 3)
 	await capture("res://.godot/journey-edit-preview.png")
 	ui.show_journey_encounter()

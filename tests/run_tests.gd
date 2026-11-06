@@ -657,4 +657,12 @@ func test_journey() -> void:
 	full.finish_encounter(win)
 	check(not full.take_recovery() and full.phase == Journey.Phase.REWARD, "Full-health recovery does not consume a reward")
 	check(not full.draft_card(StarterDeck.STRIKE) and full.phase == Journey.Phase.REWARD, "Cards outside the offered draft cannot consume the reward")
+	check(not full.remove_card(-1) and full.phase == Journey.Phase.REWARD, "An invalid cut does not consume the reward")
 	check(full.skip_reward() and full.stage == 1, "Player may skip the reward")
+	var one_card: Array[CardInstance] = [CardInstance.new(StarterDeck.STRIKE)]
+	var lean = Journey.new(one_card, false)
+	var lean_win: RefCounted = lean.start_encounter()
+	lean_win.enemy.take_damage(999)
+	lean_win.check_outcome()
+	lean.finish_encounter(lean_win)
+	check(not lean.remove_card(0) and lean.phase == Journey.Phase.REWARD, "A cut cannot leave the deck empty")

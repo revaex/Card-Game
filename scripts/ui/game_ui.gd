@@ -21,12 +21,14 @@ const CardBrowser = preload("res://scenes/ui/card_browser.tscn")
 const Rivals = preload("res://scripts/content/rival_catalog.gd")
 const DuelArt = preload("res://scripts/ui/duel_art.gd")
 const Journey = preload("res://scripts/combat/journey_state.gd")
+const JourneyCheckpoint = preload("res://scripts/content/journey_checkpoint.gd")
 const JourneyReward = preload("res://scenes/ui/journey_reward.tscn")
 const JourneyMap = preload("res://scenes/ui/journey_map.tscn")
 const DraftCard = preload("res://scenes/ui/draft_card.tscn")
 const CombatSession = preload("res://scripts/combat/combat_session.gd")
 const INSIGHT = preload("res://data/cards/insight.tres")
 var journey: RefCounted
+var journey_checkpoint := JourneyCheckpoint.new()
 var preparing_journey: bool = false
 var journey_deck_name: String = ""
 var _table_is_journey: bool = false
@@ -61,7 +63,13 @@ var control_bindings := Bindings.defaults()
 
 func _ready() -> void:
 	load_options()
+	%FocusHelp.toggle_requested.connect(func(): change_option("focus_tooltips", not %FocusHelp.hints_enabled))
 	relics.load_profile()
+	var restored := journey_checkpoint.load_run()
+	if not restored.is_empty():
+		journey = restored.journey
+		journey_deck_name = restored.deck
+		collect_journey_marks()
 	if OS.has_feature("web"):
 		main_menu.find_child("QuitButton", true, false).hide()
 	main_menu.journey_requested.connect(_on_menu_journey)
@@ -103,6 +111,10 @@ func clear(title: String, subtitle: String) -> void:
 	heading.get_node("%Subtitle").text = subtitle
 	if not library.error_message.is_empty():
 		Style.label(body, library.error_message, 16, Color("eea89b"))
+	if screen.begins_with("journey"):
+		var notice := journey_save_notice()
+		if not notice.is_empty():
+			Style.label(body, notice, 15, Color("eea89b")).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
 func show_menu() -> void:
@@ -111,6 +123,7 @@ func show_menu() -> void:
 	body.hide()
 	main_menu.set_has_journey(journey != null)
 	main_menu.set_relic_marks(relics.marks)
+	main_menu.set_save_notice(journey_save_notice())
 	main_menu.show()
 
 
@@ -459,13 +472,17 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	motion.set_pressed_no_signal(combat_motion)
 	for toggle in [speed, sound, motion]:
 		Style.quiet(toggle)
+	var help: CheckButton = toolbar.get_node("%FocusTooltips")
+	Style.quiet(help)
+	update_tooltip_toggle(toolbar)
+	help.toggled.connect(func(enabled: bool): change_option("focus_tooltips", enabled))
 	var leave: Button = toolbar.get_node("%Leave")
 	Style.quiet(toolbar.get_node("%Options"))
 	leave.text = "Journey" if in_journey else ("← Main menu" if guided else "← Leave table")
 	_back_action = show_journey_overview if in_journey else (show_menu if guided else show_setup)
 	leave.pressed.connect(_back_action)
 	Style.quiet(leave)
-	leave.tooltip_text = "JOURNEY\nPause this duel and view your route. Returning resumes the same hand, HP, and rival turn." if in_journey else "LEAVE TABLE\nReturn to deck preparation. This single duel is discarded; saved decks are unchanged."
+	leave.tooltip_text = "JOURNEY\nPause this duel and view your route. Returning here resumes the fight. Closing the game restarts this chapter." if in_journey else "LEAVE TABLE\nReturn to deck preparation. This single duel is discarded; saved decks are unchanged."
 	var table := Table.instantiate()
 	table.name = "CombatTable"
 	table.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -512,6 +529,7 @@ func load_options() -> void:
 		controller_shortcuts = bool(config.get_value("table", "controller", true))
 		swap_shoulders = bool(config.get_value("table", "swap_shoulders", false))
 		end_shortcut = bool(config.get_value("table", "end_shortcut", false))
+		%FocusHelp.hints_enabled = bool(config.get_value("table", "focus_tooltips", true))
 		if config.has_section_key("table", "window_mode"):
 			apply_window.call_deferred()
 		if config.has_section_key("table", "vsync"):
@@ -554,7 +572,18 @@ func option_values() -> Dictionary:
 		"window_mode": window_mode, "window_size": window_size, "vsync": vsync,
 		"controller": controller_shortcuts, "swap_shoulders": swap_shoulders, "end_shortcut": end_shortcut,
 		"bindings": control_bindings,
+		"focus_tooltips": %FocusHelp.hints_enabled,
 	}
+
+
+func update_tooltip_toggle(toolbar: Control) -> void:
+	var toggle: CheckButton = toolbar.get_node("%FocusTooltips")
+	var pad := Bindings.active_label(&"focus_tooltips", 1)
+	toggle.text = ("R3" if pad == "Right stick click" else pad) + " Help"
+	toggle.tooltip_text = "CONTROLLER HELP\nShow help for the focused control. Toggle with %s or %s." % [
+		pad, Bindings.active_label(&"focus_tooltips", 0),
+	]
+	toggle.set_pressed_no_signal(%FocusHelp.hints_enabled)
 
 
 func change_option(key: String, value: Variant) -> void:
@@ -595,6 +624,12 @@ func change_option(key: String, value: Variant) -> void:
 			Bindings.apply(control_bindings)
 			if table != null:
 				table.update_hand_shortcut()
+			if toolbar != null:
+				update_tooltip_toggle(toolbar)
+		"focus_tooltips":
+			%FocusHelp.hints_enabled = value
+			if toolbar != null:
+				update_tooltip_toggle(toolbar)
 		"controller", "swap_shoulders", "end_shortcut":
 			match key:
 				"controller": controller_shortcuts = value
@@ -619,6 +654,8 @@ func show_options() -> void:
 	var resume: bool = table != null and not table.rival_timer.is_stopped()
 	if resume:
 		table.rival_timer.stop()
+	if table != null:
+		table.pause_lesson_delay(true)
 	var menu := OptionsMenu.instantiate()
 	add_child(menu)
 	menu.preference_changed.connect(change_option)
@@ -628,6 +665,8 @@ func show_options() -> void:
 		menu.queue_free()
 		if is_instance_valid(previous_focus):
 			previous_focus.grab_focus()
+		if is_instance_valid(table):
+			table.pause_lesson_delay(false)
 		if resume and is_instance_valid(table) and not table.session.player_turn and table.session.outcome.is_empty():
 			table.rival_timer.start())
 	menu.open(option_values(), supports_desktop_display())
@@ -649,7 +688,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		for direction in ["ui_up", "ui_down", "ui_left", "ui_right"]:
 			if event.is_action_pressed(direction):
 				var page: Control = main_menu if screen == "menu" else body
-				var first := page.find_next_valid_focus()
+				var first := main_menu.get_node("%JourneyButton") as Control if screen == "menu" else page.find_next_valid_focus()
 				if first != null and page.is_ancestor_of(first):
 					first.grab_focus()
 					get_viewport().set_input_as_handled()
@@ -679,11 +718,14 @@ func show_result(summary: Dictionary) -> void:
 	elif _table_is_journey and journey != null:
 		if journey.phase == Journey.Phase.DUEL:
 			journey.finish_encounter(body.get_node("CombatTable").session)
+			journey_checkpoint.save_run(journey, journey_deck_name)
 		var next := show_journey_reward if journey.phase == Journey.Phase.REWARD else show_journey_summary
 		result_overlay.setup(summary, next, end_journey, review_result, "Choose your next step" if journey.phase == Journey.Phase.REWARD else "Journey summary", "End journey")
 	else:
 		result_overlay.setup(summary, show_table, show_setup, review_result)
 	show_victory_spoils(table.session, summary)
+	if _table_is_journey and not journey_checkpoint.error_message.is_empty():
+		result_overlay.set_spoils(journey_checkpoint.error_message)
 
 
 func show_victory_spoils(session: RefCounted, summary: Dictionary) -> void:
@@ -691,9 +733,12 @@ func show_victory_spoils(session: RefCounted, summary: Dictionary) -> void:
 		return
 	if _paid_session != session:
 		var rival_id: String = session.rival_definition.id
-		var finished: bool = _table_is_journey and journey != null and journey.phase == Journey.Phase.COMPLETE
 		var locked := RelicCollection.CATALOG.filter(func(relic): return not relics.meets_milestone(relic))
-		var amount := relics.record_victory(rival_id, finished)
+		var amount := 0
+		if not _table_is_journey:
+			amount = relics.record_victory(rival_id, false)
+		elif journey_checkpoint.error_message.is_empty():
+			amount = collect_journey_marks()
 		if amount == 0:
 			result_overlay.set_spoils(relics.error_message)
 			return
@@ -705,6 +750,33 @@ func show_victory_spoils(session: RefCounted, summary: Dictionary) -> void:
 		elif unlocked.size() > 1:
 			_spoils_text += "   ·   %d relic milestones reached" % unlocked.size()
 	result_overlay.set_spoils(_spoils_text)
+
+
+func collect_journey_marks() -> int:
+	var paid := 0
+	for index in unpaid_journey_victories():
+		var amount := relics.record_victory(Rivals.ALL[index].id, index == Rivals.ALL.size() - 1, journey.checkpoint_id, index)
+		if amount == 0:
+			break
+		paid += amount
+	return paid
+
+
+func unpaid_journey_victories() -> Array[int]:
+	var stages: Array[int] = []
+	for index in range(journey.summaries.size()):
+		if journey.summaries[index].outcome == "Victory" and not relics.has_journey_receipt(journey.checkpoint_id, index):
+			stages.append(index)
+	return stages
+
+
+func save_journey_boundary() -> void:
+	if journey_checkpoint.save_run(journey, journey_deck_name):
+		collect_journey_marks()
+
+
+func journey_save_notice() -> String:
+	return journey_checkpoint.error_message if not journey_checkpoint.error_message.is_empty() else relics.error_message
 
 
 func show_journey_setup() -> void:
@@ -721,7 +793,9 @@ func begin_journey() -> void:
 		return
 	journey_deck_name = library.decks[player_index].name
 	journey = Journey.new(library.instantiate_deck(library.decks[player_index]), false, relics.equipped())
+	journey.checkpoint_id = Crypto.new().generate_random_bytes(16).hex_encode()
 	preparing_journey = false
+	save_journey_boundary()
 	show_journey_overview()
 
 
@@ -739,6 +813,7 @@ func show_journey_overview() -> void:
 	clear("The road between duels", "Scout each rival along the route. Your deck and health carry from one chapter to the next.")
 	var hp: int = journey.active_session.player.health if journey.active_session != null else journey.health
 	Style.label(body, "%s  ·  HP %d / %d  ·  %d cards" % [journey_deck_name, hp, journey.max_health, journey.roster.size()], 17, Style.GOLD)
+	Style.label(body, "Journey saves between fights. If you quit mid-duel, the chapter restarts.", 13, Style.MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var chart := JourneyMap.instantiate()
 	body.add_child(chart)
 	chart.setup(journey, show_journey_encounter, combat_motion)
@@ -747,9 +822,10 @@ func show_journey_overview() -> void:
 		for edit in journey.edits:
 			Style.label(body, edit, 15)
 	var footer := Style.row(body)
-	Style.button(footer, "Main menu — keep this journey", show_menu)
+	var leave := Style.button(footer, "Main menu — keep this journey", show_menu)
 	_back_action = show_menu
-	Style.button(footer, "End this journey", confirm_end_journey)
+	var end := Style.button(footer, "End this journey", confirm_end_journey)
+	chart.connect_footer(leave, end)
 
 
 func confirm_end_journey() -> void:
@@ -760,6 +836,8 @@ func confirm_end_journey() -> void:
 func show_journey_encounter() -> void:
 	if journey == null:
 		return
+	if journey.phase == Journey.Phase.READY and not journey_checkpoint.error_message.is_empty():
+		save_journey_boundary()
 	var session: RefCounted = journey.start_encounter() if journey.phase == Journey.Phase.READY else journey.active_session
 	if session == null:
 		return
@@ -778,6 +856,8 @@ func show_journey_reward() -> void:
 	reward.get_node("%Context").text = "HP %d / %d   ·   NEXT: %s   ·   %s" % [journey.health, journey.max_health, next_rival.display_name, next_rival.doctrine_text()]
 	reward.get_node("%Briefing").text = next_rival.opening_advice
 	reward.get_node("%Briefing").visible = not next_rival.opening_advice.is_empty()
+	var profile: Label = reward.get_node("%DeckProfile")
+	profile.text = journey_deck_profile()
 	var recover: Button = reward.get_node("%Recover")
 	var missing: int = journey.max_health - journey.health
 	recover.text = "Recover %d HP" % mini(missing, journey.RECOVERY) if missing > 0 else "Already at full HP"
@@ -792,23 +872,84 @@ func show_journey_reward() -> void:
 		var button: Button = entry.get_node("%Draft")
 		button.text = "Draft " + definition.display_name
 		button.pressed.connect(take_journey_draft.bind(definition))
-	var toggle: Button = reward.get_node("%RevisionToggle")
+		preview_reward_profile(button, profile, definition.category)
+	var revision: Button = reward.get_node("%RevisionToggle")
+	var removal: Button = reward.get_node("%RemovalToggle")
+	removal.disabled = journey.roster.size() <= 1
+	revision.toggled.connect(func(enabled: bool): show_reward_panel(reward, "Revisions" if enabled else "Draft"))
+	removal.toggled.connect(func(enabled: bool): show_reward_panel(reward, "Removal" if enabled else "Draft"))
 	_back_action = func():
-		if toggle.button_pressed:
-			toggle.button_pressed = false
-			toggle.grab_focus()
+		if revision.button_pressed:
+			revision.button_pressed = false
+			revision.grab_focus()
+		elif removal.button_pressed:
+			removal.button_pressed = false
+			removal.grab_focus()
 		else:
 			show_menu()
+
+
+func show_reward_panel(reward: Control, panel: String) -> void:
+	var revision: Button = reward.get_node("%RevisionToggle")
+	var removal: Button = reward.get_node("%RemovalToggle")
+	revision.set_pressed_no_signal(panel == "Revisions")
+	removal.set_pressed_no_signal(panel == "Removal")
+	revision.text = "Back to draft" if panel == "Revisions" else "Revise a card"
+	removal.text = "Back to draft" if panel == "Removal" else "Remove a card"
+	reward.get_node("%Draft").visible = panel == "Draft"
 	var revisions: VBoxContainer = reward.get_node("%Revisions")
-	toggle.toggled.connect(func(enabled: bool):
-		toggle.text = "Back to draft" if enabled else "Revise a card"
-		reward.get_node("%Draft").visible = not enabled
-		revisions.visible = enabled
-		if enabled and revisions.get_child_count() == 0:
-			build_journey_revisions(revisions))
+	revisions.visible = panel == "Revisions"
+	if revisions.visible and revisions.get_child_count() == 0:
+		build_journey_revisions(revisions, reward.get_node("%DeckProfile"))
+	reward.get_node("%Removal").visible = panel == "Removal"
+	var cuts: Control = reward.get_node("%Cuts")
+	if panel == "Removal" and cuts.get_child_count() == 0:
+		build_journey_cuts(cuts, reward.get_node("%DeckProfile"))
 
 
-func build_journey_revisions(list: VBoxContainer) -> void:
+func journey_deck_profile(added: int = -1, removed: int = -1) -> String:
+	var counts := [0, 0, 0]
+	for card: CardInstance in journey.roster:
+		counts[card.get_category()] += 1
+	if added >= 0:
+		counts[added] += 1
+	if removed >= 0:
+		counts[removed] -= 1
+	var heading := "AFTER THIS CHOICE" if added >= 0 or removed >= 0 else "JOURNEY DECK"
+	return "%s  ·  %d cards  ·  %d Attack / %d Guard / %d Tactic" % [
+		heading, journey.roster.size() + int(added >= 0) - int(removed >= 0), counts[0], counts[1], counts[2],
+	]
+
+
+func preview_reward_profile(button: Button, profile: Label, added: int = -1, removed: int = -1) -> void:
+	var preview := journey_deck_profile(added, removed)
+	var current := journey_deck_profile()
+	button.tooltip_text = preview
+	button.focus_entered.connect(func(): profile.text = preview)
+	button.focus_exited.connect(func(): profile.text = current)
+
+
+func build_journey_cuts(list: Control, profile: Label) -> void:
+	var groups := {}
+	for index in range(journey.roster.size()):
+		var card: CardInstance = journey.roster[index]
+		var key := "%s/%d/%d" % [card.definition.id, card.get_category(), card.cost_modifier]
+		if groups.has(key):
+			groups[key].count += 1
+		else:
+			groups[key] = {"index": index, "count": 1}
+	for group: Dictionary in groups.values():
+		var card: CardInstance = journey.roster[group.index]
+		var entry := DraftCard.instantiate()
+		list.add_child(entry)
+		entry.get_node("%Card").setup_preview(card, "%d in Journey deck" % group.count)
+		var cut: Button = entry.get_node("%Draft")
+		cut.text = "Cut " + card.definition.display_name
+		cut.pressed.connect(take_journey_cut.bind(group.index))
+		preview_reward_profile(cut, profile, -1, card.get_category())
+
+
+func build_journey_revisions(list: VBoxContainer, profile: Label) -> void:
 	Style.heading(list, "Revise a card", 23)
 	Style.label(list, "Change one card’s category for Cadence and Patterns. Its effects stay the same.", 15, Style.MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var names := CardDefinition.Category.keys()
@@ -821,25 +962,37 @@ func build_journey_revisions(list: VBoxContainer) -> void:
 		for category in range(3):
 			var button := Style.button(row, names[category].capitalize(), take_journey_edit.bind(index, category))
 			button.disabled = category == card.get_category()
+			if not button.disabled:
+				preview_reward_profile(button, profile, category, card.get_category())
 
 
 func take_journey_draft(definition: CardDefinition) -> void:
 	if journey != null and journey.draft_card(definition):
+		save_journey_boundary()
 		show_journey_overview()
 
 
 func take_journey_recovery() -> void:
 	if journey != null and journey.take_recovery():
+		save_journey_boundary()
 		show_journey_overview()
 
 
 func take_journey_edit(index: int, category: int) -> void:
 	if journey != null and journey.reclassify(index, category):
+		save_journey_boundary()
+		show_journey_overview()
+
+
+func take_journey_cut(index: int) -> void:
+	if journey != null and journey.remove_card(index):
+		save_journey_boundary()
 		show_journey_overview()
 
 
 func skip_journey_reward() -> void:
 	if journey != null and journey.skip_reward():
+		save_journey_boundary()
 		show_journey_overview()
 
 
@@ -859,6 +1012,18 @@ func show_journey_summary() -> void:
 
 
 func end_journey() -> void:
+	if journey_checkpoint.has_run:
+		if journey != null and not unpaid_journey_victories().is_empty():
+			if journey.phase != Journey.Phase.DUEL:
+				save_journey_boundary()
+			elif journey_checkpoint.error_message.is_empty():
+				collect_journey_marks()
+			if not unpaid_journey_victories().is_empty():
+				show_menu()
+				return
+		if not journey_checkpoint.write({}):
+			show_menu()
+			return
 	journey = null
 	preparing_journey = false
 	_table_is_journey = false

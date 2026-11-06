@@ -220,6 +220,11 @@ func refresh() -> void:
 	cancel_card_selection()
 	var previous_lesson_step: int = lesson.step
 	lesson.observe(session)
+	var lesson_advanced: bool = lesson.active and lesson.step != previous_lesson_step
+	if lesson_advanced and motion_enabled:
+		%LessonDelay.start()
+	lesson.get_node("%Read").disabled = lesson_briefing_pending()
+	lesson.get_node("%Continue").disabled = lesson_briefing_pending()
 	$Middle/RecordPanel.visible = not lesson.active
 	$Middle/Field/Actions/LabToggle.visible = not lesson.active
 	if _hand_tween != null:
@@ -260,12 +265,22 @@ func refresh() -> void:
 	%CadencePips.tooltip_text = artifact_label.tooltip_text
 	%Brace.visible = not lesson.active
 	%CadenceDraw.visible = not lesson.active
-	%Brace.disabled = not session.can_spend_cadence(Session.CadenceAction.BRACE)
-	%CadenceDraw.disabled = not session.can_spend_cadence(Session.CadenceAction.DRAW)
+	var brace_ready: bool = session.can_spend_cadence(Session.CadenceAction.BRACE)
+	var draw_ready: bool = session.can_spend_cadence(Session.CadenceAction.DRAW)
+	for entry in [[%Brace, brace_ready], [%CadenceDraw, draw_ready]]:
+		var action: Button = entry[0]
+		action.modulate = Color.WHITE if entry[1] else Color(0.67, 0.71, 0.70)
+		action.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if entry[1] else Control.CURSOR_ARROW
 	%Brace.text = "Brace ◆%d" % session.CADENCE_ACTION_COST
 	%CadenceDraw.text = "Draw ◆%d" % session.CADENCE_ACTION_COST
 	%Brace.tooltip_text = "BRACE\nSpend %d Cadence to gain %d Block." % [session.CADENCE_ACTION_COST, session.BRACE_BLOCK]
 	%CadenceDraw.tooltip_text = "DRAW\nSpend %d Cadence to draw 1 card. If both piles are empty, no Cadence is spent." % session.CADENCE_ACTION_COST
+	if not brace_ready or not draw_ready:
+		var availability := "\nYou have %d Cadence." % session.cadence if session.player_turn else "\nAvailable on your turn."
+		if not brace_ready:
+			%Brace.tooltip_text += availability
+		if not draw_ready:
+			%CadenceDraw.tooltip_text += availability
 	relic_label.text = "WAR DRUM +%d" % session.war_drum.damage_bonus if session.war_drum != null else (session.equipped_relic.title.to_upper() if session.equipped_relic != null else "NO RELIC")
 	relic_label.tooltip_text = "WAR DRUM\nEach Strike adds +1 to your attack bonus before that Strike resolves. All your damage effects benefit. Resets each encounter." if session.war_drum != null else ("%s\n%s" % [session.equipped_relic.title, session.equipped_relic.description] if session.equipped_relic != null else "RELIC\nYou can equip a relic before starting a duel.")
 	var log_text := "\n".join(session.history)
@@ -280,7 +295,7 @@ func refresh() -> void:
 				escaped = "[color=#65ef94]%s[/color]" % escaped
 			colored.append(escaped)
 		combat_log.text = "\n".join(colored)
-	end_button.disabled = (not session.player_turn or not lesson.allows_end_turn()) and session.outcome.is_empty()
+	end_button.disabled = (not session.player_turn or not lesson.allows_end_turn() or lesson_briefing_pending()) and session.outcome.is_empty()
 	end_button.text = "Encounter results" if not session.outcome.is_empty() else ("End turn →" if session.player_turn else "Rival is playing…")
 	end_button.tooltip_text = "ENCOUNTER RESULTS\nOpen the summary without changing the finished encounter." if not session.outcome.is_empty() else ("END TURN\nDiscard your remaining hand and energy. The rival acts next. Your next turn restores 3 energy and draws up to five cards." if session.player_turn else "RIVAL TURN\nWait for the rival's revealed cards to resolve. Player actions are unavailable until your next turn.")
 	draw_button.visible = sandbox
@@ -294,7 +309,14 @@ func refresh() -> void:
 		pile_row.add_child(pile)
 		pile.setup(entry[0], entry[1].size(), Style.GOLD if entry[0] == "Draw" else (Color("96afbd") if entry[0] == "Discard" else Color("aa8b9f")), inspect_pile.bind(entry[0], entry[1]))
 		var rules := "Cards waiting to be drawn. When empty, the discard pile is shuffled into it." if entry[0] == "Draw" else ("Played and unplayed cards arrive here. They can return through a reshuffle." if entry[0] == "Discard" else "Cards removed from the draw cycle for this encounter. They return in a fresh encounter.")
-		pile.tooltip_text = "%s PILE · %d cards\n%s\nClick to inspect the contents. Rival playback pauses while the inspector is open." % [String(entry[0]).to_upper(), entry[1].size(), rules]
+		pile.tooltip_text = "%s PILE · %d cards\n%s\nSelect to inspect. Rival playback pauses while the inspector is open." % [String(entry[0]).to_upper(), entry[1].size(), rules]
+	var piles := link_focus_row(pile_row)
+	var actions := link_focus_row(end_button.get_parent())
+	if not actions.is_empty():
+		for index in range(piles.size()):
+			piles[index].focus_neighbor_bottom = piles[index].get_path_to(actions[mini(index, actions.size() - 1)])
+		for index in range(actions.size()):
+			actions[index].focus_neighbor_top = actions[index].get_path_to(piles[mini(index, piles.size() - 1)])
 	if player_piles.hand.is_empty():
 		if not session.player_turn and session.outcome.is_empty() and _last_presented_card != null and not _last_presented_by_player:
 			var last_view := HandCard.instantiate()
@@ -330,14 +352,27 @@ func refresh() -> void:
 		var remaining_index := _hand_order.find(focus_card)
 		focus_hand(remaining_index if remaining_index >= 0 else focus_index)
 	_display_state = read_display_state()
-	if lesson.active and lesson.step != previous_lesson_step:
+	if lesson_advanced and not lesson_briefing_pending():
 		show_lesson_folio.call_deferred()
 
 
 func _on_lesson_changed() -> void:
+	if not lesson.active:
+		%LessonDelay.stop()
 	refresh()
 	if lesson.active:
 		focus_lesson_action()
+
+
+func link_focus_row(container: Control) -> Array[Control]:
+	var row: Array[Control] = []
+	for child in container.get_children():
+		if child is BaseButton and child.visible and not child.disabled:
+			row.append(child)
+	for index in range(row.size()):
+		row[index].focus_neighbor_left = row[index].get_path_to(row[maxi(index - 1, 0)])
+		row[index].focus_neighbor_right = row[index].get_path_to(row[mini(index + 1, row.size() - 1)])
+	return row
 
 
 func focus_lesson_action() -> void:
@@ -392,7 +427,7 @@ func forecast_details(card: CardInstance) -> String:
 
 
 func inspect_hand_card(card: CardInstance, return_focus: BaseButton) -> void:
-	if not player_piles.hand.has(card) or has_node("CardInspection"):
+	if lesson_briefing_pending() or not player_piles.hand.has(card) or has_node("CardInspection"):
 		return
 	var dialog := FolioReader.instantiate()
 	dialog.name = "CardInspection"
@@ -454,7 +489,7 @@ func _on_cadence_draw_pressed() -> void:
 
 
 func show_pattern_guide() -> void:
-	if has_node("PatternGuide"):
+	if lesson_briefing_pending() or has_node("PatternGuide"):
 		return
 	var resume_rival := not rival_timer.is_stopped()
 	if resume_rival:
@@ -483,7 +518,7 @@ func show_pattern_guide() -> void:
 
 
 func show_lesson_folio() -> void:
-	if not lesson.active or has_node("LessonFolio"):
+	if not lesson.active or lesson_briefing_pending() or has_node("LessonFolio"):
 		return
 	var step: int = lesson.step
 	if rewrite_fx.is_active():
@@ -501,6 +536,20 @@ func show_lesson_folio() -> void:
 		lesson.reading_closed()
 		focus_lesson_action())
 	dialog.open(lesson.pages(session), "Back to duel", motion_enabled)
+
+
+func lesson_briefing_pending() -> bool:
+	return not %LessonDelay.is_stopped()
+
+
+func pause_lesson_delay(paused: bool) -> void:
+	%LessonDelay.paused = paused
+
+
+func _on_lesson_delay_timeout() -> void:
+	if lesson.active:
+		refresh()
+		show_lesson_folio()
 
 
 func close_board_dialog(dialog: Window, resume_rival: bool) -> void:
@@ -602,7 +651,7 @@ func refresh_intent() -> void:
 		var state := "NEXT" if next_play else ("PLANNED" if opening.has(card) else "RESERVE")
 		var button := IntentCard.instantiate()
 		rewrite_row.add_child(button)
-		button.show_card(card, index, state, can_rewrite_card(card), lesson.marks_threat(card))
+		button.show_card(card, index, state, can_rewrite_card(card), lesson.marks_threat(card), session.player_turn and not lesson.active)
 		button.set_meta("card", card)
 		button.pressed.connect(rewrite_card.bind(card))
 		if not button.disabled:
@@ -620,6 +669,7 @@ func refresh_intent() -> void:
 		elif session.cadence < cost:
 			reason = "Build Cadence by changing card categories."
 		button.tooltip_text = "%s · %s\n%s · %d energy\n%s\n%s" % [card.definition.display_name, state, CardDefinition.Category.keys()[card.get_category()].capitalize(), card.get_energy_cost(), session.describe_card(card, false), reason]
+	link_focus_row(rewrite_row)
 
 
 func show_rewrite_hint(card: CardInstance) -> void:
@@ -721,11 +771,11 @@ func move_card(card: CardInstance, exhaust: bool) -> void:
 
 
 func can_rewrite_card(card: CardInstance) -> bool:
-	return session.can_rewrite(card) and lesson.allows_rewrite(card)
+	return not lesson_briefing_pending() and session.can_rewrite(card) and lesson.allows_rewrite(card)
 
 
 func can_play_card(card: CardInstance) -> bool:
-	return session.can_play(card) and lesson.allows_card(card)
+	return not lesson_briefing_pending() and session.can_play(card) and lesson.allows_card(card)
 
 
 func play_card(card: CardInstance) -> void:
@@ -912,7 +962,7 @@ func end_turn() -> void:
 	if not session.outcome.is_empty():
 		combat_finished.emit(session.combat_summary())
 		return
-	if not lesson.allows_end_turn():
+	if not lesson.allows_end_turn() or lesson_briefing_pending():
 		return
 	if session.begin_rival_turn() and session.outcome.is_empty():
 		rival_timer.start()
@@ -986,6 +1036,8 @@ func on_session_changed() -> void:
 
 
 func inspect_pile(title: String, cards: Array[CardInstance]) -> void:
+	if lesson_briefing_pending():
+		return
 	var resume_rival := not rival_timer.is_stopped()
 	if resume_rival:
 		rival_timer.stop()

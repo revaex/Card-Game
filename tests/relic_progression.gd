@@ -22,6 +22,7 @@ func win(table: Control) -> void:
 
 func run() -> void:
 	var ui := preload("res://scenes/ui/game_ui.tscn").instantiate()
+	ui.journey_checkpoint.path = "res://.godot/relic_progression-journey-%d.checkpoint" % Time.get_ticks_usec()
 	var path := "res://.godot/relic-test-%d.cfg" % Time.get_ticks_usec()
 	ui.relics.save_path = path
 	root.add_child(ui)

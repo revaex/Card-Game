@@ -403,6 +403,11 @@ layout_mode = 2
 unique_name_in_owner = true
 wait_time = 1.15
 
+[node name="LessonDelay" type="Timer" parent="."]
+unique_name_in_owner = true
+wait_time = 1.25
+one_shot = true
+
 [node name="CombatAudio" parent="." instance=ExtResource("audio")]
 
 [connection signal="pressed" from="Middle/Field/Actions/EndTurnButton" to="." method="end_turn"]
@@ -413,6 +418,7 @@ wait_time = 1.15
 [connection signal="pressed" from="Middle/Field/DebugActions/RedrawButton" to="." method="next_hand"]
 [connection signal="pressed" from="HandHeading/PatternGuideButton" to="." method="show_pattern_guide"]
 [connection signal="timeout" from="RivalTimer" to="." method="advance_rival_presentation"]
+[connection signal="timeout" from="LessonDelay" to="." method="_on_lesson_delay_timeout"]
 
 [editable path="Actors/PlayerPanel"]
 [editable path="Actors/EnemyPanel"]

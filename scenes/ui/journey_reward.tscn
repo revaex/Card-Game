@@ -16,6 +16,12 @@ layout_mode = 2
 autowrap_mode = 3
 theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
 
+[node name="DeckProfile" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_colors/font_color = Color(0.64, 0.84, 0.76, 1)
+
 [node name="Actions" type="HFlowContainer" parent="."]
 layout_mode = 2
 theme_override_constants/h_separation = 8
@@ -33,6 +39,13 @@ layout_mode = 2
 toggle_mode = true
 mouse_default_cursor_shape = 2
 text = "Revise a card"
+
+[node name="RemovalToggle" type="Button" parent="Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+mouse_default_cursor_shape = 2
+text = "Remove a card"
 
 [node name="Skip" type="Button" parent="Actions"]
 unique_name_in_owner = true
@@ -68,3 +81,25 @@ theme_override_constants/v_separation = 12
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+
+[node name="Removal" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Heading" type="Label" parent="Removal"]
+layout_mode = 2
+theme_type_variation = &"CardTitle"
+theme_override_font_sizes/font_size = 23
+text = "Cut a card"
+
+[node name="Detail" type="Label" parent="Removal"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Remove one copy for the rest of this Journey. A leaner deck draws its key cards more often."
+
+[node name="Cuts" type="HFlowContainer" parent="Removal"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 12

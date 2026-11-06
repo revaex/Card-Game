@@ -1,9 +1,11 @@
 [gd_scene format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/ui/card.tscn" id="card"]
+[ext_resource type="Script" path="res://scripts/ui/draft_card.gd" id="draft"]
 
 [node name="DraftCard" type="VBoxContainer"]
 theme_override_constants/separation = 6
+script = ExtResource("draft")
 
 [node name="Card" parent="." instance=ExtResource("card")]
 unique_name_in_owner = true

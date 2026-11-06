@@ -43,6 +43,18 @@ func controller_press(button: JoyButton) -> void:
 	root.push_input(event, true)
 
 
+func stick_flick(axis: JoyAxis, direction: float) -> void:
+	var event := InputEventJoypadMotion.new()
+	event.axis = axis
+	event.axis_value = direction
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()
+	var neutral := event.duplicate() as InputEventJoypadMotion
+	neutral.axis_value = 0.0
+	Input.parse_input_event(neutral)
+	Input.flush_buffered_events()
+
+
 func tap(point: Vector2) -> void:
 	var event := InputEventMouseButton.new()
 	event.device = InputEvent.DEVICE_ID_EMULATION
@@ -57,17 +69,28 @@ func tap(point: Vector2) -> void:
 
 func run() -> void:
 	var ui := GameUI.instantiate()
+	ui.journey_checkpoint.path = "res://.godot/ui_smoke-journey-%d.checkpoint" % Time.get_ticks_usec()
 	ui.relics.save_path = "res://.godot/ui-relics-%d.cfg" % Time.get_ticks_usec()
 	ui.options_path = "res://.godot/ui-test-options-%d.cfg" % Time.get_ticks_usec()
 	root.add_child(ui)
 	ui.library.save_path = "res://.godot/ui-test-decks.json"
 	ui.library.decks.assign([{"name": "Test", "cards": {"strike": 5, "block": 5}}])
 	check(ui.screen == "menu", "Main menu opens")
+	stick_flick(JOY_AXIS_LEFT_X, 1.0)
+	check(root.gui_get_focus_owner() == ui.main_menu.get_node("%JourneyButton"), "First stick input focuses the primary Play button")
+	await process_frame
+	stick_flick(JOY_AXIS_LEFT_X, 1.0)
+	check(root.gui_get_focus_owner() == ui.main_menu.find_child("LessonButton"), "Right from Play focuses the tutorial")
 	var old_bindings := Bindings.defaults()
 	old_bindings.erase(&"combat_inspect")
 	old_bindings[&"combat_pile"] = [KEY_I, JOY_BUTTON_RIGHT_STICK]
 	var migrated := Bindings.sanitize(old_bindings)
 	check(migrated[&"combat_pile"] == [KEY_I, JOY_BUTTON_RIGHT_STICK] and migrated[&"combat_inspect"][0] != KEY_I and migrated[&"combat_inspect"][1] != JOY_BUTTON_RIGHT_STICK, "New actions preserve saved bindings and receive free inputs")
+	var legacy_help := Bindings.defaults()
+	legacy_help.erase(&"focus_tooltips")
+	legacy_help[&"combat_inspect"] = [KEY_U, JOY_BUTTON_RIGHT_STICK]
+	var help_migration := Bindings.sanitize(legacy_help)
+	check(help_migration[&"combat_inspect"] == [KEY_U, JOY_BUTTON_LEFT_STICK] and help_migration[&"focus_tooltips"][1] == JOY_BUTTON_RIGHT_STICK, "The R3 help migration preserves the custom keyboard Inspect binding")
 	controller_press(JOY_BUTTON_START)
 	var options := ui.get_node("OptionsMenu")
 	check(options.visible, "Options opens from the main menu")
@@ -189,6 +212,32 @@ func run() -> void:
 	await process_frame
 	var drag_row: HBoxContainer = drag_table.hand_row
 	var first: Control = drag_row.get_child(0)
+	drag_table.pile_row.get_node("DrawPile").grab_focus()
+	stick_flick(JOY_AXIS_LEFT_X, 1.0)
+	check(root.gui_get_focus_owner() == drag_table.pile_row.get_node("DiscardPile"), "Right from Draw focuses Discard")
+	await process_frame
+	stick_flick(JOY_AXIS_LEFT_X, 1.0)
+	check(root.gui_get_focus_owner() == drag_table.pile_row.get_node("ExhaustPile"), "Right from Discard focuses Exhaust")
+	await process_frame
+	stick_flick(JOY_AXIS_LEFT_X, 1.0)
+	check(root.gui_get_focus_owner() == drag_table.pile_row.get_node("ExhaustPile"), "Right at the pile edge stays in the row")
+	drag_table.end_button.grab_focus()
+	await process_frame
+	stick_flick(JOY_AXIS_LEFT_X, 1.0)
+	var brace_help: Button = drag_table.get_node("%Brace")
+	check(root.gui_get_focus_owner() == brace_help, "Right from End Turn focuses Brace even with no Cadence")
+	await process_frame
+	var focus_help: Control = ui.get_node("%FocusHelp")
+	check(focus_help._text.contains("BRACE") and focus_help._text.contains("0 Cadence"), "Controller focus shows the unavailable Brace tooltip")
+	controller_press(JOY_BUTTON_RIGHT_STICK)
+	await process_frame
+	check(not focus_help.hints_enabled and focus_help._text.is_empty(), "R3 hides controller tooltips")
+	controller_press(JOY_BUTTON_RIGHT_STICK)
+	await process_frame
+	check(focus_help.hints_enabled and focus_help._text.contains("BRACE"), "R3 restores the current tooltip")
+	stick_flick(JOY_AXIS_LEFT_X, 1.0)
+	await process_frame
+	check(root.gui_get_focus_owner() == drag_table.get_node("%CadenceDraw") and focus_help._text.contains("draw 1 card"), "Right from Brace focuses Cadence Draw and shows its tooltip")
 	controller_press(JOY_BUTTON_RIGHT_SHOULDER)
 	check(root.gui_get_focus_owner() == first.get_node("%Play"), "Swapped controller shoulders focus the hand")
 	var arrow := InputEventKey.new()
@@ -222,6 +271,7 @@ func run() -> void:
 	drag_table.refresh_intent()
 	controller_press(JOY_BUTTON_LEFT_SHOULDER)
 	check(root.gui_get_focus_owner() == drag_table.rewrite_row.get_child(0), "Controller shortcut focuses a rewritable rival card")
+	check(drag_table.rewrite_row.get_child(0).get_node("%Index").text.begins_with("▶"), "The focused rival card shows a focus marker")
 	var second: Control = drag_row.get_child(1)
 	var dragged: CardInstance = first.get_meta("card")
 	drag_card(first.get_global_rect().get_center(), second.get_global_rect().get_center())
@@ -248,7 +298,7 @@ func run() -> void:
 	drag_table.focus_hand()
 	var blocked_card: Control = drag_row.get_child(0)
 	check(blocked_card.get_node("%FocusBadge").visible and blocked_card.get_node("%FocusBadge").text.contains("INSPECTING"), "Cards without enough energy still show a focus marker")
-	controller_press(JOY_BUTTON_RIGHT_STICK)
+	controller_press(JOY_BUTTON_LEFT_STICK)
 	var inspection: Window = drag_table.get_node("CardInspection")
 	check(inspection.get_node("%CardPreview").visible and inspection.get_node("%Body").get_parsed_text().contains("you have 0"), "Inspect shows the actual card and its current energy restriction")
 	inspection.push_input(back, true)
@@ -541,8 +591,16 @@ func run() -> void:
 	check(ui.screen == "journey" and ui.journey != null, "Journey preparation opens the route overview")
 	var chart: Control = ui.body.get_node("JourneyMap")
 	var enter: Button = chart.get_node("%Enter")
-	chart.get_node("%Stops/Archive/Inspect").pressed.emit()
-	check(enter.disabled and chart.get_node("%Title").text.contains("The Warden"), "Future map stops can be scouted without entering")
+	var scout: Button = chart.get_node("%Scout")
+	stick_flick(JOY_AXIS_LEFT_X, -1.0)
+	check(root.gui_get_focus_owner() == scout, "Left from the duel action focuses Scout")
+	stick_flick(JOY_AXIS_LEFT_X, 1.0)
+	check(root.gui_get_focus_owner() == enter and chart.get_node("%Title").text.contains("The Duelist"), "Right from Scout focuses the duel action without changing rivals")
+	stick_flick(JOY_AXIS_LEFT_Y, -1.0)
+	stick_flick(JOY_AXIS_LEFT_X, 1.0)
+	check(chart.get_node("%Title").text.contains("The Warden") and not enter.disabled and enter.text.contains("Duelist"), "Scouting a future rival keeps the active duel available")
+	stick_flick(JOY_AXIS_LEFT_Y, 1.0)
+	check(root.gui_get_focus_owner() == enter, "Down from a rival moves to the active duel action")
 	check(chart.get_node("%Opening").text.contains("Iron Seal"), "Scouted openings use the rival's actual opening cards")
 	chart.get_node("%Scout").pressed.emit()
 	var dossier: Window = chart.get_node("ScoutDeck")
@@ -581,7 +639,7 @@ func run() -> void:
 	check(not ui.journey.draft_card(preload("res://data/cards/redline.tres")), "The same reward cannot be claimed twice")
 	chart = ui.body.get_node("JourneyMap")
 	chart.get_node("%Stops/Gate/Inspect").pressed.emit()
-	check(chart.get_node("%Advice").text.contains("HP remaining") and chart.get_node("%Enter").disabled, "A cleared stop displays its recorded result")
+	check(chart.get_node("%Advice").text.contains("HP remaining") and chart.get_node("%Enter").text.contains("Warden"), "A cleared stop displays its result while the duel action points at the current rival")
 	ui.show_journey_encounter()
 	var next_table: Control = ui.body.get_node("CombatTable")
 	check(next_table.session.enemy.max_health == 46, "UI advances to Warden after reward")
