@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="160" viewBox="0 0 800 160">
+  <defs>
+    <g id="plate"><path d="M14 8h132l6 6v132l-6 6H14l-6-6V14Z" fill="#13272e" stroke="#806747"/><circle cx="80" cy="80" r="52" fill="none" stroke="#504837" stroke-dasharray="2 5"/></g>
+    <g id="tile"><rect x="-13" y="-19" width="26" height="38" rx="3" fill="#e7d5a8" stroke="#f6e1ad"/><path d="M-7 11H7M0-10l6 9-6 9-6-9Z" fill="none" stroke="#77613e"/></g>
+  </defs>
+  <g fill="none" stroke="#e2bc76" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <g><use href="#plate"/><path d="M29 105h102m-9-5 9 5-9 5"/><use href="#tile" x="43" y="71"/><use href="#tile" x="80" y="71"/><use href="#tile" x="117" y="71"/><path d="M42 64v12m-5-6h10" stroke="#9b4938"/></g>
+    <g transform="translate(160)"><use href="#plate"/><path d="m39 61 14 19-14 19-14-19Zm41 0 14 19-14 19-14-19Z" fill="#d9ac62"/><path d="m121 61 14 19-14 19-14-19Z"/><path d="M32 115h96M52 46h56" stroke="#77613e"/></g>
+    <g transform="translate(320)"><use href="#plate"/><path d="M40 100c-14-26 7-55 38-55 29 0 51 22 48 47m-9-7 9 9 7-11"/><use href="#tile" x="44" y="105"/><use href="#tile" x="81" y="105"/><use href="#tile" x="118" y="105"/><path d="M80 60c4-12 11-20 26-25-4 14-10 21-22 26m-6 6 20-26"/></g>
+    <g transform="translate(480)"><use href="#plate"/><path d="M80 34c22 0 39 14 46 33m-9-5 9 6 4-11m-6 40c-8 16-23 29-44 29m7-7-8 7 9 6M46 107C25 84 34 48 63 38m-9-3 10 3-5 8"/><circle cx="80" cy="79" r="20" fill="#e2bc76"/><path d="m80 67 8 12-8 12-8-12Z" stroke="#564529"/></g>
+    <g transform="translate(640)"><use href="#plate"/><path d="m80 38 30 13v26c0 17-14 33-30 44-16-11-30-27-30-44V51Z" fill="#253841"/><path d="M67 78l9 10 18-21" stroke="#aad8b7" stroke-width="4"/></g>
+  </g>
+</svg>

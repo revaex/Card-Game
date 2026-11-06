@@ -6,7 +6,4 @@
 script = ExtResource("1")
 display_name = "Riposte"
 first = 1
-second = 2
-third = 0
 finishing_damage = 6
-payoff = "The finishing card deals +6 damage per hit."

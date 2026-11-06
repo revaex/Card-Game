@@ -44,7 +44,9 @@ every feature.
 - Guard → Tactic → Attack: **Riposte**, the last card gains +6 damage per hit.
 - Tactic → Attack → Guard: **Surge**, gain 1 energy before the last card.
 
-Use the last three consecutive player cards. Only one Pattern completes per turn;
-progress resets for the next player turn. Rewriting does not break the sequence.
+The first card locks a Pattern. The next two matching cards follow the
+Attack → Guard → Tactic cycle from that starting category. One Pattern can
+complete per turn. Other cards and Cadence spends leave the sequence in place
+until the next turn.
 The three recipes are editable Resources under `data/patterns/`. Their numbers are
 initial balance values to test against actual play decisions.

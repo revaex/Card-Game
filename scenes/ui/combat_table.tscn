@@ -217,6 +217,7 @@ layout_mode = 2
 
 [node name="Actions" type="HBoxContainer" parent="Middle/Field"]
 layout_mode = 2
+theme_override_constants/separation = 6
 
 [node name="EndTurnButton" type="Button" parent="Middle/Field/Actions"]
 unique_name_in_owner = true
@@ -231,8 +232,24 @@ theme_override_styles/pressed = SubResource("Primary")
 text = "End turn →"
 script = ExtResource("button")
 
+[node name="Brace" type="Button" parent="Middle/Field/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("Quiet")
+text = "Brace · 2"
+script = ExtResource("button")
+
+[node name="CadenceDraw" type="Button" parent="Middle/Field/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("Quiet")
+text = "Draw · 2"
+script = ExtResource("button")
+
 [node name="LabToggle" type="CheckButton" parent="Middle/Field/Actions"]
-custom_minimum_size = Vector2(90, 0)
+custom_minimum_size = Vector2(74, 0)
 layout_mode = 2
 theme_override_styles/normal = SubResource("Quiet")
 text = "Lab"
@@ -344,7 +361,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(0, 22)
 theme_override_styles/normal = SubResource("Quiet")
 theme_override_font_sizes/font_size = 12
-text = "Patterns ?"
+text = "Pattern guide"
 tooltip_text = "PATTERNS\nView all three recipes. Rival playback pauses while the guide is open."
 script = ExtResource("button")
 
@@ -360,11 +377,13 @@ layout_mode = 2
 
 [node name="RivalTimer" type="Timer" parent="."]
 unique_name_in_owner = true
-wait_time = 0.65
+wait_time = 1.15
 
 [node name="CombatAudio" parent="." instance=ExtResource("audio")]
 
 [connection signal="pressed" from="Middle/Field/Actions/EndTurnButton" to="." method="end_turn"]
+[connection signal="pressed" from="Middle/Field/Actions/Brace" to="." method="_on_brace_pressed"]
+[connection signal="pressed" from="Middle/Field/Actions/CadenceDraw" to="." method="_on_cadence_draw_pressed"]
 [connection signal="toggled" from="Middle/Field/Actions/LabToggle" to="." method="_on_lab_toggled"]
 [connection signal="pressed" from="Middle/Field/DebugActions/DrawButton" to="." method="draw_one"]
 [connection signal="pressed" from="Middle/Field/DebugActions/RedrawButton" to="." method="next_hand"]

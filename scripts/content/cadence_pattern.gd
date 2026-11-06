@@ -3,18 +3,26 @@ extends Resource
 
 @export var display_name: String
 @export var first: CardDefinition.Category = CardDefinition.Category.ATTACK
-@export var second: CardDefinition.Category = CardDefinition.Category.GUARD
-@export var third: CardDefinition.Category = CardDefinition.Category.TACTIC
 @export_range(0, 99) var block_gain: int = 0
 @export_range(0, 99) var finishing_damage: int = 0
 @export_range(0, 3) var energy_gain: int = 0
-@export var payoff: String
 
 
-func matches(history: Array[int]) -> bool:
-	return history.size() == 3 and history[0] == first and history[1] == second and history[2] == third
+func category_at(step: int) -> int:
+	return (first + step) % CardDefinition.Category.size()
 
 
 func sequence_text() -> String:
 	var names := CardDefinition.Category.keys()
-	return "%s → %s → %s" % [names[first].capitalize(), names[second].capitalize(), names[third].capitalize()]
+	return "%s → %s → %s" % [names[category_at(0)].capitalize(), names[category_at(1)].capitalize(), names[category_at(2)].capitalize()]
+
+
+func payoff_text() -> String:
+	var parts: PackedStringArray = []
+	if block_gain > 0:
+		parts.append("Gain %d Block before the finishing card." % block_gain)
+	if energy_gain > 0:
+		parts.append("Gain %d energy before the finishing card." % energy_gain)
+	if finishing_damage > 0:
+		parts.append("The finishing card deals +%d damage per hit." % finishing_damage)
+	return " ".join(parts)

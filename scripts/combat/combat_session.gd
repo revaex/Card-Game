@@ -25,8 +25,12 @@ var statistics: Dictionary = {"player": {}, "enemy": {}}
 var last_action: Dictionary = {}
 const CADENCE_CAP: int = 3
 const REWRITE_COST: int = 2
+const CADENCE_ACTION_COST: int = 2
+const BRACE_BLOCK: int = 4
+enum CadenceAction { BRACE, DRAW }
 const PATTERNS = [preload("res://data/patterns/shelter.tres"), preload("res://data/patterns/riposte.tres"), preload("res://data/patterns/surge.tres")]
 var pattern_history: Array[int] = []
+var active_pattern: Resource
 var completed_pattern: String = ""
 var _finishing_damage: int = 0
 var cadence: int = 0
@@ -123,23 +127,26 @@ func preview_bonus(card: CardInstance, by_player: bool = true) -> int:
 	return bonus + (int(pattern.finishing_damage) if pattern != null else 0)
 
 
-func preview_pattern(card: CardInstance) -> Resource:
+func pattern_for_card(card: CardInstance) -> Resource:
 	if not completed_pattern.is_empty() or not player_turn or not outcome.is_empty() or card == null:
 		return null
-	var next := pattern_history.duplicate()
-	next.append(card.get_category())
-	if next.size() > 3:
-		next.pop_front()
+	var category := card.get_category()
+	if active_pattern != null:
+		return active_pattern if category == active_pattern.category_at(pattern_history.size()) else null
 	for pattern in PATTERNS:
-		if pattern.matches(next):
+		if pattern.first == category:
 			return pattern
 	return null
 
 
+func preview_pattern(card: CardInstance) -> Resource:
+	return pattern_for_card(card) if pattern_history.size() == 2 else null
+
+
 func pattern_rules() -> String:
-	var rules: PackedStringArray = ["Complete one Pattern per player turn, using three consecutive cards. Progress resets each turn; Rewrite does not break it."]
+	var rules: PackedStringArray = ["The first card locks your Pattern. Follow the cycle Attack → Guard → Tactic → Attack from that starting point. Other cards and Cadence actions leave your progress as it is. Complete one Pattern per turn."]
 	for pattern in PATTERNS:
-		rules.append("%s: %s — %s" % [pattern.display_name, pattern.sequence_text(), pattern.payoff])
+		rules.append("%s: %s — %s" % [pattern.display_name, pattern.sequence_text(), pattern.payoff_text()])
 	return "\n".join(rules)
 
 
@@ -184,6 +191,31 @@ func cadence_gain(card: CardInstance) -> int:
 	return 1 if card.get_category() != last_category and cadence < CADENCE_CAP else 0
 
 
+func can_spend_cadence(action: CadenceAction) -> bool:
+	if _resolving or not player_turn or not outcome.is_empty() or cadence < CADENCE_ACTION_COST:
+		return false
+	match action:
+		CadenceAction.BRACE: return true
+		CadenceAction.DRAW: return not player_piles.draw_pile.is_empty() or not player_piles.discard_pile.is_empty()
+	return false
+
+
+func spend_cadence(action: CadenceAction) -> bool:
+	if not can_spend_cadence(action):
+		return false
+	_resolving = true
+	cadence -= CADENCE_ACTION_COST
+	if action == CadenceAction.BRACE:
+		player.gain_block(BRACE_BLOCK)
+		log_event("Cadence: Brace granted %d Block." % BRACE_BLOCK)
+	else:
+		player_piles.draw_cards(1)
+		log_event("Cadence: drew 1 card.")
+	_resolving = false
+	changed.emit()
+	return true
+
+
 func can_rewrite(card: CardInstance) -> bool:
 	return not _resolving and player_turn and outcome.is_empty() and cadence >= REWRITE_COST and not rewrote_this_turn and enemy.poison < enemy.health and card != null and enemy_piles.hand.has(card) and enemy_piles.hand[-1] != card
 
@@ -209,16 +241,17 @@ func play_card(card: CardInstance) -> bool:
 	_resolving = true
 	energy -= card.get_energy_cost()
 	var pattern := preview_pattern(card)
-	pattern_history.append(card.get_category())
-	if pattern_history.size() > 3:
-		pattern_history.pop_front()
+	var candidate := pattern_for_card(card)
+	if candidate != null:
+		active_pattern = candidate
+		pattern_history.append(card.get_category())
 	if pattern != null:
 		completed_pattern = pattern.display_name
 		_finishing_damage = pattern.finishing_damage
 		player.gain_block(pattern.block_gain)
 		energy += pattern.energy_gain
 		statistics.player.patterns += 1
-		log_event("Pattern %s: %s" % [pattern.display_name, pattern.payoff])
+		log_event("Pattern %s: %s" % [pattern.display_name, pattern.payoff_text()])
 	var gained := cadence_gain(card)
 	cadence += gained
 	last_category = card.get_category()
@@ -357,6 +390,7 @@ func advance_rival_turn() -> bool:
 			last_category = -1
 			rewrote_this_turn = false
 			pattern_history.clear()
+			active_pattern = null
 			completed_pattern = ""
 			player_piles.draw_cards(5)
 			prepare_rival_hand()

@@ -446,6 +446,17 @@ func test_cadence_and_rewrite() -> void:
 	combo.play_card(combo.player_piles.hand[0])
 	check(combo.cadence == 2 and combo.player.block == 4 and combo.enemy.health == 33, "Combination cards execute effects and build Cadence")
 	check(combo.player_piles.total_cards() == 7, "Combination draw cards conserve the deck")
+	var spends = Session.new(StarterDeck.create(), copies(StarterDeck.BLOCK, 5), false)
+	spends.cadence = 2
+	check(spends.spend_cadence(Session.CadenceAction.BRACE) and spends.player.block == 4 and spends.cadence == 0 and spends.energy == 3, "Brace buys Block with Cadence alone")
+	check(not spends.spend_cadence(Session.CadenceAction.DRAW), "Drawing requires enough Cadence")
+	spends.cadence = 2
+	check(spends.spend_cadence(Session.CadenceAction.DRAW) and spends.player_piles.hand.size() == 6 and spends.cadence == 0, "Cadence Draw moves one card into hand")
+	var empty_draw = Session.new(copies(StarterDeck.STRIKE, 1), copies(StarterDeck.BLOCK, 5), false)
+	empty_draw.cadence = 2
+	check(not empty_draw.spend_cadence(Session.CadenceAction.DRAW) and empty_draw.cadence == 2, "An empty draw does not spend Cadence")
+	empty_draw.begin_rival_turn()
+	check(not empty_draw.spend_cadence(Session.CadenceAction.BRACE), "Cadence actions cannot be used during rival playback")
 
 
 func pattern_cards(free: bool = false) -> Array[CardInstance]:
@@ -519,7 +530,15 @@ func test_patterns() -> void:
 	play_category(sliding, CardDefinition.Category.GUARD)
 	play_category(sliding, CardDefinition.Category.TACTIC)
 	play_category(sliding, CardDefinition.Category.ATTACK)
-	check(sliding.completed_pattern == "Riposte", "Pattern matches the latest three cards after an earlier repetition")
+	check(sliding.completed_pattern == "Riposte", "An off-path repeat leaves the locked Pattern in progress")
+	var locked = Session.new(pattern_cards(true), copies(StarterDeck.BLOCK, 5), false)
+	locked.player_piles.draw_cards(1)
+	for category in [CardDefinition.Category.ATTACK, CardDefinition.Category.TACTIC, CardDefinition.Category.ATTACK, CardDefinition.Category.GUARD]:
+		play_category(locked, category)
+	check(locked.active_pattern.display_name == "Shelter" and locked.completed_pattern.is_empty() and locked.pattern_history.size() == 2, "An off-path sequence cannot replace the first-card lock")
+	locked.spend_cadence(Session.CadenceAction.BRACE)
+	play_category(locked, CardDefinition.Category.TACTIC)
+	check(locked.completed_pattern == "Shelter", "Spending Cadence leaves the locked Pattern intact")
 	var fresh = Session.new(pattern_cards(), copies(StarterDeck.BLOCK, 5), false)
 	check(fresh.pattern_history.is_empty() and fresh.completed_pattern.is_empty(), "Pattern state is encounter-local")
 	check(Session.PATTERNS[1].finishing_damage == 6 and StarterDeck.STRIKE.effects[0].damage == 10, "Patterns never alter shared definitions")

@@ -463,7 +463,7 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	if guided:
 		table.lesson.completed.connect(show_journey_setup)
 		table.lesson.get_node("%Continue").grab_focus()
-	table.rival_timer.wait_time = 0.2 if fast_rival_turns else 0.65
+	table.rival_timer.wait_time = 0.70 if fast_rival_turns else 1.15
 	table.combat_finished.connect(show_result)
 	speed.toggled.connect(func(enabled: bool): change_option("fast_turns", enabled))
 	sound.toggled.connect(func(enabled: bool): change_option("sound", enabled))
@@ -477,7 +477,7 @@ func set_fast_turns(enabled: bool) -> void:
 	fast_rival_turns = enabled
 	var table := body.get_node_or_null("CombatTable")
 	if table != null:
-		table.rival_timer.wait_time = 0.2 if enabled else 0.65
+		table.rival_timer.wait_time = 0.70 if enabled else 1.15
 		if not table.rival_timer.is_stopped():
 			table.rival_timer.start()
 

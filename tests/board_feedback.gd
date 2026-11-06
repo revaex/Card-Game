@@ -60,7 +60,7 @@ func run() -> void:
 	check(view.rewrite_row.get_child(0).get_meta("intent_state") == "NEXT", "Next marker advances after a resolved card")
 	view.show_pattern_guide()
 	check(view.rival_timer.is_stopped(), "Reading the Pattern guide pauses rival presentation")
-	view.get_node("PatternGuide").confirmed.emit()
+	view.get_node("PatternGuide").close_requested.emit()
 	check(not view.rival_timer.is_stopped(), "Closing the guide resumes rival presentation")
 	var retained: RefCounted = view.session
 	view.queue_free()

@@ -34,7 +34,7 @@ theme_override_constants/separation = 6
 [node name="Continue" type="Button" parent="Content/Actions"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Ready"
+text = "Read briefing"
 mouse_default_cursor_shape = 2
 
 [node name="Skip" type="Button" parent="Content/Actions"]
@@ -43,5 +43,12 @@ layout_mode = 2
 text = "Skip lesson"
 mouse_default_cursor_shape = 2
 
+[node name="Read" type="Button" parent="Content/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Read lesson"
+mouse_default_cursor_shape = 2
+
 [connection signal="pressed" from="Content/Actions/Continue" to="." method="_on_continue"]
 [connection signal="pressed" from="Content/Actions/Skip" to="." method="_on_skip"]
+[connection signal="pressed" from="Content/Actions/Read" to="." method="_on_read"]

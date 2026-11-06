@@ -65,6 +65,24 @@ func run() -> void:
 	ui.main_menu.find_child("OptionsButton", true, false).pressed.emit()
 	var options := ui.get_node("OptionsMenu")
 	check(options.visible, "Options opens from the main menu")
+	var tabs: TabContainer = options.get_node("%Tabs")
+	var shoulder := InputEventJoypadButton.new()
+	shoulder.button_index = JOY_BUTTON_RIGHT_SHOULDER
+	shoulder.pressed = true
+	options.push_input(shoulder, true)
+	check(tabs.current_tab == 1, "RB switches to the next Options tab")
+	var trigger := InputEventJoypadMotion.new()
+	trigger.axis = JOY_AXIS_TRIGGER_RIGHT
+	trigger.axis_value = 0.85
+	options.push_input(trigger, true)
+	options.push_input(trigger, true)
+	check(tabs.current_tab == 2, "Holding RT advances one tab")
+	trigger.axis_value = 0.0
+	options.push_input(trigger, true)
+	trigger.axis_value = 0.85
+	options.push_input(trigger, true)
+	check(tabs.current_tab == 3, "Releasing and pressing RT advances again")
+	tabs.current_tab = 0
 	options.get_node("%Level").value = 65
 	check(is_equal_approx(AudioServer.get_bus_volume_linear(0), 0.65), "Options volume updates the live audio bus")
 	options.get_node("%Effects").value = 40
@@ -236,7 +254,7 @@ func run() -> void:
 	ui.set_fast_turns(true)
 	ui.show_table()
 	var finale = ui.body.get_node("CombatTable")
-	check(is_equal_approx(finale.rival_timer.wait_time, 0.2), "Fast-turn choice applies to new encounters")
+	check(is_equal_approx(finale.rival_timer.wait_time, 0.70), "Fast-turn choice applies the slower playback to new encounters")
 	finale.session.enemy.take_damage(39)
 	finale.session.enemy.apply_poison(3)
 	finale.end_turn()
@@ -335,11 +353,21 @@ func run() -> void:
 	ui.library.decks.assign([{"name": "Patterns", "cards": {"strike": 2, "block": 2, "mend": 2}}])
 	ui.show_table()
 	var patterns = ui.body.get_node("CombatTable")
+	for face: Control in patterns.hand_row.get_children():
+		check(face.get_node("%PatternBadge").visible, "Each opening card advertises its Pattern")
 	for category in [CardDefinition.Category.GUARD, CardDefinition.Category.TACTIC]:
 		for candidate in patterns.player_piles.hand:
 			if candidate.definition.category == category:
 				patterns.play_card(candidate)
 				break
+		var expected_category := CardDefinition.Category.TACTIC if category == CardDefinition.Category.GUARD else CardDefinition.Category.ATTACK
+		for face: Control in patterns.hand_row.get_children():
+			var marked_card: CardInstance = face.get_meta("card")
+			check(face.get_node("%PatternBadge").visible == (marked_card.get_category() == expected_category), "Only the next category shows the locked Pattern badge")
+	var brace: Button = patterns.get_node("%Brace")
+	check(not brace.disabled, "The table offers another spend when Cadence is ready")
+	brace.pressed.emit()
+	check(patterns.session.cadence == 0 and patterns.session.pattern_history.size() == 2, "Brace spends Cadence without consuming a Pattern step")
 	check(patterns.pattern_label.text.contains("Riposte"), "Pattern tracker names the available finisher")
 	for index in range(patterns.player_piles.hand.size()):
 		var finisher: CardInstance = patterns.player_piles.hand[index]
@@ -352,9 +380,11 @@ func run() -> void:
 			break
 	check(patterns.pattern_label.text.contains("PATTERN COMPLETE") and patterns.combat_log.text.contains("Pattern Riposte"), "Completed Pattern appears in tracker and log")
 	patterns.find_child("PatternGuideButton", true, false).pressed.emit()
-	var guide: AcceptDialog = patterns.get_node("PatternGuide")
-	check(guide.dialog_text.contains("Shelter") and guide.dialog_text.contains("Surge"), "In-game guide explains all Pattern recipes")
-	guide.confirmed.emit()
+	var guide: Window = patterns.get_node("PatternGuide")
+	check(guide.pages.size() == 4 and guide.pages[1].title == "Shelter" and guide.pages[3].title == "Surge", "The illustrated guide includes every Pattern recipe")
+	guide.get_node("%Next").pressed.emit()
+	check(guide.get_node("%PatternSeal").visible and guide.get_node("%Route").get_parsed_text().contains("Guard"), "A recipe page shows its badge and ordered route")
+	guide.close_requested.emit()
 	ui.library.decks.assign([{"name": "Starter", "cards": {"strike": 5, "block": 5}}])
 	ui.player_index = 0
 	ui.enemy_index = 0

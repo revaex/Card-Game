@@ -6,6 +6,7 @@ const Session = preload("res://scripts/combat/combat_session.gd")
 const HandCard = preload("res://scenes/ui/card.tscn")
 const CardBrowser = preload("res://scenes/ui/card_browser.tscn")
 const IntentCard = preload("res://scenes/ui/intent_card.tscn")
+const FolioReader = preload("res://scenes/ui/folio_reader.tscn")
 const POISON_GREEN = Color("65ef94")
 const REWRITE_READY = "✦   REWRITE READY   /   CHOOSE A CARD"
 const CATEGORY_COLORS = [Color("efa58e"), Color("96d4f0"), Color("ebc77b")]
@@ -79,7 +80,9 @@ func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 	_bind_scene_nodes()
 	if guided:
 		lesson.changed.connect(_on_lesson_changed)
+		lesson.reading_requested.connect(show_lesson_folio)
 		lesson.start()
+		show_lesson_folio.call_deferred()
 	card_stage.table = self
 	rewrite_fx.landed.connect(combat_audio.rewrite_seal)
 	rewrite_fx.finished.connect(show_rewrite_destination)
@@ -142,7 +145,7 @@ func read_display_state() -> Dictionary:
 		"player_turn": session.player_turn,
 		"round": session.round_number,
 		"cadence": session.cadence,
-		"cards": session.statistics.player.cards,
+		"pattern_steps": session.pattern_history.size(),
 		"patterns": session.statistics.player.patterns,
 	}
 
@@ -242,9 +245,17 @@ func refresh() -> void:
 	turn_label.add_theme_color_override("font_color", Style.GOLD if session.player_turn else Color("df9e8d"))
 	turn_label.tooltip_text = "TURN\nYour turn: spend energy on cards, then end turn. The rival resolves its revealed line, then both hands are prepared again. Poison ticks at the affected side's turn start."
 	artifact_label.text = "CADENCE %d/3" % session.cadence
-	artifact_label.tooltip_text = "CADENCE & REWRITE\nThe first card each turn or a category change earns 1 Cadence, up to 3. Repeating the previous category earns none. Cadence carries between turns. Spend 2, once per turn, to move a rival card to the back of its hand."
+	artifact_label.tooltip_text = "CADENCE\nThe first card each turn or a category change earns 1 Cadence, up to 3. Cadence carries between turns. Spend 2 to Rewrite a rival card, Brace for Block, or draw a card."
 	%CadencePips.text = "◆ ".repeat(session.cadence) + "◇ ".repeat(session.CADENCE_CAP - session.cadence)
 	%CadencePips.tooltip_text = artifact_label.tooltip_text
+	%Brace.visible = not lesson.active
+	%CadenceDraw.visible = not lesson.active
+	%Brace.disabled = not session.can_spend_cadence(Session.CadenceAction.BRACE)
+	%CadenceDraw.disabled = not session.can_spend_cadence(Session.CadenceAction.DRAW)
+	%Brace.text = "Brace ◆%d" % session.CADENCE_ACTION_COST
+	%CadenceDraw.text = "Draw ◆%d" % session.CADENCE_ACTION_COST
+	%Brace.tooltip_text = "BRACE\nSpend %d Cadence to gain %d Block." % [session.CADENCE_ACTION_COST, session.BRACE_BLOCK]
+	%CadenceDraw.tooltip_text = "DRAW\nSpend %d Cadence to draw 1 card. If both piles are empty, no Cadence is spent." % session.CADENCE_ACTION_COST
 	relic_label.text = "WAR DRUM +%d" % session.war_drum.damage_bonus if session.war_drum != null else (session.equipped_relic.title.to_upper() if session.equipped_relic != null else "NO RELIC")
 	relic_label.tooltip_text = "WAR DRUM\nEach Strike adds +1 to your attack bonus before that Strike resolves. All your damage effects benefit. Resets each encounter." if session.war_drum != null else ("%s\n%s" % [session.equipped_relic.title, session.equipped_relic.description] if session.equipped_relic != null else "RELIC\nYou can equip a relic before starting a duel.")
 	var log_text := "\n".join(session.history)
@@ -299,13 +310,14 @@ func refresh() -> void:
 		var details := forecast_text(card)
 		var pattern: Resource = session.preview_pattern(card)
 		view.setup(card, can_play_card(card), activate_hand_card.bind(card, view), exhaust, text, details, pattern.display_name if pattern != null else "", card_action_hint(card))
+		view.show_pattern_badge(session.pattern_for_card(card) if can_play_card(card) else null)
 		view.enable_hand_drag(self, card)
 		view.set_meta("card", card)
 		view.inspected.connect(show_card_forecast.bind(card))
 		view.inspection_ended.connect(restore_action_message)
 	_display_state = read_display_state()
 	if lesson.active and lesson.step != previous_lesson_step:
-		focus_lesson_action()
+		show_lesson_folio.call_deferred()
 
 
 func _on_lesson_changed() -> void:
@@ -339,9 +351,9 @@ func forecast_text(card: CardInstance) -> String:
 		var drum_bonus: int = session.war_drum.preview_bonus(card)
 		if drum_bonus > 0:
 			text += "\nWar Drum bonus: +%d." % drum_bonus
-	var pattern: Resource = session.preview_pattern(card)
+	var pattern: Resource = session.pattern_for_card(card)
 	if pattern != null:
-		text += "\nPattern %s: %s" % [pattern.display_name, pattern.payoff]
+		text += "\nPattern %s · %s\n%s" % [pattern.display_name, pattern.sequence_text(), pattern.payoff_text()]
 	if not session.outcome.is_empty():
 		text += " Encounter finished."
 	elif not session.player_turn:
@@ -374,14 +386,18 @@ func card_action_hint(card: CardInstance) -> String:
 
 func refresh_pattern() -> void:
 	pattern_label.tooltip_text = session.pattern_rules()
-	var steps_history: Array[int] = session.pattern_history
-	var offset := maxi(0, steps_history.size() - 2) if session.completed_pattern.is_empty() else 0
+	var pattern: Resource = session.active_pattern
+	var progress: int = session.pattern_history.size()
+	var names := CardDefinition.Category.keys()
 	for index in range(3):
 		var step: Label = %PatternSteps.get_child(index)
-		var filled: bool = session.player_turn and index + offset < steps_history.size()
-		var category := steps_history[index + offset] if filled else -1
-		step.text = CardDefinition.Category.keys()[category].capitalize() if filled else "◇"
-		step.add_theme_color_override("font_color", CATEGORY_COLORS[category] if filled else Style.MUTED)
+		var category: int = pattern.category_at(index) if pattern != null else index
+		var filled := index < progress
+		var next := pattern != null and index == progress
+		step.text = ("✓ " if filled else ("› " if next else "")) + names[category].capitalize()
+		if pattern == null:
+			step.text += " ↻" if index == 2 else " →"
+		step.add_theme_color_override("font_color", CATEGORY_COLORS[category] if filled or next or pattern == null else Style.MUTED)
 		step.tooltip_text = pattern_label.tooltip_text
 	pattern_label.remove_theme_color_override("font_color")
 	if not session.completed_pattern.is_empty():
@@ -391,41 +407,72 @@ func refresh_pattern() -> void:
 	if not session.player_turn or not session.outcome.is_empty():
 		pattern_label.text = "Patterns reset each player turn"
 		return
-	var names := CardDefinition.Category.keys()
-	var sequence: PackedStringArray = []
-	for index in session.pattern_history:
-		sequence.append(names[index].capitalize())
-	pattern_label.text = "PATTERN  /  Play 3 cards in sequence" if sequence.is_empty() else "PATTERN  /  " + " → ".join(sequence.slice(-2)) + " → ?"
-	if sequence.size() >= 2:
-		var history: Array[int] = session.pattern_history
-		for pattern in session.PATTERNS:
-			if history[-2] == pattern.first and history[-1] == pattern.second:
-				var next_step: Label = %PatternSteps.get_child(2)
-				next_step.text = names[pattern.third].capitalize() + "?"
-				next_step.add_theme_color_override("font_color", Style.GOLD)
-				pattern_label.text = "%s next  /  %s" % [pattern.display_name, pattern.payoff]
-				break
+	pattern_label.text = "PATTERN CYCLE  /  Pick a starting card" if pattern == null else "%s locked  /  Next: %s" % [pattern.display_name, names[pattern.category_at(progress)].capitalize()]
+
+
+func _on_brace_pressed() -> void:
+	if not lesson.active and session.spend_cadence(Session.CadenceAction.BRACE):
+		message.text = "Cadence spent · gained %d Block." % session.BRACE_BLOCK
+
+
+func _on_cadence_draw_pressed() -> void:
+	if not lesson.active and session.spend_cadence(Session.CadenceAction.DRAW):
+		message.text = "Cadence spent · drew 1 card."
+		combat_audio.paper(true)
 
 
 func show_pattern_guide() -> void:
+	if has_node("PatternGuide"):
+		return
 	var resume_rival := not rival_timer.is_stopped()
 	if resume_rival:
 		rival_timer.stop()
-	var dialog := AcceptDialog.new()
+	var pages: Array[Dictionary] = [{
+		"section": "PATTERN FIELD GUIDE",
+		"title": "One cycle, three openings",
+		"body": "Your first card locks a Pattern for the turn. Follow the cycle from that card’s category. Only the next playable category carries the locked badge. Off-path cards, Rewrite, and other Cadence spends leave your progress in place.",
+		"route": "ATTACK → GUARD → TACTIC → ATTACK",
+		"plate": 3,
+	}]
+	for pattern in session.PATTERNS:
+		pages.append({
+			"section": "PATTERN FIELD GUIDE",
+			"title": pattern.display_name,
+			"body": "Open with %s to lock this Pattern. %s" % [CardDefinition.Category.keys()[pattern.first].capitalize(), pattern.payoff_text()],
+			"route": pattern.sequence_text(),
+			"plate": [4, 2, 1][pattern.first],
+			"pattern_icon": pattern.first,
+		})
+	var dialog := FolioReader.instantiate()
 	dialog.name = "PatternGuide"
-	dialog.title = "Patterns — rival playback paused" if resume_rival else "Patterns — shape your turn"
-	var guide_theme := Style.theme()
-	guide_theme.set_stylebox("panel", "AcceptDialog", Style.box(Color("142a2c"), Style.GOLD))
-	dialog.theme = guide_theme
-	dialog.dialog_text = session.pattern_rules()
-	dialog.get_label().autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(dialog)
-	dialog.confirmed.connect(close_board_dialog.bind(dialog, resume_rival))
-	dialog.canceled.connect(close_board_dialog.bind(dialog, resume_rival))
-	dialog.popup_centered(Vector2i(760, 320))
+	dialog.close_requested.connect(close_board_dialog.bind(dialog, resume_rival))
+	dialog.open(pages, "Return to duel", motion_enabled)
+
+
+func show_lesson_folio() -> void:
+	if not lesson.active or has_node("LessonFolio"):
+		return
+	var step: int = lesson.step
+	if rewrite_fx.is_active():
+		await rewrite_fx.finished
+	if not is_inside_tree() or not lesson.active or lesson.step != step or has_node("LessonFolio"):
+		return
+	var resume_rival := not rival_timer.is_stopped()
+	if resume_rival:
+		rival_timer.stop()
+	var dialog := FolioReader.instantiate()
+	dialog.name = "LessonFolio"
+	add_child(dialog)
+	dialog.close_requested.connect(func():
+		close_board_dialog(dialog, resume_rival)
+		lesson.reading_closed()
+		focus_lesson_action())
+	dialog.open(lesson.pages(session), "Back to duel", motion_enabled)
 
 
 func close_board_dialog(dialog: Window, resume_rival: bool) -> void:
+	dialog.hide()
 	dialog.queue_free()
 	if resume_rival and not session.player_turn and session.outcome.is_empty():
 		rival_timer.start()
@@ -438,9 +485,9 @@ func show_card_forecast(card: CardInstance) -> void:
 		var forecast: Dictionary = session.preview_attack(card)
 		if forecast.damage > 0:
 			message.text += " %d HP / %d blocked.%s" % [forecast.hp_loss, forecast.blocked, " Lethal." if forecast.lethal else ""]
-		var pattern: Resource = session.preview_pattern(card)
+		var pattern: Resource = session.pattern_for_card(card)
 		if pattern != null:
-			message.text += " Pattern " + pattern.display_name + "."
+			message.text += " Pattern %s%s." % [pattern.display_name, " starts" if session.active_pattern == null else (" completes" if session.pattern_history.size() == 2 else " advances")]
 		if card.get_energy_cost() > session.energy:
 			message.text += " Need %d energy." % card.get_energy_cost()
 
@@ -812,7 +859,7 @@ func on_session_changed() -> void:
 	var previous_cadence: int = _display_state.get("cadence", 0)
 	var cadence_changed: bool = session.cadence != previous_cadence
 	var completed_pattern: bool = session.statistics.player.patterns > _display_state.get("patterns", 0)
-	var played_player_card: bool = session.player_turn and session.statistics.player.cards > _display_state.get("cards", 0)
+	var advanced_pattern: bool = session.player_turn and session.pattern_history.size() > _display_state.get("pattern_steps", 0)
 	present_state_changes()
 	restore_action_message()
 	refresh()
@@ -830,14 +877,14 @@ func on_session_changed() -> void:
 		pips.pivot_offset = pips.size * 0.5
 		pips.scale = Vector2.ONE * (1.22 if session.cadence > previous_cadence else 0.78)
 		_cadence_tween.tween_property(pips, "scale", Vector2.ONE, 0.33).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	if played_player_card and motion_enabled:
+	if advanced_pattern and motion_enabled:
 		if _pattern_tween != null:
 			_pattern_tween.kill()
 		_pattern_tween = create_tween().set_parallel()
 		for index in range(3):
 			var step: Label = %PatternSteps.get_child(index)
 			step.scale = Vector2.ONE
-			if completed_pattern or index == mini(session.pattern_history.size(), 2) - 1:
+			if completed_pattern or index == session.pattern_history.size() - 1:
 				step.pivot_offset = step.size * 0.5
 				step.scale = Vector2.ONE * (1.20 if completed_pattern else 1.13)
 				_pattern_tween.tween_property(step, "scale", Vector2.ONE, 0.30).set_delay(index * 0.045 if completed_pattern else 0.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

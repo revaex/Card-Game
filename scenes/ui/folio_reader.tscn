@@ -1,0 +1,140 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/folio_reader.gd" id="reader"]
+[ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
+
+[node name="FolioReader" type="Window"]
+visible = false
+transient = true
+exclusive = true
+unresizable = true
+borderless = true
+theme = ExtResource("theme")
+script = ExtResource("reader")
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"BrowserPanel"
+
+[node name="Content" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="Header" type="HBoxContainer" parent="Panel/Content"]
+layout_mode = 2
+
+[node name="Section" type="Label" parent="Panel/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.72, 0.47, 1)
+theme_override_font_sizes/font_size = 14
+text = "DUELIST’S ALMANAC"
+
+[node name="PageNumber" type="Label" parent="Panel/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.73, 0.78, 0.75, 1)
+text = "PAGE 01 / 02"
+
+[node name="PatternSeal" type="TextureRect" parent="Panel/Content/Header"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(26, 26)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Rule" type="HSeparator" parent="Panel/Content"]
+layout_mode = 2
+
+[node name="Leaf" type="HBoxContainer" parent="Panel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="Plate" type="TextureRect" parent="Panel/Content/Leaf"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(155, 155)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.45
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Scroll" type="ScrollContainer" parent="Panel/Content/Leaf"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_scroll_mode = 0
+
+[node name="Writing" type="VBoxContainer" parent="Panel/Content/Leaf/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+alignment = 1
+
+[node name="Heading" type="Label" parent="Panel/Content/Leaf/Scroll/Writing"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CardTitle"
+theme_override_font_sizes/font_size = 30
+autowrap_mode = 3
+
+[node name="Route" type="RichTextLabel" parent="Panel/Content/Leaf/Scroll/Writing"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/default_color = Color(0.88, 0.72, 0.47, 1)
+theme_override_font_sizes/normal_font_size = 15
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+autowrap_mode = 3
+
+[node name="Body" type="RichTextLabel" parent="Panel/Content/Leaf/Scroll/Writing"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/default_color = Color(0.93, 0.90, 0.82, 1)
+theme_override_font_sizes/normal_font_size = 17
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+autowrap_mode = 3
+
+[node name="FooterRule" type="HSeparator" parent="Panel/Content"]
+layout_mode = 2
+
+[node name="Footer" type="HBoxContainer" parent="Panel/Content"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Previous" type="Button" parent="Panel/Content/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "← Previous"
+mouse_default_cursor_shape = 2
+
+[node name="Hint" type="Label" parent="Panel/Content/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
+text = "LB / RB to turn pages"
+
+[node name="Next" type="Button" parent="Panel/Content/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(140, 42)
+text = "Next page  →"
+mouse_default_cursor_shape = 2
+
+[connection signal="pressed" from="Panel/Content/Footer/Previous" to="." method="previous_page"]
+[connection signal="pressed" from="Panel/Content/Footer/Next" to="." method="next_page"]

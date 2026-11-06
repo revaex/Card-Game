@@ -6,7 +6,4 @@
 script = ExtResource("1")
 display_name = "Shelter"
 first = 0
-second = 1
-third = 2
 block_gain = 6
-payoff = "Gain 6 block before the finishing card."

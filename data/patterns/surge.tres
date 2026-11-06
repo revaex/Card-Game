@@ -6,7 +6,4 @@
 script = ExtResource("1")
 display_name = "Surge"
 first = 2
-second = 0
-third = 1
 energy_gain = 1
-payoff = "Gain 1 energy before the finishing card."

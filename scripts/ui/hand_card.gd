@@ -4,6 +4,8 @@ extends PanelContainer
 const Style = preload("res://scripts/ui/ui_style.gd")
 const CATEGORY_INK = [Color("862b22"), Color("155479"), Color("684c19")]
 const TextInk = preload("res://scripts/ui/text_ink.gd")
+const PATTERN_BADGES = preload("res://data/ui/pattern_badges.svg")
+const PATTERN_INK = [Color("155479"), Color("862b22"), Color("684c19")]
 signal inspected
 signal inspection_ended
 const Tooltip = preload("res://scripts/ui/board_tooltip.gd")
@@ -101,6 +103,19 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 func setup_preview(card: CardInstance, caption: String = "") -> void:
 	setup(card, false, Callable())
 	set_caption(caption)
+
+
+func show_pattern_badge(pattern: Resource) -> void:
+	%PatternBadge.visible = pattern != null
+	%PatternName.visible = pattern != null
+	if pattern != null:
+		var badge := AtlasTexture.new()
+		badge.atlas = PATTERN_BADGES
+		badge.region = Rect2(pattern.first * 32, 0, 32, 32)
+		%PatternBadge.texture = badge
+		%PatternName.text = pattern.display_name
+		%PatternName.add_theme_color_override("font_color", PATTERN_INK[pattern.first])
+		%Category.text = %Category.text.get_slice(" · ", 0)
 
 
 func enable_hand_drag(table: Control, card: CardInstance) -> void:

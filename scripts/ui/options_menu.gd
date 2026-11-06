@@ -3,6 +3,8 @@ extends Window
 signal preference_changed(key: String, value: Variant)
 
 var _parent_window: Window
+var _trigger_held := [false, false]
+var _section_fade: Tween
 
 
 func open(settings: Dictionary, desktop_display: bool = true) -> void:
@@ -37,6 +39,7 @@ func open(settings: Dictionary, desktop_display: bool = true) -> void:
 	else:
 		%Tabs.current_tab = 1
 		%Level.grab_focus()
+	_tab_changed(%Tabs.current_tab)
 
 
 func fit_to_parent() -> void:
@@ -84,6 +87,40 @@ func _on_close_pressed() -> void:
 	close_requested.emit()
 
 
+func _previous_tab() -> void:
+	turn_tab(-1)
+
+
+func _next_tab() -> void:
+	turn_tab(1)
+
+
+func turn_tab(direction: int) -> void:
+	var tabs: TabContainer = %Tabs
+	tabs.current_tab = posmod(tabs.current_tab + direction, tabs.get_tab_count())
+	var first_controls: Array[Control] = [%WindowMode, %Level, %Controller, %Motion]
+	var focus := first_controls[tabs.current_tab]
+	if focus is BaseButton and focus.disabled:
+		focus = %Close
+	focus.grab_focus()
+
+
+func _tab_changed(index: int) -> void:
+	if not is_node_ready() or index < 0:
+		return
+	var tabs: TabContainer = %Tabs
+	%SectionIndex.text = "%02d / %02d   ·   %s" % [index + 1, tabs.get_tab_count(), tabs.get_tab_title(index).to_upper()]
+	if _section_fade != null:
+		_section_fade.kill()
+	for tab in range(tabs.get_tab_count()):
+		tabs.get_tab_control(tab).modulate.a = 1.0
+	if %Motion.button_pressed:
+		var page := tabs.get_tab_control(index)
+		page.modulate.a = 0.72
+		_section_fade = create_tween()
+		_section_fade.tween_property(page, "modulate:a", 1.0, 0.17)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		set_input_as_handled()
@@ -94,11 +131,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			close_requested.emit()
 		elif event.button_index == JOY_BUTTON_LEFT_SHOULDER or event.button_index == JOY_BUTTON_RIGHT_SHOULDER:
 			set_input_as_handled()
-			var direction := 1 if event.button_index == JOY_BUTTON_RIGHT_SHOULDER else -1
-			var tabs: TabContainer = %Tabs
-			tabs.current_tab = posmod(tabs.current_tab + direction, tabs.get_tab_count())
-			var first_controls: Array[Control] = [%WindowMode, %Level, %Controller, %Motion]
-			var focus := first_controls[tabs.current_tab]
-			if focus is BaseButton and focus.disabled:
-				focus = %Close
-			focus.grab_focus()
+			turn_tab(1 if event.button_index == JOY_BUTTON_RIGHT_SHOULDER else -1)
+	elif event is InputEventJoypadMotion and event.axis in [JOY_AXIS_TRIGGER_LEFT, JOY_AXIS_TRIGGER_RIGHT]:
+		set_input_as_handled()
+		var side := 0 if event.axis == JOY_AXIS_TRIGGER_LEFT else 1
+		if event.axis_value < 0.35:
+			_trigger_held[side] = false
+		elif event.axis_value > 0.55 and not _trigger_held[side]:
+			_trigger_held[side] = true
+			turn_tab(-1 if side == 0 else 1)

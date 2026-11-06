@@ -24,6 +24,17 @@ func play_named(table: Control, id: StringName) -> void:
 	check(false, "Missing lesson card: %s" % id)
 
 
+func finish_folio(table: Control) -> void:
+	await process_frame
+	var folio := table.get_node_or_null("LessonFolio")
+	check(folio != null, "The next lesson opens its illustrated folio")
+	if folio != null:
+		while folio.page_index < folio.pages.size() - 1:
+			folio.get_node("%Next").pressed.emit()
+		folio.get_node("%Next").pressed.emit()
+	await process_frame
+
+
 func run() -> void:
 	var ui := preload("res://scenes/ui/game_ui.tscn").instantiate()
 	ui.options_path = "res://.godot/guided-duel-test.cfg"
@@ -38,18 +49,29 @@ func run() -> void:
 	check(table.session.enemy_opening_plan()[0].definition.id == &"strike", "The visible opening plan starts with Strike")
 	table.end_turn()
 	check(table.session.player_turn, "End turn shortcuts cannot skip a required step")
-	lesson.get_node("%Continue").pressed.emit()
+	await process_frame
+	var opening: Window = table.get_node("LessonFolio")
+	check(opening.get_node("%PageNumber").text == "PAGE 01 / 02", "The opening briefing displays its page count")
+	opening.get_node("%Next").pressed.emit()
+	check(opening.get_node("%Heading").text == "What Cadence buys" and opening.get_node("%Body").get_parsed_text().contains("Brace"), "Cadence teaching covers its current uses")
+	opening.get_node("%Previous").pressed.emit()
+	check(opening.get_node("%PageNumber").text == "PAGE 01 / 02", "The lesson can revisit an earlier page")
+	await finish_folio(table)
 	table.play_card(table.player_piles.hand[1])
 	check(table.session.energy == 3, "Out-of-sequence cards cannot be played through another input path")
 	play_named(table, &"strike")
+	await finish_folio(table)
 	play_named(table, &"block")
+	await finish_folio(table)
 	check(table.session.cadence == 2 and lesson.get_node("%Heading").text.contains("Rewrite"), "Changing categories makes Rewrite the next step")
 	check(table.rewrite_row.get_child(1).disabled, "The lesson highlights and enables only the threatening intent")
 	table.rewrite_row.get_child(0).pressed.emit()
+	await finish_folio(table)
 	check(table.session.cadence == 0 and table.enemy_piles.hand.back().definition.id == &"strike", "Rewrite spends Cadence and moves Strike to the back")
 	for card in table.session.enemy_opening_plan():
 		check(card.definition.id != &"strike", "The new affordable line excludes Strike")
 	play_named(table, &"insight")
+	await finish_folio(table)
 	check(table.session.completed_pattern == "Shelter" and not table.end_button.disabled, "The correct sequence completes Shelter and unlocks End turn")
 	table.end_button.pressed.emit()
 	for index in range(8):
@@ -58,6 +80,7 @@ func run() -> void:
 		table.advance_rival_presentation()
 	check(table.session.round_number == 2 and table.session.player.health == 30, "Rival completes its revised line without damaging the player")
 	check(lesson.get_node("%Heading").text == "Lesson complete", "Lesson confirms the result")
+	await finish_folio(table)
 	lesson.get_node("%Continue").pressed.emit()
 	check(ui.screen == "setup" and ui.preparing_journey and ui.library.decks == original_decks, "Lesson leads into journey setup without changing the saved decks")
 	ui.show_lesson()

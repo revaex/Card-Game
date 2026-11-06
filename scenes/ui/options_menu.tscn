@@ -74,10 +74,33 @@ text = "Options"
 [node name="Rule" type="HSeparator" parent="Background/Margin/Content"]
 layout_mode = 2
 
+[node name="SectionNav" type="HBoxContainer" parent="Background/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PreviousTab" type="Button" parent="Background/Margin/Content/SectionNav"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "‹  LB / LT"
+
+[node name="SectionIndex" type="Label" parent="Background/Margin/Content/SectionNav"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.88, 0.72, 0.47, 1)
+text = "01 / 04   ·   DISPLAY"
+
+[node name="NextTab" type="Button" parent="Background/Margin/Content/SectionNav"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "RB / RT  ›"
+
 [node name="Tabs" type="TabContainer" parent="Background/Margin/Content"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+tab_alignment = 1
 theme_override_styles/panel = SubResource("TabPanel")
 theme_override_styles/tab_selected = SubResource("SelectedTab")
 theme_override_styles/tab_hovered = SubResource("SelectedTab")
@@ -263,7 +286,7 @@ text = "Controller"
 [node name="Detail" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
-text = "D-pad or left stick to navigate  /  A to confirm\nB closes Options. LB and RB switch tabs here."
+text = "D-pad or left stick to navigate  /  A to confirm\nB closes Options. Shoulders or triggers switch tabs."
 autowrap_mode = 3
 
 [node name="Controller" type="CheckButton" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
@@ -341,6 +364,9 @@ custom_minimum_size = Vector2(130, 40)
 text = "Done"
 
 [connection signal="pressed" from="Background/Margin/Content/Footer/Close" to="." method="_on_close_pressed"]
+[connection signal="pressed" from="Background/Margin/Content/SectionNav/PreviousTab" to="." method="_previous_tab"]
+[connection signal="pressed" from="Background/Margin/Content/SectionNav/NextTab" to="." method="_next_tab"]
+[connection signal="tab_changed" from="Background/Margin/Content/Tabs" to="." method="_tab_changed"]
 [connection signal="item_selected" from="Background/Margin/Content/Tabs/Display/Inset/Rows/WindowModeRow/WindowMode" to="." method="_on_window_mode"]
 [connection signal="item_selected" from="Background/Margin/Content/Tabs/Display/Inset/Rows/WindowSizeRow/WindowSize" to="." method="_on_window_size"]
 [connection signal="value_changed" from="Background/Margin/Content/Tabs/Sound/Inset/Rows/LevelRow/Level" to="." method="_on_level_changed"]
