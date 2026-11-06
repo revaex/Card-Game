@@ -48,6 +48,7 @@ static func primary(button_node: Button) -> void:
 	button_node.add_theme_color_override("font_color", Color("152426"))
 	button_node.add_theme_color_override("font_hover_color", Color("152426"))
 	button_node.add_theme_color_override("font_pressed_color", Color("152426"))
+	button_node.add_theme_color_override("font_focus_color", Color("152426"))
 
 
 static func button(parent: Node, text: String, action: Callable) -> Button:

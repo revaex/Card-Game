@@ -79,9 +79,10 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="PreviousTab" type="Button" parent="Background/Margin/Content/SectionNav"]
+unique_name_in_owner = true
 layout_mode = 2
 mouse_default_cursor_shape = 2
-text = "‹  LB / LT"
+text = "‹  LB"
 
 [node name="SectionIndex" type="Label" parent="Background/Margin/Content/SectionNav"]
 unique_name_in_owner = true
@@ -92,9 +93,10 @@ theme_override_colors/font_color = Color(0.88, 0.72, 0.47, 1)
 text = "01 / 04   ·   DISPLAY"
 
 [node name="NextTab" type="Button" parent="Background/Margin/Content/SectionNav"]
+unique_name_in_owner = true
 layout_mode = 2
 mouse_default_cursor_shape = 2
-text = "RB / RT  ›"
+text = "RB  ›"
 
 [node name="Tabs" type="TabContainer" parent="Background/Margin/Content"]
 unique_name_in_owner = true
@@ -107,6 +109,7 @@ theme_override_styles/tab_hovered = SubResource("SelectedTab")
 theme_override_styles/tab_unselected = SubResource("UnselectedTab")
 
 [node name="Display" type="ScrollContainer" parent="Background/Margin/Content/Tabs"]
+follow_focus = true
 layout_mode = 2
 horizontal_scroll_mode = 0
 
@@ -191,6 +194,7 @@ theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
 text = "Current window area: 1100 × 700"
 
 [node name="Sound" type="ScrollContainer" parent="Background/Margin/Content/Tabs"]
+follow_focus = true
 visible = false
 layout_mode = 2
 horizontal_scroll_mode = 0
@@ -261,6 +265,7 @@ layout_mode = 2
 text = "Combat sound effects"
 
 [node name="Controls" type="ScrollContainer" parent="Background/Margin/Content/Tabs"]
+follow_focus = true
 visible = false
 layout_mode = 2
 horizontal_scroll_mode = 0
@@ -275,41 +280,89 @@ theme_override_constants/margin_bottom = 18
 
 [node name="Rows" type="VBoxContainer" parent="Background/Margin/Content/Tabs/Controls/Inset"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 9
 
-[node name="Section" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+[node name="Heading" type="HBoxContainer" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
 layout_mode = 2
+
+[node name="Section" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows/Heading"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"CardTitle"
 theme_override_font_sizes/font_size = 27
-text = "Controller"
+text = "Input bindings"
+
+[node name="ResetBindings" type="Button" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows/Heading"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Reset bindings"
 
 [node name="Detail" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
-text = "D-pad or left stick to navigate  /  A to confirm\nB closes Options. Shoulders or triggers switch tabs."
+text = "Choose a key or button to change it. Arrow keys, D-pad and left stick move focus."
 autowrap_mode = 3
+
+[node name="BindingHeader" type="HBoxContainer" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Action" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows/BindingHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "ACTION"
+
+[node name="Keyboard" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows/BindingHeader"]
+custom_minimum_size = Vector2(156, 0)
+layout_mode = 2
+text = "KEYBOARD"
+horizontal_alignment = 1
+
+[node name="Gamepad" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows/BindingHeader"]
+custom_minimum_size = Vector2(156, 0)
+layout_mode = 2
+text = "GAMEPAD"
+horizontal_alignment = 1
+
+[node name="Bindings" type="VBoxContainer" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 5
 
 [node name="Controller" type="CheckButton" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Combat shortcuts"
+text = "Enable combat shortcuts"
 
 [node name="SwapShoulders" type="CheckButton" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Swap hand and rival shoulder buttons"
+text = "Swap hand and rival focus shortcuts"
 
 [node name="EndShortcut" type="CheckButton" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Y ends your turn"
+text = "Enable end-turn shortcut"
 
-[node name="Mapping" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+[node name="MovementHeading" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
+text = "ALTERNATE MOVEMENT KEYS"
+
+[node name="MovementBindings" type="VBoxContainer" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "LB: hand   /   RB: rival line   /   Start: Options"
+theme_override_constants/separation = 5
+
+[node name="Help" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
+text = "Gamepad labels use the Xbox layout. Esc always goes back and Space always confirms."
+autowrap_mode = 3
 
 [node name="Gameplay" type="ScrollContainer" parent="Background/Margin/Content/Tabs"]
+follow_focus = true
 visible = false
 layout_mode = 2
 horizontal_scroll_mode = 0
@@ -352,18 +405,27 @@ text = "Fast rival turns"
 layout_mode = 2
 
 [node name="Note" type="Label" parent="Background/Margin/Content/Footer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.67, 0.73, 0.70, 1)
 text = "Changes are saved on this device."
+autowrap_mode = 3
 
 [node name="Close" type="Button" parent="Background/Margin/Content/Footer"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(130, 40)
-text = "Done"
+text = "Back"
+
+[node name="Quit" type="Button" parent="Background/Margin/Content/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(130, 40)
+text = "Quit game"
 
 [connection signal="pressed" from="Background/Margin/Content/Footer/Close" to="." method="_on_close_pressed"]
+[connection signal="pressed" from="Background/Margin/Content/Footer/Quit" to="." method="_on_quit_pressed"]
 [connection signal="pressed" from="Background/Margin/Content/SectionNav/PreviousTab" to="." method="_previous_tab"]
 [connection signal="pressed" from="Background/Margin/Content/SectionNav/NextTab" to="." method="_next_tab"]
 [connection signal="tab_changed" from="Background/Margin/Content/Tabs" to="." method="_tab_changed"]

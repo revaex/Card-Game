@@ -9,6 +9,7 @@
 script = ExtResource("rival")
 id = "duelist"
 display_name = "The Duelist"
+route_region = "Ash Gate"
 epithet = "The first stroke is a promise."
 description = "Commits attacks to the front of the line. Break the opening assault, then choose your moment to strike."
 health = 36

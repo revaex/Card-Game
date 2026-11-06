@@ -11,6 +11,7 @@
 script = ExtResource("rival")
 id = "scribe"
 display_name = "The Scribe"
+route_region = "Last Observatory"
 epithet = "A quiet word can outlast a blade."
 description = "Leads with Poison and drawing. Block can catch Siphon's damage, but Poison ticks through it."
 doctrine = 2

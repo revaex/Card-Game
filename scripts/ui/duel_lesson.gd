@@ -95,7 +95,7 @@ func pages(session: RefCounted) -> Array[Dictionary]:
 				result.append(leaf("Read the prepared line", "The rival spends up to %d energy in the order shown. Planned cards fit that budget. Reserve cards can move into the plan if the line changes. Find the opening Strike before you act." % session.ENERGY_PER_TURN, 0, "PLANNED  /  " + " → ".join(plan)))
 			result.append(leaf("What Cadence buys", cadence + "\n\nSpend %d to Rewrite a rival card, or %d to Brace for %d Block or draw a card. This lesson practices Rewrite. Play Strike when you return to the board." % [session.REWRITE_COST, session.CADENCE_ACTION_COST, session.BRACE_BLOCK], 1))
 		Step.GUARD:
-			result.append(leaf("Change category", "Strike was an Attack. Play Block next to switch to Guard and earn a second Cadence. Its Pattern badge also shows that Guard advances Shelter.", 1, shelter.sequence_text()))
+			result.append(leaf("Change category", "Strike was an Attack. Play Block next to switch to Guard and earn a second Cadence. Its Pattern badge shows that Guard advances Shelter. Right-click Block or use Inspect on the focused card to see the forecast.", 1, shelter.sequence_text()))
 		Step.REWRITE:
 			result.append(leaf("Spend Cadence on Rewrite", "Choose the rival’s Strike. Rewrite costs %d Cadence and sends that card to the back of the line. You can Rewrite once per turn." % session.REWRITE_COST, 2))
 			result.append(leaf("Read the new plan", "The rival will now spend its energy on Blocks before it reaches Strike. In other fights, moving a card back can bring a different threat forward. Check which cards are marked Planned after every Rewrite.", 0))

@@ -5,6 +5,13 @@ var card: CardInstance
 var face: Control
 
 
+func _gui_input(event: InputEvent) -> void:
+	if table != null and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
+		accept_event()
+		if not event.pressed:
+			table.inspect_hand_card(card, self)
+
+
 func _get_drag_data(_at_position: Vector2) -> Variant:
 	if table == null or not table.can_drag_card(card):
 		return null

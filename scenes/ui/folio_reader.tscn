@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/ui/folio_reader.gd" id="reader"]
 [ext_resource type="Theme" path="res://data/ui/game_theme.tres" id="theme"]
+[ext_resource type="PackedScene" path="res://scenes/ui/card.tscn" id="card"]
 
 [node name="FolioReader" type="Window"]
 visible = false
@@ -68,6 +69,13 @@ mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
 
+[node name="CardPreview" parent="Panel/Content/Leaf" instance=ExtResource("card")]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(196, 230)
+layout_mode = 2
+size_flags_vertical = 4
+
 [node name="Scroll" type="ScrollContainer" parent="Panel/Content/Leaf"]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -122,6 +130,7 @@ text = "← Previous"
 mouse_default_cursor_shape = 2
 
 [node name="Hint" type="Label" parent="Panel/Content/Footer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 horizontal_alignment = 1

@@ -1,0 +1,37 @@
+[gd_scene format=3]
+
+[sub_resource type="StyleBoxFlat" id="Keycap"]
+content_margin_left = 10.0
+content_margin_top = 4.0
+content_margin_right = 10.0
+content_margin_bottom = 4.0
+bg_color = Color(0.11, 0.19, 0.21, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.34, 0.34, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_left = 5
+corner_radius_bottom_right = 5
+
+[node name="BindingRow" type="HBoxContainer"]
+theme_override_constants/separation = 12
+
+[node name="Action" type="Label" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+text_overrun_behavior = 3
+
+[node name="Keyboard" type="Button" parent="."]
+custom_minimum_size = Vector2(156, 31)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("Keycap")
+
+[node name="Gamepad" type="Button" parent="."]
+custom_minimum_size = Vector2(156, 31)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("Keycap")

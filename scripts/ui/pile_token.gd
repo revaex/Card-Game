@@ -26,7 +26,9 @@ func setup(title: String, amount: int, color: Color, action: Callable) -> void:
 func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	var x := size.x / 2 - 26
-	var ink := Color("eddfc3") if is_hovered() or has_focus() else accent
+	var ink := Color("ffd472") if has_focus() else (Color("eddfc3") if is_hovered() else accent)
+	if has_focus():
+		draw_rect(Rect2(Vector2(2, 1), size - Vector2(4, 2)), ink, false, 2)
 	for index in range(2, -1, -1):
 		var rect := Rect2(Vector2(x + index * 3, 2 + index * 2), Vector2(48, 35))
 		draw_rect(rect, Color("17292e"))

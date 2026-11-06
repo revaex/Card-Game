@@ -9,6 +9,7 @@ const PATTERN_INK = [Color("155479"), Color("862b22"), Color("684c19")]
 signal inspected
 signal inspection_ended
 const Tooltip = preload("res://scripts/ui/board_tooltip.gd")
+var _resting_frame: StyleBoxFlat
 
 func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_action: Callable = Callable(), effective_text: String = "", details: String = "", pattern_name: String = "", action_hint: String = "Unavailable") -> void:
 	var preview := play_action.is_null()
@@ -42,11 +43,29 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	frame.shadow_color = Color(0, 0, 0, 0.35)
 	frame.shadow_size = 3
 	frame.shadow_offset = Vector2(2, 2)
+	_resting_frame = frame
 	add_theme_stylebox_override("panel", frame)
 	var hover := frame.duplicate() as StyleBoxFlat
 	hover.border_color = Color("fff0c4")
-	mouse_entered.connect(func(): add_theme_stylebox_override("panel", hover))
-	mouse_exited.connect(func(): add_theme_stylebox_override("panel", frame))
+	var focused := frame.duplicate() as StyleBoxFlat
+	focused.bg_color = Color("fff2ce") if playable else Color("e4ddc8")
+	focused.border_color = Color("8cfbd2")
+	focused.set_border_width_all(5)
+	focused.shadow_color = Color("168571")
+	focused.shadow_size = 5
+	var art := Style.box(Color("122229"), accent)
+	var focused_art := Style.box(Color("1a3838"), focused.border_color)
+	var update_frame := func():
+		var has_focus: bool = %Play.has_focus()
+		var style := focused if has_focus else (hover if %Play.is_hovered() else frame)
+		add_theme_stylebox_override("panel", style)
+		%ArtFrame.add_theme_stylebox_override("panel", focused_art if has_focus else art)
+		%FocusBadge.visible = has_focus and %Play.table != null
+		%FocusBadge.text = "▼  READY TO PLAY" if playable else "▼  INSPECTING"
+		if %Play.table != null:
+			size_flags_vertical = Control.SIZE_SHRINK_CENTER if has_focus else Control.SIZE_SHRINK_END
+	mouse_entered.connect(update_frame)
+	mouse_exited.connect(update_frame)
 	mouse_entered.connect(func(): inspected.emit())
 	mouse_exited.connect(func(): inspection_ended.emit())
 	tooltip_text = details if not details.is_empty() else card.definition.description
@@ -63,7 +82,7 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	%Cost.add_theme_stylebox_override("normal", coin)
 	%Cost.tooltip_text = "%d energy" % card.get_energy_cost()
 	%Title.text = card.definition.display_name
-	%ArtFrame.add_theme_stylebox_override("panel", Style.box(Color("122229"), accent))
+	%ArtFrame.add_theme_stylebox_override("panel", art)
 	%Emblem.kind = kind
 	%Emblem.accent = accent
 	%Emblem.queue_redraw()
@@ -78,18 +97,17 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 		play.hide()
 		return
 	play.pressed.connect(play_action)
-	var focus := StyleBoxFlat.new()
-	focus.bg_color = Color(0, 0, 0, 0)
-	focus.border_color = Color("fff0c4")
-	focus.set_border_width_all(3)
-	focus.set_corner_radius_all(6)
-	play.add_theme_stylebox_override("focus", focus)
+	play.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	play.disabled = not playable
-	play.tooltip_text = tooltip_text + "\n" + ("Click this card, or focus it and press Enter / Space to play." if playable else action_hint)
+	play.tooltip_text = tooltip_text + "\n" + ("Click this card or use Confirm when it is focused." if playable else action_hint)
 	play.mouse_entered.connect(func(): inspected.emit())
 	play.mouse_exited.connect(func(): inspection_ended.emit())
 	play.focus_entered.connect(func(): inspected.emit())
 	play.focus_exited.connect(func(): inspection_ended.emit())
+	play.focus_entered.connect(update_frame)
+	play.focus_exited.connect(update_frame)
+	play.mouse_entered.connect(update_frame)
+	play.mouse_exited.connect(update_frame)
 	if not exhaust_action.is_null():
 		var exhaust := Style.button(play, "×", exhaust_action)
 		exhaust.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
@@ -118,13 +136,18 @@ func show_pattern_badge(pattern: Resource) -> void:
 		%Category.text = %Category.text.get_slice(" · ", 0)
 
 
-func enable_hand_drag(table: Control, card: CardInstance) -> void:
+func enable_hand_drag(table: Control, card: CardInstance, inspect_unavailable: bool) -> void:
 	%Play.table = table
 	%Play.card = card
 	%Play.face = self
+	size_flags_vertical = Control.SIZE_SHRINK_END
 	if not %Play.disabled:
 		set_caption("Click or drag to play")
-		%Play.tooltip_text = tooltip_text + "\nClick, press Enter / Space, or drag this card onto the table. Drag it onto another card to reorder your hand."
+		%Play.tooltip_text = tooltip_text + "\nClick or drag to play. Right-click to inspect. Drag onto another card to reorder."
+	elif inspect_unavailable:
+		%Play.disabled = false
+		%Play.mouse_default_cursor_shape = Control.CURSOR_ARROW
+		%Play.tooltip_text += "\nRight-click to inspect."
 
 
 func set_touch_selected(selected: bool) -> void:
@@ -135,6 +158,7 @@ func set_touch_selected(selected: bool) -> void:
 func make_snapshot() -> Control:
 	var copy: Control = duplicate(Node.DUPLICATE_SCRIPTS)
 	copy.get_node("HitArea").hide()
+	copy.add_theme_stylebox_override("panel", _resting_frame)
 	copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for child: Control in copy.find_children("*", "Control", true, false):
 		child.mouse_filter = Control.MOUSE_FILTER_IGNORE

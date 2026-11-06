@@ -26,6 +26,18 @@ corner_radius_bottom_right = 6
 
 [sub_resource type="StyleBoxEmpty" id="Invisible"]
 
+[sub_resource type="StyleBoxFlat" id="FocusTag"]
+bg_color = Color(0.055, 0.2, 0.19, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.54, 0.99, 0.81, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
+
 [node name="Card" type="PanelContainer"]
 custom_minimum_size = Vector2(174, 210)
 theme = ExtResource("theme")
@@ -147,3 +159,22 @@ theme_override_styles/hover = SubResource("Invisible")
 theme_override_styles/pressed = SubResource("Invisible")
 theme_override_styles/disabled = SubResource("Invisible")
 script = ExtResource("button")
+
+[node name="FocusBadge" type="Label" parent="HitArea"]
+unique_name_in_owner = true
+visible = false
+z_index = 1
+layout_mode = 1
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -62.0
+offset_top = -21.0
+offset_right = 62.0
+offset_bottom = 3.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.84, 1, 0.93, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("FocusTag")
+text = "▼  READY TO PLAY"
+horizontal_alignment = 1
+vertical_alignment = 1

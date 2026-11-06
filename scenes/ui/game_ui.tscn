@@ -38,6 +38,7 @@ theme_override_constants/margin_top = 24
 theme_override_constants/margin_bottom = 24
 
 [node name="PageScroll" type="ScrollContainer" parent="ScreenMargin"]
+follow_focus = true
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_scroll_mode = 0
@@ -58,3 +59,12 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 10
+
+[node name="EndJourneyDialog" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+title = "End this journey?"
+visible = false
+transient = true
+exclusive = true
+dialog_text = "You’ll leave the route and lose this run’s progress."
+ok_button_text = "End journey"

@@ -4,6 +4,7 @@
 [ext_resource type="AudioStream" path="res://data/audio/rewrite_lift.wav" id="lift"]
 [ext_resource type="AudioStream" path="res://data/audio/rewrite_seal.wav" id="seal"]
 [ext_resource type="AudioStream" path="res://data/audio/pattern.wav" id="pattern"]
+[ext_resource type="AudioStream" path="res://data/audio/deal.wav" id="focus"]
 
 [node name="CombatAudio" type="Node"]
 script = ExtResource("controller")
@@ -30,3 +31,9 @@ volume_db = -10.0
 bus = &"Effects"
 stream = ExtResource("pattern")
 volume_db = -14.0
+
+[node name="Focus" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
+stream = ExtResource("focus")
+volume_db = -24.0
+pitch_scale = 1.4

@@ -1,0 +1,121 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/journey_map.gd" id="map"]
+[ext_resource type="PackedScene" path="res://scenes/ui/journey_stop.tscn" id="stop"]
+[ext_resource type="Texture2D" path="res://data/ui/journey_terrain.svg" id="terrain"]
+
+[sub_resource type="StyleBoxFlat" id="BriefingPaper"]
+content_margin_left = 18.0
+content_margin_top = 12.0
+content_margin_right = 18.0
+content_margin_bottom = 12.0
+bg_color = Color(0.077, 0.132, 0.145, 1)
+border_width_left = 2
+border_color = Color(0.74, 0.62, 0.42, 1)
+
+[node name="JourneyMap" type="VBoxContainer"]
+theme_override_constants/separation = 12
+script = ExtResource("map")
+
+[node name="Chart" type="Control" parent="."]
+custom_minimum_size = Vector2(0, 210)
+layout_mode = 2
+
+[node name="Terrain" type="TextureRect" parent="Chart"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+texture = ExtResource("terrain")
+expand_mode = 1
+
+[node name="Track" type="ColorRect" parent="Chart"]
+layout_mode = 1
+anchor_left = 0.17
+anchor_top = 0.43
+anchor_right = 0.83
+anchor_bottom = 0.43
+offset_bottom = 2.0
+mouse_filter = 2
+color = Color(0.67, 0.58, 0.39, 0.74)
+
+[node name="Traveled" type="ColorRect" parent="Chart"]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_left = 0.17
+anchor_top = 0.43
+anchor_right = 0.17
+anchor_bottom = 0.43
+offset_bottom = 2.0
+mouse_filter = 2
+color = Color(0.58, 0.9, 0.75, 1)
+
+[node name="Stops" type="HBoxContainer" parent="Chart"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 20.0
+theme_override_constants/separation = 0
+mouse_filter = 2
+
+[node name="Gate" parent="Chart/Stops" instance=ExtResource("stop")]
+layout_mode = 2
+
+[node name="Archive" parent="Chart/Stops" instance=ExtResource("stop")]
+layout_mode = 2
+
+[node name="Observatory" parent="Chart/Stops" instance=ExtResource("stop")]
+layout_mode = 2
+
+[node name="Briefing" type="PanelContainer" parent="."]
+layout_mode = 2
+theme_override_styles/panel = SubResource("BriefingPaper")
+
+[node name="Rows" type="VBoxContainer" parent="Briefing"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="TitleRow" type="HBoxContainer" parent="Briefing/Rows"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Briefing/Rows/TitleRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"CardTitle"
+theme_override_font_sizes/font_size = 23
+autowrap_mode = 3
+
+[node name="Scout" type="Button" parent="Briefing/Rows/TitleRow"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Scout deck"
+
+[node name="Enter" type="Button" parent="Briefing/Rows/TitleRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(185, 42)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "Enter chapter"
+
+[node name="Doctrine" type="Label" parent="Briefing/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 3
+
+[node name="Advice" type="Label" parent="Briefing/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="Opening" type="Label" parent="Briefing/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.72, 0.79, 0.75, 1)
+autowrap_mode = 3

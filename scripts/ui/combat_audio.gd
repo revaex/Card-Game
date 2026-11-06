@@ -41,3 +41,8 @@ func rewrite_seal() -> void:
 func pattern() -> void:
 	if enabled:
 		$Pattern.play()
+
+
+func focus_card() -> void:
+	if enabled:
+		$Focus.play()

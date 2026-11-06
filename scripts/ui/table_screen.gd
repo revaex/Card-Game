@@ -4,9 +4,11 @@ extends VBoxContainer
 const Style = preload("res://scripts/ui/ui_style.gd")
 const Session = preload("res://scripts/combat/combat_session.gd")
 const HandCard = preload("res://scenes/ui/card.tscn")
+const HandPlayButton = preload("res://scripts/ui/hand_play_button.gd")
 const CardBrowser = preload("res://scenes/ui/card_browser.tscn")
 const IntentCard = preload("res://scenes/ui/intent_card.tscn")
 const FolioReader = preload("res://scenes/ui/folio_reader.tscn")
+const Bindings = preload("res://scripts/ui/control_bindings.gd")
 const POISON_GREEN = Color("65ef94")
 const REWRITE_READY = "✦   REWRITE READY   /   CHOOSE A CARD"
 const CATEGORY_COLORS = [Color("efa58e"), Color("96d4f0"), Color("ebc77b")]
@@ -33,6 +35,7 @@ var _controller_shortcuts: bool = true
 var _swap_shoulders: bool = false
 var _end_shortcut: bool = false
 var _controller_hand_focus: bool = false
+var _navigation_feedback := false
 var _touch_pointer: bool = false
 var _selected_card: CardInstance
 var _selected_face: Control
@@ -208,6 +211,12 @@ func empty(container: Node) -> void:
 
 
 func refresh() -> void:
+	var focus_owner := get_viewport().gui_get_focus_owner() if is_inside_tree() else null
+	var previous_card: Control
+	if focus_owner != null and hand_row.is_ancestor_of(focus_owner):
+		previous_card = focus_owner.get_parent().get_parent() as Control
+	var focus_index := previous_card.get_index() if previous_card != null else -1
+	var focus_card: Variant = previous_card.get_meta("card", null) if focus_index >= 0 and previous_card.has_meta("card") else null
 	cancel_card_selection()
 	var previous_lesson_step: int = lesson.step
 	lesson.observe(session)
@@ -240,7 +249,8 @@ func refresh() -> void:
 	refresh_intent()
 	refresh_pattern()
 	hand_title.text = "YOUR HAND" if session.player_turn else ("LAST RIVAL PLAY" if _last_presented_card != null and not _last_presented_by_player else "YOUR NEXT HAND")
-	hand_title.tooltip_text = "YOUR HAND\nClick a card to play it. Tab focuses a card; Enter or Space plays it. Unplayed cards are discarded at the end of your turn." if session.player_turn else "RIVAL PLAYBACK\nThe most recently resolved rival card is displayed here for reference. It cannot be played. Your new hand arrives when the rival finishes."
+	hand_title.tooltip_text = "YOUR HAND\nUse arrows, D-pad, or left stick to inspect nearby cards. Click a card or focus it and use Confirm to play it." if session.player_turn else "RIVAL PLAYBACK\nThe most recently resolved rival card is displayed here for reference. It cannot be played. Your new hand arrives when the rival finishes."
+	update_hand_shortcut()
 	turn_label.text = "%s · %02d" % ["YOUR TURN" if session.player_turn else "RIVAL TURN", session.round_number]
 	turn_label.add_theme_color_override("font_color", Style.GOLD if session.player_turn else Color("df9e8d"))
 	turn_label.tooltip_text = "TURN\nYour turn: spend energy on cards, then end turn. The rival resolves its revealed line, then both hands are prepared again. Poison ticks at the affected side's turn start."
@@ -311,10 +321,14 @@ func refresh() -> void:
 		var pattern: Resource = session.preview_pattern(card)
 		view.setup(card, can_play_card(card), activate_hand_card.bind(card, view), exhaust, text, details, pattern.display_name if pattern != null else "", card_action_hint(card))
 		view.show_pattern_badge(session.pattern_for_card(card) if can_play_card(card) else null)
-		view.enable_hand_drag(self, card)
+		view.enable_hand_drag(self, card, session.player_turn and session.outcome.is_empty() and not lesson.active)
 		view.set_meta("card", card)
 		view.inspected.connect(show_card_forecast.bind(card))
 		view.inspection_ended.connect(restore_action_message)
+		view.get_node("%Play").focus_entered.connect(_on_hand_focus)
+	if focus_card != null and not lesson.active and session.player_turn:
+		var remaining_index := _hand_order.find(focus_card)
+		focus_hand(remaining_index if remaining_index >= 0 else focus_index)
 	_display_state = read_display_state()
 	if lesson.active and lesson.step != previous_lesson_step:
 		show_lesson_folio.call_deferred()
@@ -342,34 +356,52 @@ func focus_lesson_action() -> void:
 
 func forecast_text(card: CardInstance) -> String:
 	var text: String = "%s\n%s · %d energy\n%s" % [card.definition.display_name, CardDefinition.Category.keys()[card.get_category()].capitalize(), card.get_energy_cost(), session.describe_card(card)]
+	return text + "\n" + forecast_details(card)
+
+
+func forecast_details(card: CardInstance) -> String:
+	var lines := PackedStringArray()
 	var forecast: Dictionary = session.preview_attack(card)
 	if forecast.damage > 0:
-		text += "\nAttack forecast: rival loses %d HP; %d damage blocked." % [forecast.hp_loss, forecast.blocked]
-		if forecast.lethal:
-			text += " Lethal."
+		lines.append("Attack forecast: rival loses %d HP; %d damage blocked.%s" % [forecast.hp_loss, forecast.blocked, " Lethal." if forecast.lethal else ""])
 	if session.war_drum != null and forecast.damage > 0:
 		var drum_bonus: int = session.war_drum.preview_bonus(card)
 		if drum_bonus > 0:
-			text += "\nWar Drum bonus: +%d." % drum_bonus
+			lines.append("War Drum bonus: +%d." % drum_bonus)
 	var pattern: Resource = session.pattern_for_card(card)
 	if pattern != null:
-		text += "\nPattern %s · %s\n%s" % [pattern.display_name, pattern.sequence_text(), pattern.payoff_text()]
+		lines.append("Pattern %s · %s\n%s" % [pattern.display_name, pattern.sequence_text(), pattern.payoff_text()])
 	if not session.outcome.is_empty():
-		text += " Encounter finished."
+		lines.append("Encounter finished.")
 	elif not session.player_turn:
-		text += " Wait for your turn."
+		lines.append("Wait for your turn.")
 	elif card.get_energy_cost() > session.energy:
-		text += " Need %d energy; you have %d." % [card.get_energy_cost(), session.energy]
+		lines.append("Need %d energy; you have %d." % [card.get_energy_cost(), session.energy])
+	elif not lesson.allows_card(card):
+		lines.append("This card is locked for the current lesson step.")
 	if session.player_turn and session.outcome.is_empty():
-		text += "\nCadence +%d from this category." % session.cadence_gain(card)
+		lines.append("Cadence +%d from this category if played." % session.cadence_gain(card))
 	for effect in card.definition.effects:
 		if effect is ApplyPoisonEffect:
-			text += "\nPoison: at the target's turn start, deal HP damage through block, then remove 1 stack. Applications add stacks."
+			lines.append("Poison: at the target's turn start, deal HP damage through block, then remove 1 stack. Applications add stacks.")
 		elif effect is GainBlockEffect:
-			text += "\nBlock: absorbs incoming attacks and expires at the owner's next turn. Poison bypasses it."
+			lines.append("Block: absorbs incoming attacks and expires at the owner's next turn. Poison bypasses it.")
 		elif effect is DrawEffect:
-			text += "\nDraw: takes available cards only. Discard reshuffles when needed; exhausted cards cannot be drawn."
-	return text
+			lines.append("Draw: takes available cards only. Discard reshuffles when needed; exhausted cards cannot be drawn.")
+	return "\n".join(lines)
+
+
+func inspect_hand_card(card: CardInstance, return_focus: BaseButton) -> void:
+	if not player_piles.hand.has(card) or has_node("CardInspection"):
+		return
+	var dialog := FolioReader.instantiate()
+	dialog.name = "CardInspection"
+	add_child(dialog)
+	dialog.close_requested.connect(func():
+		close_board_dialog(dialog, false)
+		if is_instance_valid(return_focus) and not return_focus.disabled:
+			return_focus.grab_focus())
+	dialog.open_card(card, session.describe_card(card), forecast_details(card), motion_enabled)
 
 
 func card_action_hint(card: CardInstance) -> String:
@@ -481,15 +513,22 @@ func close_board_dialog(dialog: Window, resume_rival: bool) -> void:
 func show_card_forecast(card: CardInstance) -> void:
 	if session.player_turn and session.outcome.is_empty():
 		message.tooltip_text = forecast_text(card)
-		message.text = "%s · %s" % [card.definition.display_name, session.describe_card(card)]
+		var cost := card.get_energy_cost()
+		if cost > session.energy:
+			message.text = "%s · Need %d energy, have %d" % [card.definition.display_name, cost, session.energy]
+			return
+		var summary: String = session.describe_card(card)
 		var forecast: Dictionary = session.preview_attack(card)
 		if forecast.damage > 0:
-			message.text += " %d HP / %d blocked.%s" % [forecast.hp_loss, forecast.blocked, " Lethal." if forecast.lethal else ""]
+			summary = "%d HP" % forecast.hp_loss
+			if forecast.blocked > 0:
+				summary += " / %d blocked" % forecast.blocked
+			if forecast.lethal:
+				summary += " · Lethal"
+		message.text = "%s · %s" % [card.definition.display_name, summary]
 		var pattern: Resource = session.pattern_for_card(card)
 		if pattern != null:
-			message.text += " Pattern %s%s." % [pattern.display_name, " starts" if session.active_pattern == null else (" completes" if session.pattern_history.size() == 2 else " advances")]
-		if card.get_energy_cost() > session.energy:
-			message.text += " Need %d energy." % card.get_energy_cost()
+			message.text += " · Pattern %s%s" % [pattern.display_name, " starts" if session.active_pattern == null else (" completes" if session.pattern_history.size() == 2 else " advances")]
 
 
 func restore_action_message() -> void:
@@ -738,14 +777,45 @@ func configure_controller(shortcuts: bool, swap: bool, quick_end: bool) -> void:
 	_end_shortcut = quick_end
 	if not shortcuts:
 		_controller_hand_focus = false
+	update_hand_shortcut()
+
+
+func update_hand_shortcut() -> void:
+	var hint: Label = %HandShortcut
+	hint.visible = session != null and session.player_turn and session.outcome.is_empty() and _controller_shortcuts and not guided
+	var action := &"menu_next" if _swap_shoulders else &"menu_previous"
+	hint.text = "FOCUS  %s / %s" % [Bindings.active_label(action, 0), Bindings.active_label(action, 1)]
+	hint.tooltip_text = "Focus your hand\n" + hint.text.trim_prefix("FOCUS  ")
+	var inspect: Label = %InspectShortcut
+	inspect.visible = session != null and session.player_turn and session.outcome.is_empty() and not guided
+	var inspect_key := Bindings.active_label(&"combat_inspect", 0)
+	inspect.text = "INSPECT  " + inspect_key
+	inspect.tooltip_text = "Inspect a focused card: %s / %s, or right-click." % [inspect_key, Bindings.active_label(&"combat_inspect", 1)]
+	if inspect.visible:
+		hand_title.tooltip_text = "YOUR HAND\nUse arrows, D-pad, or left stick to move focus. Use Confirm to play.\n" + inspect.tooltip_text
+	%PatternGuideButton.tooltip_text = "PATTERNS\nView all three recipes. Rival playback pauses while the guide is open.\n%s / %s" % [
+		Bindings.active_label(&"combat_guide", 0), Bindings.active_label(&"combat_guide", 1),
+	]
 
 
 func _input(event: InputEvent) -> void:
+	_navigation_feedback = (
+		event.is_action_pressed("ui_left", true) or event.is_action_pressed("ui_right", true)
+		or event.is_action_pressed("ui_up", true) or event.is_action_pressed("ui_down", true)
+		or event.is_action_pressed("ui_focus_next", true) or event.is_action_pressed("ui_focus_prev", true)
+		or event.is_action_pressed("menu_previous") or event.is_action_pressed("menu_next")
+	)
 	if event is InputEventMouseButton and event.pressed:
 		_controller_hand_focus = false
 		_touch_pointer = event.device == InputEvent.DEVICE_ID_EMULATION
 	elif event is InputEventKey or event is InputEventJoypadButton:
 		_touch_pointer = false
+
+
+func _on_hand_focus() -> void:
+	if _navigation_feedback:
+		_navigation_feedback = false
+		combat_audio.focus_card()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -754,30 +824,48 @@ func _unhandled_input(event: InputEvent) -> void:
 		cancel_card_selection()
 		restore_action_message()
 		return
+	if session != null and session.player_turn and event.is_action_pressed("combat_inspect"):
+		get_viewport().set_input_as_handled()
+		var focus := get_viewport().gui_get_focus_owner() as HandPlayButton
+		if focus != null and hand_row.is_ancestor_of(focus):
+			inspect_hand_card(focus.card, focus)
+		else:
+			message.text = "Focus a card in your hand to inspect it."
+		return
+	if session != null and event.is_action_pressed("combat_guide"):
+		get_viewport().set_input_as_handled()
+		show_pattern_guide()
+		return
+	if session != null and session.player_turn and session.outcome.is_empty() and get_viewport().gui_get_focus_owner() == null:
+		if event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"):
+			get_viewport().set_input_as_handled()
+			focus_hand()
+			return
 	if not _controller_shortcuts or session == null or not session.player_turn or not session.outcome.is_empty():
 		return
-	if not event is InputEventJoypadButton or not event.pressed:
-		return
-	match event.button_index:
-		JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER:
-			get_viewport().set_input_as_handled()
-			_controller_hand_focus = (event.button_index == JOY_BUTTON_LEFT_SHOULDER) != _swap_shoulders
-			if _controller_hand_focus:
-				focus_hand()
-			else:
-				for button: Button in rewrite_row.get_children():
-					if not button.disabled:
-						button.grab_focus()
-						return
-				message.text = "No rival card can be rewritten right now."
-		JOY_BUTTON_Y:
-			if _end_shortcut:
-				get_viewport().set_input_as_handled()
-				end_turn()
+	if event.is_action_pressed("menu_previous") or event.is_action_pressed("menu_next"):
+		get_viewport().set_input_as_handled()
+		_controller_hand_focus = event.is_action_pressed("menu_previous") != _swap_shoulders
+		if _controller_hand_focus:
+			focus_hand()
+		else:
+			for button: Button in rewrite_row.get_children():
+				if not button.disabled:
+					button.grab_focus()
+					return
+			message.text = "No rival card can be rewritten right now."
+	elif _end_shortcut and event.is_action_pressed("combat_end"):
+		get_viewport().set_input_as_handled()
+		end_turn()
+	elif event.is_action_pressed("combat_pile"):
+		get_viewport().set_input_as_handled()
+		inspect_pile("Draw", player_piles.draw_pile)
 
 
-func focus_hand() -> void:
-	for card: Control in hand_row.get_children():
+func focus_hand(start: int = 0) -> void:
+	var count := hand_row.get_child_count()
+	for offset in range(count):
+		var card: Control = hand_row.get_child((mini(start, count - 1) + offset) % count)
 		var play := card.get_node_or_null("%Play") as Button
 		if play != null and not play.disabled:
 			play.grab_focus()
@@ -863,7 +951,7 @@ func on_session_changed() -> void:
 	present_state_changes()
 	restore_action_message()
 	refresh()
-	if _controller_hand_focus and not lesson.active and session.player_turn and session.outcome.is_empty():
+	if _controller_hand_focus and is_inside_tree() and not lesson.active and session.player_turn and session.outcome.is_empty() and get_viewport().gui_get_focus_owner() == null:
 		focus_hand()
 	if new_hand:
 		animate_hand_arrival()

@@ -11,6 +11,7 @@ const RELIC_EMBLEMS = preload("res://data/ui/relic_emblems.svg")
 const Table = preload("res://scenes/ui/combat_table.tscn")
 const TableToolbar = preload("res://scenes/ui/table_toolbar.tscn")
 const OptionsMenu = preload("res://scenes/ui/options_menu.tscn")
+const Bindings = preload("res://scripts/ui/control_bindings.gd")
 const WINDOW_MODES = [Window.MODE_WINDOWED, Window.MODE_MAXIMIZED, Window.MODE_FULLSCREEN]
 const WINDOW_SIZES = [Vector2i(1100, 700), Vector2i(1280, 800), Vector2i(1600, 900), Vector2i(1920, 1080)]
 const CombatResult = preload("res://scenes/ui/combat_result.tscn")
@@ -21,6 +22,7 @@ const Rivals = preload("res://scripts/content/rival_catalog.gd")
 const DuelArt = preload("res://scripts/ui/duel_art.gd")
 const Journey = preload("res://scripts/combat/journey_state.gd")
 const JourneyReward = preload("res://scenes/ui/journey_reward.tscn")
+const JourneyMap = preload("res://scenes/ui/journey_map.tscn")
 const DraftCard = preload("res://scenes/ui/draft_card.tscn")
 const CombatSession = preload("res://scripts/combat/combat_session.gd")
 const INSIGHT = preload("res://data/cards/insight.tres")
@@ -53,6 +55,8 @@ var swap_shoulders: bool = false
 var end_shortcut: bool = false
 var options_path: String = "user://options.cfg"
 var result_overlay: Control
+var _back_action: Callable
+var control_bindings := Bindings.defaults()
 
 
 func _ready() -> void:
@@ -68,6 +72,7 @@ func _ready() -> void:
 	main_menu.decks_requested.connect(func(): show_library(false))
 	main_menu.options_requested.connect(show_options)
 	main_menu.quit_requested.connect(func(): get_tree().quit())
+	%EndJourneyDialog.confirmed.connect(end_journey)
 	library.load_decks()
 	show_menu()
 
@@ -81,6 +86,10 @@ func _on_menu_journey() -> void:
 
 func clear(title: String, subtitle: String) -> void:
 	close_result()
+	_back_action = Callable()
+	var edge := 12 if screen == "table" else 24
+	$ScreenMargin.add_theme_constant_override("margin_top", edge)
+	$ScreenMargin.add_theme_constant_override("margin_bottom", edge)
 	# Each screen starts at the top, even after scrolling the deck editor.
 	page_scroll.set_deferred("scroll_vertical", 0)
 	main_menu.hide()
@@ -137,6 +146,7 @@ func show_rivals() -> void:
 		Style.label(panel, rival.doctrine_text(), 13, rival.accent)
 		Style.primary(Style.button(panel, "Challenge  →", select_rival.bind(index)))
 	Style.button(body, "← Main menu", show_menu)
+	_back_action = show_menu
 
 
 func select_rival(index: int) -> void:
@@ -189,7 +199,8 @@ func show_library(selecting: bool) -> void:
 		Style.button(line, "View cards", show_deck_cards.bind(index))
 		Style.button(line, "Edit cards", show_editor.bind(index, selecting))
 		Style.button(line, "Remove", confirm_remove.bind(index, selecting))
-	Style.button(body, "← Back", show_setup if selecting else show_menu)
+	_back_action = show_setup if selecting else show_menu
+	Style.button(body, "← Back", _back_action)
 
 
 func confirm_remove(index: int, selecting: bool) -> void:
@@ -215,7 +226,8 @@ func show_editor(index: int, selecting: bool) -> void:
 	clear(recipe.name, "Build your deck from the almanac. Mix Attack, Guard, and Tactic to unlock Patterns.")
 	var editor := DeckEditor.instantiate()
 	body.add_child(editor)
-	editor.get_node("%Done").pressed.connect(show_library.bind(selecting))
+	_back_action = show_library.bind(selecting)
+	editor.get_node("%Done").pressed.connect(_back_action)
 	var cards := editor.get_node("%Cards")
 	for definition in Library.CARDS:
 		var id := String(definition.id)
@@ -307,6 +319,7 @@ func show_setup() -> void:
 	confirm.disabled = not valid_selection()
 	Style.button(actions, "Create / edit decks", show_library.bind(true))
 	Style.button(actions, "← Main menu", show_menu)
+	_back_action = show_menu
 
 
 func show_relics(from_setup: bool = false) -> void:
@@ -317,7 +330,8 @@ func show_relics(from_setup: bool = false) -> void:
 	page.get_node("%Balance").text = "%d MARKS" % relics.marks
 	page.get_node("%Collected").text = "%d / %d collected" % [relics.owned.size(), RelicCollection.CATALOG.size()]
 	page.get_node("%Earnings").text = "Named rival victories earn %d Marks. Completing a Journey earns %d more." % [RelicCollection.DUEL_MARKS, RelicCollection.JOURNEY_BONUS]
-	page.get_node("%Back").pressed.connect(show_setup if from_setup else show_menu)
+	_back_action = show_setup if from_setup else show_menu
+	page.get_node("%Back").pressed.connect(_back_action)
 	for relic in RelicCollection.CATALOG:
 		var tile := RelicTile.instantiate()
 		tile.name = relic.id
@@ -448,7 +462,8 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	var leave: Button = toolbar.get_node("%Leave")
 	Style.quiet(toolbar.get_node("%Options"))
 	leave.text = "Journey" if in_journey else ("← Main menu" if guided else "← Leave table")
-	leave.pressed.connect(show_journey_overview if in_journey else (show_menu if guided else show_setup))
+	_back_action = show_journey_overview if in_journey else (show_menu if guided else show_setup)
+	leave.pressed.connect(_back_action)
 	Style.quiet(leave)
 	leave.tooltip_text = "JOURNEY\nPause this duel and view your route. Returning resumes the same hand, HP, and rival turn." if in_journey else "LEAVE TABLE\nReturn to deck preparation. This single duel is discarded; saved decks are unchanged."
 	var table := Table.instantiate()
@@ -485,6 +500,7 @@ func set_fast_turns(enabled: bool) -> void:
 func load_options() -> void:
 	var config := ConfigFile.new()
 	if config.load(options_path) == OK:
+		control_bindings = Bindings.sanitize(config.get_value("table", "bindings", {}))
 		combat_sound = bool(config.get_value("table", "sound", true))
 		combat_motion = bool(config.get_value("table", "motion", true))
 		fast_rival_turns = bool(config.get_value("table", "fast_turns", false))
@@ -500,6 +516,7 @@ func load_options() -> void:
 			apply_window.call_deferred()
 		if config.has_section_key("table", "vsync"):
 			apply_vsync()
+	Bindings.apply(control_bindings)
 	apply_volume()
 
 
@@ -536,6 +553,7 @@ func option_values() -> Dictionary:
 		"volume": master_volume, "effects_volume": effects_volume,
 		"window_mode": window_mode, "window_size": window_size, "vsync": vsync,
 		"controller": controller_shortcuts, "swap_shoulders": swap_shoulders, "end_shortcut": end_shortcut,
+		"bindings": control_bindings,
 	}
 
 
@@ -572,6 +590,11 @@ func change_option(key: String, value: Variant) -> void:
 		"vsync":
 			vsync = value
 			apply_vsync()
+		"bindings":
+			control_bindings = Bindings.sanitize(value)
+			Bindings.apply(control_bindings)
+			if table != null:
+				table.update_hand_shortcut()
 		"controller", "swap_shoulders", "end_shortcut":
 			match key:
 				"controller": controller_shortcuts = value
@@ -599,6 +622,7 @@ func show_options() -> void:
 	var menu := OptionsMenu.instantiate()
 	add_child(menu)
 	menu.preference_changed.connect(change_option)
+	menu.quit_requested.connect(func(): get_tree().quit())
 	menu.close_requested.connect(func():
 		menu.hide()
 		menu.queue_free()
@@ -610,16 +634,26 @@ func show_options() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if screen == "menu" and event is InputEventJoypadMotion and event.axis in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y] and absf(event.axis_value) >= 0.5 and get_viewport().gui_get_focus_owner() == null:
-		main_menu.get_node("%JourneyButton").grab_focus()
+	if event.is_action_pressed("ui_cancel"):
+		if screen == "result":
+			get_viewport().set_input_as_handled()
+			review_result()
+		elif _back_action.is_valid():
+			get_viewport().set_input_as_handled()
+			_back_action.call()
 		return
-	if not event is InputEventJoypadButton or not event.pressed:
-		return
-	if event.button_index == JOY_BUTTON_START and (screen == "menu" or screen == "table"):
+	if event.is_action_pressed("menu_options"):
 		get_viewport().set_input_as_handled()
 		show_options()
-	elif screen == "menu" and get_viewport().gui_get_focus_owner() == null and event.button_index in [JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT]:
-		main_menu.get_node("%JourneyButton").grab_focus()
+	elif get_viewport().gui_get_focus_owner() == null:
+		for direction in ["ui_up", "ui_down", "ui_left", "ui_right"]:
+			if event.is_action_pressed(direction):
+				var page: Control = main_menu if screen == "menu" else body
+				var first := page.find_next_valid_focus()
+				if first != null and page.is_ancestor_of(first):
+					first.grab_focus()
+					get_viewport().set_input_as_handled()
+				return
 
 
 func close_result() -> void:
@@ -702,26 +736,25 @@ func show_journey_overview() -> void:
 		show_journey_summary()
 		return
 	screen = "journey"
-	clear("Three names. One unwritten ending.", "Your deck and HP carry forward. Between duels, recover, draft, or revise a card.")
+	clear("The road between duels", "Scout each rival along the route. Your deck and health carry from one chapter to the next.")
 	var hp: int = journey.active_session.player.health if journey.active_session != null else journey.health
-	Style.label(body, "%s  ·  HP %d / 30  ·  %d cards" % [journey_deck_name, hp, journey.roster.size()], 17, Style.GOLD)
-	var route := Style.row(body)
-	for index in range(Rivals.ALL.size()):
-		var rival: Resource = Rivals.ALL[index]
-		var panel := Style.panel(route)
-		Style.label(panel, "CLEARED" if index < journey.stage else ("NEXT DUEL" if index == journey.stage else "AHEAD"), 12, rival.accent)
-		Style.heading(panel, rival.display_name, 25)
-		Style.label(panel, "%d HP" % rival.health, 14, Style.MUTED)
-	var next_rival: Resource = journey.current_rival()
-	if journey.phase == Journey.Phase.READY and not next_rival.opening_advice.is_empty():
-		Style.label(body, "OPENING NOTE  /  " + next_rival.opening_advice, 15, Style.MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	Style.label(body, "%s  ·  HP %d / %d  ·  %d cards" % [journey_deck_name, hp, journey.max_health, journey.roster.size()], 17, Style.GOLD)
+	var chart := JourneyMap.instantiate()
+	body.add_child(chart)
+	chart.setup(journey, show_journey_encounter, combat_motion)
 	if not journey.edits.is_empty():
 		Style.label(body, "JOURNEY DECK CHANGES", 13, Style.GOLD)
 		for edit in journey.edits:
 			Style.label(body, edit, 15)
-	Style.primary(Style.button(body, "Resume the duel  →" if journey.phase == Journey.Phase.DUEL else "Enter chapter %d  →" % (journey.stage + 1), show_journey_encounter))
-	Style.button(body, "Main menu — keep this journey", show_menu)
-	Style.button(body, "End this journey", end_journey)
+	var footer := Style.row(body)
+	Style.button(footer, "Main menu — keep this journey", show_menu)
+	_back_action = show_menu
+	Style.button(footer, "End this journey", confirm_end_journey)
+
+
+func confirm_end_journey() -> void:
+	%EndJourneyDialog.popup_centered()
+	%EndJourneyDialog.get_cancel_button().grab_focus()
 
 
 func show_journey_encounter() -> void:
@@ -760,6 +793,12 @@ func show_journey_reward() -> void:
 		button.text = "Draft " + definition.display_name
 		button.pressed.connect(take_journey_draft.bind(definition))
 	var toggle: Button = reward.get_node("%RevisionToggle")
+	_back_action = func():
+		if toggle.button_pressed:
+			toggle.button_pressed = false
+			toggle.grab_focus()
+		else:
+			show_menu()
 	var revisions: VBoxContainer = reward.get_node("%Revisions")
 	toggle.toggled.connect(func(enabled: bool):
 		toggle.text = "Back to draft" if enabled else "Revise a card"
@@ -816,6 +855,7 @@ func show_journey_summary() -> void:
 	for edit in journey.edits:
 		Style.label(panel, edit, 15, Style.MUTED)
 	Style.primary(Style.button(body, "Return to main menu", end_journey))
+	_back_action = end_journey
 
 
 func end_journey() -> void:

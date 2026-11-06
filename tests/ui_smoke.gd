@@ -1,6 +1,7 @@
 extends SceneTree
 
 const GameUI = preload("res://scenes/ui/game_ui.tscn")
+const Bindings = preload("res://scripts/ui/control_bindings.gd")
 var failed := false
 
 
@@ -62,7 +63,12 @@ func run() -> void:
 	ui.library.save_path = "res://.godot/ui-test-decks.json"
 	ui.library.decks.assign([{"name": "Test", "cards": {"strike": 5, "block": 5}}])
 	check(ui.screen == "menu", "Main menu opens")
-	ui.main_menu.find_child("OptionsButton", true, false).pressed.emit()
+	var old_bindings := Bindings.defaults()
+	old_bindings.erase(&"combat_inspect")
+	old_bindings[&"combat_pile"] = [KEY_I, JOY_BUTTON_RIGHT_STICK]
+	var migrated := Bindings.sanitize(old_bindings)
+	check(migrated[&"combat_pile"] == [KEY_I, JOY_BUTTON_RIGHT_STICK] and migrated[&"combat_inspect"][0] != KEY_I and migrated[&"combat_inspect"][1] != JOY_BUTTON_RIGHT_STICK, "New actions preserve saved bindings and receive free inputs")
+	controller_press(JOY_BUTTON_START)
 	var options := ui.get_node("OptionsMenu")
 	check(options.visible, "Options opens from the main menu")
 	var tabs: TabContainer = options.get_node("%Tabs")
@@ -71,18 +77,30 @@ func run() -> void:
 	shoulder.pressed = true
 	options.push_input(shoulder, true)
 	check(tabs.current_tab == 1, "RB switches to the next Options tab")
+	shoulder.button_index = JOY_BUTTON_LEFT_SHOULDER
+	options.push_input(shoulder, true)
+	check(tabs.current_tab == 0, "LB switches to the previous Options tab")
 	var trigger := InputEventJoypadMotion.new()
 	trigger.axis = JOY_AXIS_TRIGGER_RIGHT
 	trigger.axis_value = 0.85
 	options.push_input(trigger, true)
-	options.push_input(trigger, true)
-	check(tabs.current_tab == 2, "Holding RT advances one tab")
-	trigger.axis_value = 0.0
-	options.push_input(trigger, true)
-	trigger.axis_value = 0.85
-	options.push_input(trigger, true)
-	check(tabs.current_tab == 3, "Releasing and pressing RT advances again")
-	tabs.current_tab = 0
+	check(tabs.current_tab == 0, "Triggers leave the Options tab unchanged")
+	await process_frame
+	var quit_clicked := [false]
+	for connection: Dictionary in options.quit_requested.get_connections():
+		options.quit_requested.disconnect(connection.callable)
+	options.quit_requested.connect(func(): quit_clicked[0] = true)
+	var quit_button: Button = options.get_node("%Quit")
+	check(quit_button.is_visible_in_tree() and not quit_button.disabled, "Options exposes an enabled Quit game button")
+	quit_button.grab_focus()
+	var confirm := InputEventJoypadButton.new()
+	confirm.button_index = JOY_BUTTON_A
+	confirm.pressed = true
+	options.push_input(confirm, true)
+	var confirm_release := confirm.duplicate() as InputEventJoypadButton
+	confirm_release.pressed = false
+	options.push_input(confirm_release, true)
+	check(quit_clicked[0], "Quit game requests exit from inside Options")
 	options.get_node("%Level").value = 65
 	check(is_equal_approx(AudioServer.get_bus_volume_linear(0), 0.65), "Options volume updates the live audio bus")
 	options.get_node("%Effects").value = 40
@@ -99,7 +117,55 @@ func run() -> void:
 	check(ui.master_volume == 65.0 and ui.effects_volume == 40.0 and ui.window_size == 2 and ui.swap_shoulders, "Options reload audio, display, and controller preferences")
 	options.get_node("%Level").value = 100
 	options.get_node("%Effects").value = 100
-	options.get_node("%Close").pressed.emit()
+	await process_frame
+	var back := InputEventJoypadButton.new()
+	back.button_index = JOY_BUTTON_B
+	back.pressed = true
+	options.push_input(back, true)
+	check(not options.visible, "B closes Options")
+	await process_frame
+	ui.show_options()
+	options = ui.get_node("OptionsMenu")
+	tabs = options.get_node("%Tabs")
+	tabs.current_tab = 2
+	var binding_rows: Control = options.get_node("%Bindings")
+	binding_rows.get_child(2).get_node("Keyboard").pressed.emit()
+	var rebound_key := InputEventKey.new()
+	rebound_key.keycode = KEY_F9
+	rebound_key.pressed = true
+	options.push_input(rebound_key, true)
+	binding_rows.get_child(3).get_node("Gamepad").pressed.emit()
+	var rebound_pad := InputEventJoypadButton.new()
+	rebound_pad.button_index = JOY_BUTTON_X
+	rebound_pad.pressed = true
+	options.push_input(rebound_pad, true)
+	check(tabs.current_tab == 2, "The capture event does not also navigate")
+	check(ui.control_bindings[&"combat_pile"][1] == JOY_BUTTON_LEFT_SHOULDER, "Binding an occupied button swaps its former action")
+	options.push_input(rebound_pad, true)
+	check(tabs.current_tab == 1 and options.get_node("%PreviousTab").text.contains("X"), "The rebound gamepad input navigates and updates the tab prompt")
+	var next_page_key := InputEventKey.new()
+	next_page_key.keycode = KEY_PAGEDOWN
+	next_page_key.pressed = true
+	options.push_input(next_page_key, true)
+	check(tabs.current_tab == 2, "The keyboard page shortcut navigates Options")
+	options.get_node("%MovementBindings").get_child(3).get_node("Keyboard").pressed.emit()
+	var movement_key := InputEventKey.new()
+	movement_key.keycode = KEY_L
+	movement_key.pressed = true
+	options.push_input(movement_key, true)
+	var standard_right := movement_key.duplicate() as InputEventKey
+	standard_right.keycode = KEY_RIGHT
+	check(movement_key.is_action_pressed("ui_right") and standard_right.is_action_pressed("ui_right"), "Alternate movement can be rebound while arrow keys still work")
+	options.push_input(rebound_key, true)
+	check(not options.visible, "The rebound keyboard shortcut closes Options")
+	await process_frame
+	ui.load_options()
+	root.push_input(rebound_key, true)
+	options = ui.get_node("OptionsMenu")
+	check(options.visible and ui.control_bindings[&"menu_options"][0] == KEY_F9, "Rebound inputs persist across preference reloads")
+	options.get_node("%ResetBindings").pressed.emit()
+	check(ui.control_bindings[&"menu_previous"][1] == JOY_BUTTON_LEFT_SHOULDER, "Reset restores the default gamepad button")
+	options.push_input(back, true)
 	ui.show_library(false)
 	ui.show_editor(0, false)
 	var editor: Node = ui.body.get_node("DeckEditor")
@@ -125,6 +191,33 @@ func run() -> void:
 	var first: Control = drag_row.get_child(0)
 	controller_press(JOY_BUTTON_RIGHT_SHOULDER)
 	check(root.gui_get_focus_owner() == first.get_node("%Play"), "Swapped controller shoulders focus the hand")
+	var arrow := InputEventKey.new()
+	arrow.keycode = KEY_RIGHT
+	arrow.pressed = true
+	root.push_input(arrow, true)
+	var next_card: Control = drag_row.get_child(1)
+	check(root.gui_get_focus_owner() == next_card.get_node("%Play"), "Right arrow moves to the next hand card")
+	var outline := next_card.get_theme_stylebox("panel") as StyleBoxFlat
+	check(outline.border_width_left == 5 and next_card.get_node("%FocusBadge").visible, "The focused card face has a high-contrast frame and marker")
+	await process_frame
+	check(next_card.position.y < first.position.y, "The focused card lifts out of the hand")
+	controller_press(JOY_BUTTON_DPAD_LEFT)
+	check(root.gui_get_focus_owner() == first.get_node("%Play"), "D-pad moves focus back to the previous card")
+	var stick := InputEventJoypadMotion.new()
+	stick.axis = JOY_AXIS_LEFT_X
+	stick.axis_value = 1.0
+	Input.parse_input_event(stick)
+	Input.flush_buffered_events()
+	check(root.gui_get_focus_owner() == next_card.get_node("%Play"), "Left stick moves focus across the hand")
+	var neutral := stick.duplicate() as InputEventJoypadMotion
+	neutral.axis_value = 0.0
+	Input.parse_input_event(neutral)
+	Input.flush_buffered_events()
+	controller_press(JOY_BUTTON_X)
+	var pile := drag_table.get_node("PileBrowser") as Window
+	check(pile.visible, "X opens the draw pile")
+	pile.push_input(back, true)
+	check(not pile.visible and ui.screen == "table", "B closes the pile without leaving combat")
 	drag_table.session.cadence = 2
 	drag_table.refresh_intent()
 	controller_press(JOY_BUTTON_LEFT_SHOULDER)
@@ -150,6 +243,31 @@ func run() -> void:
 	tap(touch_point)
 	tap(drag_table.card_stage.get_global_rect().get_center())
 	check(not drag_table.has_selected_card() and drag_table.session.statistics.player.cards == 2, "Tapping the table plays the selected card exactly once")
+	drag_table.session.energy = 0
+	drag_table.refresh()
+	drag_table.focus_hand()
+	var blocked_card: Control = drag_row.get_child(0)
+	check(blocked_card.get_node("%FocusBadge").visible and blocked_card.get_node("%FocusBadge").text.contains("INSPECTING"), "Cards without enough energy still show a focus marker")
+	controller_press(JOY_BUTTON_RIGHT_STICK)
+	var inspection: Window = drag_table.get_node("CardInspection")
+	check(inspection.get_node("%CardPreview").visible and inspection.get_node("%Body").get_parsed_text().contains("you have 0"), "Inspect shows the actual card and its current energy restriction")
+	inspection.push_input(back, true)
+	check(not inspection.visible and root.gui_get_focus_owner() == blocked_card.get_node("%Play"), "Closing inspection restores hand focus")
+	await process_frame
+	var right_click := InputEventMouseButton.new()
+	right_click.button_index = MOUSE_BUTTON_RIGHT
+	right_click.position = blocked_card.get_global_rect().get_center()
+	right_click.pressed = true
+	root.push_input(right_click, true)
+	var right_release := right_click.duplicate() as InputEventMouseButton
+	right_release.pressed = false
+	root.push_input(right_release, true)
+	inspection = drag_table.get_node("CardInspection")
+	check(inspection.visible, "Right-click opens the focused card inspection")
+	inspection.push_input(back, true)
+	root.push_input(confirm, true)
+	root.push_input(confirm_release, true)
+	check(drag_table.session.statistics.player.cards == 2, "Confirm cannot play an unaffordable card")
 	ui.show_table()
 	var table = ui.body.get_node("CombatTable")
 	await process_frame
@@ -212,7 +330,8 @@ func run() -> void:
 		table.next_hand()
 		check(table.player_piles.hand.size() == 4, "UI redraw cannot invent a fifth card")
 		check(table.player_piles.total_cards() == 10, "UI conserves total card count")
-	table.end_turn()
+	table.configure_controller(true, false, true)
+	controller_press(JOY_BUTTON_Y)
 	check(not table.session.player_turn and table.end_button.disabled, "UI locks player input during paced rival turn")
 	ui.body.get_node("TableToolbar").get_node("%Options").pressed.emit()
 	var combat_options := ui.get_node("OptionsMenu")
@@ -299,10 +418,18 @@ func run() -> void:
 	key_release.pressed = false
 	root.push_input(key_release, true)
 	check(attacks.session.statistics.player.cards == 1, "Keyboard Enter plays the focused card")
+	check(root.gui_get_focus_owner() == attacks.hand_row.get_child(0).get_node("%Play"), "Hand focus follows the next card after playing")
 	check(attacks.hand_row.get_child(0).find_child("Description", true, false).get_parsed_text() == "Deal 12 damage.", "Card text refreshes after artifact activation")
 	attacks.session.enemy.take_damage(28)
-	attacks.hand_row.get_child(0).find_child("Play", true, false).pressed.emit()
+	controller_press(JOY_BUTTON_A)
+	var accept_release := InputEventJoypadButton.new()
+	accept_release.button_index = JOY_BUTTON_A
+	root.push_input(accept_release, true)
 	check(ui.screen == "result" and attacks.session.outcome == "Victory", "Lethal player card also opens encounter results")
+	controller_press(JOY_BUTTON_B)
+	check(ui.screen == "table", "B returns from results to the board")
+	controller_press(JOY_BUTTON_B)
+	check(ui.screen == "setup", "B on the board follows the Leave table action")
 	ui.library.decks.assign([ui.library.counterpoint_recipe()])
 	ui.library.save()
 	ui.library.load_decks()
@@ -379,7 +506,7 @@ func run() -> void:
 			view.find_child("Play", true, false).pressed.emit()
 			break
 	check(patterns.pattern_label.text.contains("PATTERN COMPLETE") and patterns.combat_log.text.contains("Pattern Riposte"), "Completed Pattern appears in tracker and log")
-	patterns.find_child("PatternGuideButton", true, false).pressed.emit()
+	controller_press(JOY_BUTTON_BACK)
 	var guide: Window = patterns.get_node("PatternGuide")
 	check(guide.pages.size() == 4 and guide.pages[1].title == "Shelter" and guide.pages[3].title == "Surge", "The illustrated guide includes every Pattern recipe")
 	guide.get_node("%Next").pressed.emit()
@@ -412,7 +539,19 @@ func run() -> void:
 	ui.show_journey_setup()
 	ui.begin_journey()
 	check(ui.screen == "journey" and ui.journey != null, "Journey preparation opens the route overview")
-	ui.show_journey_encounter()
+	var chart: Control = ui.body.get_node("JourneyMap")
+	var enter: Button = chart.get_node("%Enter")
+	chart.get_node("%Stops/Archive/Inspect").pressed.emit()
+	check(enter.disabled and chart.get_node("%Title").text.contains("The Warden"), "Future map stops can be scouted without entering")
+	check(chart.get_node("%Opening").text.contains("Iron Seal"), "Scouted openings use the rival's actual opening cards")
+	chart.get_node("%Scout").pressed.emit()
+	var dossier: Window = chart.get_node("ScoutDeck")
+	check(dossier.visible and dossier.get_node("%Summary").text.contains("10 cards"), "Scouting opens the rival deck browser")
+	dossier.push_input(back, true)
+	check(not dossier.visible, "Back returns from the scout deck to the map")
+	chart.get_node("%Stops/Gate/Inspect").pressed.emit()
+	check(not enter.disabled and chart.get_node("%Title").text.contains("The Duelist"), "The active stop permits entering the duel")
+	enter.pressed.emit()
 	var journey_table = ui.body.get_node("CombatTable")
 	var retained: RefCounted = journey_table.session
 	retained.player.gain_block(100)
@@ -440,6 +579,9 @@ func run() -> void:
 	check(ui.screen == "journey" and ui.journey.stage == 1 and ui.journey.roster.size() == roster_size + 1, "Drafting adds exactly one card and advances the journey")
 	check(ui.library.decks[ui.player_index] == original_recipe, "A draft leaves the saved deck unchanged")
 	check(not ui.journey.draft_card(preload("res://data/cards/redline.tres")), "The same reward cannot be claimed twice")
+	chart = ui.body.get_node("JourneyMap")
+	chart.get_node("%Stops/Gate/Inspect").pressed.emit()
+	check(chart.get_node("%Advice").text.contains("HP remaining") and chart.get_node("%Enter").disabled, "A cleared stop displays its recorded result")
 	ui.show_journey_encounter()
 	var next_table: Control = ui.body.get_node("CombatTable")
 	check(next_table.session.enemy.max_health == 46, "UI advances to Warden after reward")

@@ -4,6 +4,7 @@ extends Resource
 enum Doctrine { PRESSURE, BASTION, INTRIGUE }
 @export var id: String
 @export var display_name: String
+@export var route_region: String
 @export var epithet: String
 @export_multiline var description: String
 @export var doctrine: Doctrine = Doctrine.PRESSURE
