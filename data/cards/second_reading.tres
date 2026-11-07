@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/cards/card_definition.gd" id="card"]
+[ext_resource type="Script" path="res://scripts/effects/card_effect.gd" id="effect"]
+[ext_resource type="Script" path="res://scripts/effects/draw_effect.gd" id="kind"]
+
+[sub_resource type="Resource" id="Base"]
+script = ExtResource("kind")
+amount = 1
+
+[sub_resource type="Resource" id="Counterwritten"]
+script = ExtResource("kind")
+after_rewrite = true
+amount = 1
+
+[resource]
+script = ExtResource("card")
+id = &"second_reading"
+display_name = "Second Reading"
+description = "Draw 1 card. After Rewrite: draw 1 more card."
+energy_cost = 1
+category = 2
+effects = Array[ExtResource("effect")]([SubResource("Base"), SubResource("Counterwritten")])

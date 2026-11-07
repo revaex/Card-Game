@@ -15,6 +15,9 @@ func setup(summary: Dictionary, rematch: Callable, choose_decks: Callable, revie
 		%Outcome.add_theme_color_override("font_color", Color("e59d8d"))
 	%Summary.text = "%d %s  ·  Your HP %d  ·  Rival HP %d" % [summary.rounds, "turn" if summary.rounds == 1 else "turns", summary.player_health, summary.enemy_health]
 	%RivalStatistics.get_node("ActorName").text = summary.get("rival_name", "Rival").to_upper()
+	var own: Dictionary = summary.statistics.player
+	%CraftSummary.text = "YOUR CRAFT · %d intents displaced · %d Counterwritten plays" % [own.get("displaced", 0), own.get("counterwritten", 0)]
+	%CraftSummary.tooltip_text = "Intents displaced counts cards moved from the affordable plan into reserve at the moment of Rewrite. Draws or later changes can bring them back; this is not damage prevented. Counterwritten plays counts your cards played with their after-Rewrite effects active."
 	for key in STAT_KEYS:
 		var value_path := "%s/Value" % key
 		%PlayerStatistics.get_node(value_path).text = str(summary.statistics.player[key])

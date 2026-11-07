@@ -4,7 +4,11 @@ extends Control
 @export var accent: Color = Color("d88b78")
 
 func _draw() -> void:
-	var center := size / 2
+	# Keep the complete ornament inside both full and compact card art frames.
+	var center := Vector2.ZERO
+	var frame := get_parent() as Control
+	var factor := minf(1.0, frame.size.y / 64.0) if frame != null else 1.0
+	draw_set_transform(size / 2, 0, Vector2.ONE * factor)
 	draw_circle(center, 26, Color(accent, 0.12))
 	draw_arc(center, 26, 0, TAU, 48, Color(accent, 0.4), 1.0, true)
 	draw_arc(center, 29, 0, TAU, 48, Color(accent, 0.22), 1.0, true)

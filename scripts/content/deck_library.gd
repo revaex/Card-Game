@@ -2,6 +2,9 @@ extends RefCounted
 ## Saved deck recipes contain IDs/counts, never live CardInstance objects.
 
 const CARDS = [
+	preload("res://data/cards/errata.tres"),
+	preload("res://data/cards/paper_trail.tres"),
+	preload("res://data/cards/second_reading.tres"),
 	preload("res://data/cards/strike.tres"),
 	preload("res://data/cards/block.tres"),
 	preload("res://data/cards/mend.tres"),
@@ -78,3 +81,7 @@ func category_counts(recipe: Dictionary) -> Array[int]:
 	for definition in CARDS:
 		counts[definition.category] += int(recipe.cards.get(String(definition.id), 0))
 	return counts
+
+
+func counterwritten_recipe() -> Dictionary:
+	return {"name": "Counterwritten", "cards": {"errata": 2, "paper_trail": 2, "second_reading": 2, "redline": 2, "switchback": 2}}

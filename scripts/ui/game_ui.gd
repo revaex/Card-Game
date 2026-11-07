@@ -192,8 +192,9 @@ func show_library(selecting: bool) -> void:
 	presets.set_item_disabled(0, true)
 	presets.add_item("Counterpoint")
 	presets.add_item("Palimpsest")
+	presets.add_item("Counterwritten")
 	presets.item_selected.connect(func(item: int):
-		library.decks.append(library.counterpoint_recipe() if item == 1 else library.palimpsest_recipe())
+		library.decks.append([library.counterpoint_recipe(), library.palimpsest_recipe(), library.counterwritten_recipe()][item - 1])
 		library.save()
 		show_editor(library.decks.size() - 1, selecting))
 	toolbar.add_child(presets)
@@ -577,6 +578,7 @@ func option_values() -> Dictionary:
 
 
 func update_tooltip_toggle(toolbar: Control) -> void:
+	%FocusHelp.protected_control = toolbar.get_node("%FocusTooltips")
 	var toggle: CheckButton = toolbar.get_node("%FocusTooltips")
 	var pad := Bindings.active_label(&"focus_tooltips", 1)
 	toggle.text = ("R3" if pad == "Right stick click" else pad) + " Help"

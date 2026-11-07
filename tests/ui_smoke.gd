@@ -229,6 +229,9 @@ func run() -> void:
 	await process_frame
 	var focus_help: Control = ui.get_node("%FocusHelp")
 	check(focus_help._text.contains("BRACE") and focus_help._text.contains("0 Cadence"), "Controller focus shows the unavailable Brace tooltip")
+	await process_frame
+	check(focus_help._tooltip.find_child("DismissHint", true, false).text == "R3 · Hide help", "Controller help keeps its dismiss shortcut visible inside the tooltip")
+	check(not focus_help._tooltip.get_global_rect().intersects(focus_help.protected_control.get_global_rect()), "Controller tooltip leaves the toolbar help toggle visible")
 	controller_press(JOY_BUTTON_RIGHT_STICK)
 	await process_frame
 	check(not focus_help.hints_enabled and focus_help._text.is_empty(), "R3 hides controller tooltips")
@@ -337,9 +340,9 @@ func run() -> void:
 	release.pressed = false
 	root.push_input(release, true)
 	var tooltip: Control = play_button.call("_make_custom_tooltip", play_button.tooltip_text)
-	check(is_equal_approx(tooltip.get_theme_stylebox("panel").bg_color.a, 1.0), "Custom card tooltip background is fully opaque")
+	check(is_equal_approx(tooltip.get_theme_stylebox("panel").bg_color.a, 0.88), "Custom card tooltip background is slightly translucent")
 	tooltip.free()
-	check(is_equal_approx(ui.theme.get_stylebox("panel", "TooltipPanel").bg_color.a, 1.0), "Fallback tooltip theme is also opaque")
+	check(is_equal_approx(ui.theme.get_stylebox("panel", "TooltipPanel").bg_color.a, 0.88), "Fallback tooltip theme matches the translucent custom tooltip")
 	check(table.energy_label.tooltip_text.contains("Surge") and table.energy_label.mouse_filter != Control.MOUSE_FILTER_IGNORE, "Energy help is hoverable")
 	check(table.relic_label.tooltip_text.contains("WAR DRUM") and table.turn_label.tooltip_text.contains("TURN"), "Artifact and turn information have help")
 	check(table.player_hp.get_node("Overlay/BlockText").tooltip_text.contains("Poison"), "Block text explains damage absorption and Poison")

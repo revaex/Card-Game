@@ -31,6 +31,27 @@ Plan in small increments. Implement one new rival or reward loop at a time with 
 
 ## How to polish the game
 
+### Latest implemented slice — 7 November 2026
+
+- Counterwritten effects are configured per effect Resource with `after_rewrite`.
+  Errata, Paper Trail, and Second Reading each have a base effect and an extra
+  effect after the player's Rewrite. The condition resets with the next player
+  turn and never activates on the rival from a player's Rewrite.
+- The Scribe queues Final Revision when reduced to 16 HP. Its next prepared line
+  prioritizes attacks and seals the first card. The current line stays unchanged;
+  healing cannot cancel the queued phase. Threshold and phase configuration live
+  on the rival Resource; phase and seal state live in the combat session.
+- Rival hover/focus previews show the affordable before/after line, attack HP loss
+  after current Block, and added Poison. Unknown draw follow-ups are labelled.
+  Touch gets inspect/confirm; right-click and the Inspect binding read either hand.
+- Activated cards receive a brief highlight and persistent Counterwritten caption.
+  Compact layout keeps the new hand readable at 1100×700. Reduced motion retains
+  all state labels. Results count displaced intents and Counterwritten plays;
+  displacement means planned-to-reserve at Rewrite time, not damage prevented.
+- Regression coverage: `tests/rewrite_expansion.gd`. Render QA:
+  `tests/render_rewrite_expansion.gd` (run with a display, writes to `.godot/`).
+  Existing release gates still require human playtests and packaged device testing.
+
 - **Combat hierarchy:** Keep intent, Cadence, the next Pattern step, and the hand readable at a glance. On smaller screens give the log its own collapsible view and pin energy, intent, and the play target. Add plain-language descriptions alongside category colors. Provide a larger UI/text option before committing to phone support.
 - **Animation language:** Use short hand and card transitions, clear cues on hit, block, and status changes, and give Rewrite and a completed Pattern the strongest accents. Design those cues to stay legible when several effects resolve at once. Keep a reduced-motion path with equivalent text and state updates. Animation must never determine when the combat action resolves.
 - **Sound:** Keep existing cues. Normalize their relative levels, avoid overlapping sharp cues, and tune on headphones, small speakers, and a phone. Add a subtle music or ambience layer only if it strengthens the setting. Track the provenance and license for any new audio, font, art, or tool-generated asset.

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/cards/card_definition.gd" id="card"]
+[ext_resource type="Script" path="res://scripts/effects/card_effect.gd" id="effect"]
+[ext_resource type="Script" path="res://scripts/effects/gain_block_effect.gd" id="kind"]
+
+[sub_resource type="Resource" id="Base"]
+script = ExtResource("kind")
+block_amount = 4
+
+[sub_resource type="Resource" id="Counterwritten"]
+script = ExtResource("kind")
+after_rewrite = true
+block_amount = 6
+
+[resource]
+script = ExtResource("card")
+id = &"paper_trail"
+display_name = "Paper Trail"
+description = "Gain 4 block. After Rewrite: gain 6 more block."
+energy_cost = 1
+category = 1
+effects = Array[ExtResource("effect")]([SubResource("Base"), SubResource("Counterwritten")])

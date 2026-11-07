@@ -7,7 +7,7 @@ const Rivals = preload("res://scripts/content/rival_catalog.gd")
 const RECOVERY: int = 8
 const DRAFTS = [
 	[preload("res://data/cards/redline.tres"), preload("res://data/cards/iron_seal.tres"), preload("res://data/cards/marginalia.tres")],
-	[preload("res://data/cards/crosscut.tres"), preload("res://data/cards/inkblot.tres"), preload("res://data/cards/siphon.tres")],
+	[preload("res://data/cards/errata.tres"), preload("res://data/cards/paper_trail.tres"), preload("res://data/cards/second_reading.tres")],
 ]
 var roster: Array[CardInstance] = []
 var phase: Phase = Phase.READY

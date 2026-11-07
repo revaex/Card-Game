@@ -37,6 +37,9 @@ var cadence: int = 0
 var last_category: int = -1
 var rewrote_this_turn: bool = false
 var rival_definition: Resource
+var rival_final_phase: bool = false
+var rival_phase_pending: bool = false
+var anchored_intent: CardInstance
 
 
 func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], shuffle: bool = true, use_war_drum: bool = false, rival: Resource = null, starting_health: int = 30, relic: Relic = null) -> void:
@@ -46,7 +49,7 @@ func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 	if rival != null:
 		enemy = Combatant.new(rival.health)
 	for side in statistics:
-		statistics[side] = {"cards": 0, "energy": 0, "damage": 0, "absorbed": 0, "healed": 0, "poison_applied": 0, "rewrites": 0, "patterns": 0}
+		statistics[side] = {"cards": 0, "energy": 0, "damage": 0, "absorbed": 0, "healed": 0, "poison_applied": 0, "rewrites": 0, "patterns": 0, "displaced": 0, "counterwritten": 0}
 	equipped_relic = relic
 	if use_war_drum or (relic != null and relic.perk == Relic.Perk.WAR_DRUM):
 		war_drum = WarDrum.new()
@@ -66,7 +69,14 @@ func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 func prepare_rival_hand() -> void:
 	enemy_piles.draw_cards(5)
 	if rival_definition != null:
-		rival_definition.arrange_hand(enemy_piles)
+		if not rival_final_phase and rival_definition.final_phase_health > 0 and (rival_phase_pending or enemy.health <= rival_definition.final_phase_health):
+			rival_final_phase = true
+			rival_phase_pending = false
+			log_event("Final revision: %s. %s." % [rival_definition.final_phase_name, rival_definition.final_phase_rules()])
+		rival_definition.arrange_hand(enemy_piles, rival_final_phase)
+	anchored_intent = null
+	if rival_final_phase and rival_definition.final_phase_anchor and not enemy_piles.hand.is_empty():
+		anchored_intent = enemy_piles.hand[0]
 
 
 func apply_turn_relic() -> void:
@@ -107,8 +117,13 @@ func enemy_opening_plan() -> Array[CardInstance]:
 	var plan: Array[CardInstance] = []
 	if not outcome.is_empty() or (player_turn and enemy.poison >= enemy.health):
 		return plan
+	return plan_for_line(enemy_piles.hand)
+
+
+func plan_for_line(line: Array[CardInstance]) -> Array[CardInstance]:
+	var plan: Array[CardInstance] = []
 	var remaining := ENERGY_PER_TURN if player_turn else enemy_energy
-	for card in enemy_piles.hand:
+	for card in line:
 		if (player_turn or not _enemy_played.has(card)) and is_affordable(card, remaining):
 			plan.append(card)
 			remaining -= card.get_energy_cost()
@@ -151,14 +166,18 @@ func pattern_rules() -> String:
 
 
 func describe_card(card: CardInstance, by_player: bool = true) -> String:
-	return describe_effects(card, preview_bonus(card, by_player))
+	return describe_effects(card, preview_bonus(card, by_player), by_player and rewrote_this_turn)
 
 
-func describe_effects(card: CardInstance, bonus: int) -> String:
+func describe_effects(card: CardInstance, bonus: int, rewritten: bool = false, include_inactive: bool = true) -> String:
 	var lines: PackedStringArray = []
 	for effect in card.definition.effects:
 		if effect != null:
+			if effect.after_rewrite and not rewritten and not include_inactive:
+				continue
 			var description := effect.describe(bonus)
+			if effect.after_rewrite:
+				description = ("Counterwritten: " if rewritten else "After Rewrite: ") + description
 			if not description.is_empty():
 				lines.append(description)
 	return " ".join(lines) if not lines.is_empty() else card.definition.description
@@ -173,6 +192,8 @@ func preview_attack(card: CardInstance, by_player: bool = true) -> Dictionary:
 	var absorbed := 0
 	var bonus := preview_bonus(card, by_player)
 	for effect in card.definition.effects:
+		if effect != null and effect.after_rewrite and not (by_player and rewrote_this_turn):
+			continue
 		if effect is DamageEffect and hp > 0:
 			var hit: int = effect.effective_damage(bonus)
 			var blocked := mini(shield, hit)
@@ -217,15 +238,54 @@ func spend_cadence(action: CadenceAction) -> bool:
 
 
 func can_rewrite(card: CardInstance) -> bool:
-	return not _resolving and player_turn and outcome.is_empty() and cadence >= REWRITE_COST and not rewrote_this_turn and enemy.poison < enemy.health and card != null and enemy_piles.hand.has(card) and enemy_piles.hand[-1] != card
+	return not _resolving and player_turn and outcome.is_empty() and cadence >= REWRITE_COST and not rewrote_this_turn and enemy.poison < enemy.health and card != null and card != anchored_intent and enemy_piles.hand.has(card) and enemy_piles.hand[-1] != card
+
+
+func preview_rewrite(card: CardInstance) -> Dictionary:
+	# Copies only the order. No effects, signals, RNG, or pile movement in previews.
+	if not can_rewrite(card):
+		return {}
+	var line: Array[CardInstance] = enemy_piles.hand.duplicate()
+	line.erase(card)
+	line.append(card)
+	var before := enemy_opening_plan()
+	var after := plan_for_line(line)
+	return {"before": line_threat(before), "after": line_threat(after), "plan": after, "displaced": before.has(card) and not after.has(card)}
+
+
+func line_threat(plan: Array[CardInstance]) -> Dictionary:
+	# Visible direct effects only; unknown follow-up draws are explicitly flagged.
+	var hp := player.health
+	var shield := player.block
+	var poison := 0
+	var uncertain := false
+	for card in plan:
+		for effect in card.definition.effects:
+			if effect == null or effect.after_rewrite or hp <= 0:
+				continue
+			if effect is DamageEffect:
+				var hit: int = effect.effective_damage()
+				var blocked := mini(shield, hit)
+				shield -= blocked
+				hp = maxi(0, hp - hit + blocked)
+			elif effect is ApplyPoisonEffect:
+				poison += effect.stacks
+			elif effect is DrawEffect:
+				uncertain = true
+	return {"hp_loss": player.health - hp, "poison": poison, "draws": uncertain}
 
 
 func rewrite_intent(card: CardInstance) -> bool:
 	if not can_rewrite(card):
 		return false
 	_resolving = true
+	var previous_plan := enemy_opening_plan()
 	enemy_piles.hand.erase(card)
 	enemy_piles.hand.append(card)
+	var revised_plan := enemy_opening_plan()
+	for planned in previous_plan:
+		if not revised_plan.has(planned):
+			statistics.player.displaced += 1
 	cadence -= REWRITE_COST
 	rewrote_this_turn = true
 	statistics.player.rewrites += 1
@@ -270,6 +330,8 @@ func resolve_card(card: CardInstance, source: Combatant, target: Combatant, pile
 	var source_stats: Dictionary = statistics["player" if by_player else "enemy"]
 	var target_stats: Dictionary = statistics["enemy" if by_player else "player"]
 	source_stats.cards += 1
+	if by_player and rewrote_this_turn and card.definition.effects.any(func(effect: CardEffect): return effect != null and effect.after_rewrite):
+		source_stats.counterwritten += 1
 	source_stats.energy += card.get_energy_cost()
 	log_event("%s played %s (%d energy)." % [actor, card.definition.display_name, card.get_energy_cost()])
 	var bonus := _finishing_damage if by_player else 0
@@ -278,11 +340,13 @@ func resolve_card(card: CardInstance, source: Combatant, target: Combatant, pile
 			log_event("War Drum: your attack bonus is now +%d." % war_drum.damage_bonus)
 		bonus += war_drum.damage_bonus
 	var context := EffectContext.new(piles, bonus)
-	last_action = {"card": card.definition.display_name, "by_player": by_player, "description": describe_effects(card, bonus)}
+	last_action = {"card": card.definition.display_name, "by_player": by_player, "description": describe_effects(card, bonus, by_player and rewrote_this_turn, false)}
 	# Hold the resolving card outside the draw cycle until its effects finish.
 	piles.hand.erase(card)
 	for effect in card.definition.effects:
 		if effect != null:
+			if effect.after_rewrite and not (by_player and rewrote_this_turn):
+				continue
 			var hp_before := target.health
 			var block_before := target.block
 			var own_hp := source.health
@@ -320,6 +384,8 @@ func check_outcome() -> void:
 		outcome = "Victory"
 	elif player.is_dead():
 		outcome = "Defeat"
+	if outcome.is_empty() and not rival_final_phase and rival_definition != null and rival_definition.final_phase_health > 0 and enemy.health <= rival_definition.final_phase_health:
+		rival_phase_pending = true
 	if not outcome.is_empty():
 		log_event(outcome + "! Combat ended.")
 

@@ -74,6 +74,8 @@ var energy_label: Label
 var enemy_energy_label: Label
 var turn_label: Label
 var relic_label: Label
+var _phase_tween: Tween
+var _counterwrite_tween: Tween
 
 
 func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], use_war_drum: bool = false, rival: Resource = null, existing_session: RefCounted = null) -> void:
@@ -81,6 +83,7 @@ func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 	player_piles = session.player_piles
 	enemy_piles = session.enemy_piles
 	_bind_scene_nodes()
+	get_viewport().size_changed.connect(apply_compact_layout)
 	if guided:
 		lesson.changed.connect(_on_lesson_changed)
 		lesson.reading_requested.connect(show_lesson_folio)
@@ -99,6 +102,7 @@ func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 			_last_presented_card = last
 			_last_presented_by_player = false
 	refresh()
+	apply_compact_layout()
 	restore_action_message()
 	if session.player_turn and session.outcome.is_empty():
 		animate_hand_arrival()
@@ -136,6 +140,18 @@ func _bind_scene_nodes() -> void:
 	enemy_energy_label.tooltip_text = "RIVAL ENERGY\nThe rival has 3 energy each turn. It resolves affordable cards in the revealed order. Draw effects can add follow-up plays."
 
 
+func apply_compact_layout() -> void:
+	if not is_inside_tree() or is_queued_for_deletion():
+		return
+	var compact := get_viewport_rect().size.y <= 760
+	add_theme_constant_override("separation", 4 if compact else 8)
+	$HandScroll.custom_minimum_size.y = 224 if compact else 250
+	hand_row.custom_minimum_size.y = 218 if compact else 244
+	for face: Control in hand_row.get_children():
+		if face.has_method("set_compact"):
+			face.set_compact(compact)
+
+
 func _on_lab_toggled(enabled: bool) -> void:
 	sandbox = enabled
 	refresh()
@@ -150,6 +166,7 @@ func read_display_state() -> Dictionary:
 		"cadence": session.cadence,
 		"pattern_steps": session.pattern_history.size(),
 		"patterns": session.statistics.player.patterns,
+		"final_phase": session.rival_final_phase,
 	}
 
 
@@ -230,11 +247,14 @@ func refresh() -> void:
 	if _hand_tween != null:
 		_hand_tween.kill()
 		_hand_tween = null
+	if _counterwrite_tween != null:
+		_counterwrite_tween.kill()
+		_counterwrite_tween = null
 	empty(pile_row)
 	empty(hand_row)
 	enemy_label.text = session.rival_definition.display_name.to_upper() if session.rival_definition != null else "RIVAL"
 	enemy_label.add_theme_color_override("font_color", session.rival_definition.accent if session.rival_definition != null else Style.GOLD)
-	enemy_label.tooltip_text = session.rival_definition.description + "\nPrepared order: " + session.rival_definition.doctrine_text() if session.rival_definition != null else "Custom rival deck"
+	enemy_label.tooltip_text = session.rival_definition.description + "\nPrepared order: " + session.rival_definition.doctrine_text(session.rival_final_phase) if session.rival_definition != null else "Custom rival deck"
 	status_label.text = "YOU"
 	status_label.tooltip_text = "YOU\nYour combatant. Health carries between journey encounters; block, Poison, energy, and encounter bonuses reset for the next duel."
 	energy_label.text = ("%d ENERGY" % session.energy if session.energy > 3 else "%d / 3 ENERGY" % session.energy) if session.player_turn else "WAITING"
@@ -341,7 +361,7 @@ func refresh() -> void:
 		var text: String = session.describe_card(card)
 		var details := forecast_text(card)
 		var pattern: Resource = session.preview_pattern(card)
-		view.setup(card, can_play_card(card), activate_hand_card.bind(card, view), exhaust, text, details, pattern.display_name if pattern != null else "", card_action_hint(card))
+		view.setup(card, can_play_card(card), activate_hand_card.bind(card, view), exhaust, text, details, pattern.display_name if pattern != null else "", card_action_hint(card), session.rewrote_this_turn)
 		view.show_pattern_badge(session.pattern_for_card(card) if can_play_card(card) else null)
 		view.enable_hand_drag(self, card, session.player_turn and session.outcome.is_empty() and not lesson.active)
 		view.set_meta("card", card)
@@ -352,6 +372,7 @@ func refresh() -> void:
 		var remaining_index := _hand_order.find(focus_card)
 		focus_hand(remaining_index if remaining_index >= 0 else focus_index)
 	_display_state = read_display_state()
+	apply_compact_layout()
 	if lesson_advanced and not lesson_briefing_pending():
 		show_lesson_folio.call_deferred()
 
@@ -615,6 +636,12 @@ func update_status(label: Label, actor: Combatant) -> void:
 func refresh_intent() -> void:
 	rewrite_fx.cancel()
 	empty(rewrite_row)
+	var phase: Label = %RivalPhase
+	phase.visible = session.rival_definition != null and session.rival_definition.final_phase_health > 0 and session.outcome.is_empty()
+	if phase.visible:
+		phase.text = "FINAL REVISION · " + session.rival_definition.final_phase_rules() if session.rival_final_phase else "AT %d HP · Next line: %s" % [session.rival_definition.final_phase_health, session.rival_definition.final_phase_rules()]
+		if session.rival_phase_pending:
+			phase.text = "NEXT LINE · " + session.rival_definition.final_phase_rules()
 	intent_label.visible = true
 	%IntentBand.hide()
 	if not session.outcome.is_empty():
@@ -631,7 +658,8 @@ func refresh_intent() -> void:
 	intent_label.visible = false
 	%IntentBand.show()
 	var opening: Array[CardInstance] = session.enemy_opening_plan()
-	var ready: bool = can_rewrite_card(enemy_piles.hand[0])
+	show_line_threat()
+	var ready: bool = enemy_piles.hand.any(func(card: CardInstance): return can_rewrite_card(card))
 	var cost: int = session.REWRITE_COST
 	var status: Label = %RewriteStatus
 	status.add_theme_color_override("font_color", Color("f3cf85") if ready or session.rewrote_this_turn else Style.MUTED)
@@ -651,9 +679,13 @@ func refresh_intent() -> void:
 		var state := "NEXT" if next_play else ("PLANNED" if opening.has(card) else "RESERVE")
 		var button := IntentCard.instantiate()
 		rewrite_row.add_child(button)
-		button.show_card(card, index, state, can_rewrite_card(card), lesson.marks_threat(card), session.player_turn and not lesson.active)
+		button.show_card(card, index, state, can_rewrite_card(card), lesson.marks_threat(card), session.player_turn and not lesson.active, card == session.anchored_intent)
 		button.set_meta("card", card)
-		button.pressed.connect(rewrite_card.bind(card))
+		button.pressed.connect(activate_intent_card.bind(card, button))
+		button.gui_input.connect(func(event: InputEvent):
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+				button.accept_event()
+				inspect_intent_card(card, button))
 		if not button.disabled:
 			button.mouse_entered.connect(show_rewrite_hint.bind(card))
 			button.mouse_exited.connect(clear_rewrite_hint.bind(card))
@@ -664,6 +696,8 @@ func refresh_intent() -> void:
 			reason = "Rewrite is available on your turn."
 		elif session.rewrote_this_turn:
 			reason = "Rewrite was already used this turn."
+		elif card == session.anchored_intent:
+			reason = "Sealed: this card cannot be rewritten. Block its damage or change the rest of the line."
 		elif index == enemy_piles.hand.size() - 1:
 			reason = "This card is already at the back."
 		elif session.cadence < cost:
@@ -673,17 +707,89 @@ func refresh_intent() -> void:
 
 
 func show_rewrite_hint(card: CardInstance) -> void:
+	if is_queued_for_deletion() or not is_inside_tree():
+		return
 	if can_rewrite_card(card):
 		%RewriteStatus.text = "%s   →   BACK OF LINE   /   −%d CADENCE" % [card.definition.display_name.to_upper(), session.REWRITE_COST]
+		var preview: Dictionary = session.preview_rewrite(card)
+		%ThreatPreview.text = "REWRITE PREVIEW · HP loss %d → %d · Poison added %d → %d%s" % [preview.before.hp_loss, preview.after.hp_loss, preview.before.poison, preview.after.poison, " · Draw follow-ups unknown" if preview.before.draws or preview.after.draws else ""]
+		for tile: Control in rewrite_row.get_children():
+			var in_plan: bool = preview.plan.has(tile.get_meta("card"))
+			tile.preview_plan(in_plan)
+			tile.modulate = Color(1.08, 1.05, 0.9) if in_plan else Color(0.67, 0.72, 0.73)
+	elif card == session.anchored_intent:
+		%ThreatPreview.text = "SEALED · This card resists Rewrite. Block it, or rewrite another card."
+	elif session.player_turn:
+		message.text = "%s · %s" % [card.definition.display_name, session.describe_card(card, false)]
 
 
 func clear_rewrite_hint(card: CardInstance) -> void:
+	if is_queued_for_deletion() or not is_inside_tree():
+		return
 	if can_rewrite_card(card):
 		%RewriteStatus.text = REWRITE_READY
+	show_line_threat()
+	for tile: Control in rewrite_row.get_children():
+		tile.modulate = Color.WHITE
+		tile.clear_preview()
+
+
+func show_line_threat() -> void:
+	var threat: Dictionary = session.line_threat(session.enemy_opening_plan())
+	%ThreatPreview.text = "VISIBLE LINE · %d HP loss after Block · %d Poison added%s" % [threat.hp_loss, threat.poison, " · Draw follow-ups unknown" if threat.draws else ""]
+
+
+func activate_intent_card(card: CardInstance, return_focus: BaseButton) -> void:
+	if _touch_pointer or not can_rewrite_card(card):
+		inspect_intent_card(card, return_focus)
+	else:
+		rewrite_card(card)
+
+
+func inspect_intent_card(card: CardInstance, return_focus: BaseButton) -> void:
+	if lesson.active or lesson_briefing_pending() or not session.player_turn or not enemy_piles.hand.has(card) or has_node("IntentInspection"):
+		return
+	var dialog := FolioReader.instantiate()
+	dialog.name = "IntentInspection"
+	add_child(dialog)
+	var details := "Planned: this card fits the rival's energy budget." if session.enemy_opening_plan().has(card) else "Reserve: this card does not currently fit the rival's energy budget."
+	if can_rewrite_card(card):
+		var preview: Dictionary = session.preview_rewrite(card)
+		details += "\nRewrite moves it to the back for 2 Cadence.\nVisible HP loss: %d → %d. Poison added: %d → %d." % [preview.before.hp_loss, preview.after.hp_loss, preview.before.poison, preview.after.poison]
+		if preview.before.draws or preview.after.draws:
+			details += "\nDraw follow-ups are unknown."
+	elif card == session.anchored_intent:
+		details += "\nSEALED: cannot be rewritten. Block its damage or rewrite the rest of the line."
+	elif session.rewrote_this_turn:
+		details += "\nYou have already used Rewrite this turn."
+	elif enemy_piles.hand[-1] == card:
+		details += "\nAlready at the back of the line."
+	else:
+		details += "\nRewrite needs 2 Cadence. Change card categories to build it."
+	dialog.close_requested.connect(func():
+		close_board_dialog(dialog, false)
+		if is_instance_valid(return_focus):
+			return_focus.grab_focus())
+	dialog.open_card(card, session.describe_card(card, false), details, motion_enabled)
+	dialog.get_node("%Heading").text = "Rival intent"
+	dialog.get_node("%Next").text = "Return to duel"
+	if can_rewrite_card(card):
+		var confirm := Button.new()
+		confirm.name = "ConfirmRewrite"
+		confirm.text = "Rewrite · 2 Cadence"
+		confirm.custom_minimum_size.y = 40
+		dialog.get_node("%Next").get_parent().add_child(confirm)
+		confirm.focus_neighbor_left = confirm.get_path_to(dialog.get_node("%Next"))
+		dialog.get_node("%Next").focus_neighbor_right = dialog.get_node("%Next").get_path_to(confirm)
+		confirm.pressed.connect(func():
+			close_board_dialog(dialog, false)
+			rewrite_card(card)
+			end_button.grab_focus())
 
 
 func rewrite_card(card: CardInstance) -> void:
 	if not can_rewrite_card(card):
+		show_rewrite_hint(card)
 		return
 	var index := enemy_piles.hand.find(card)
 	var snapshot: Array[Dictionary] = []
@@ -694,6 +800,8 @@ func rewrite_card(card: CardInstance) -> void:
 	if not session.rewrite_intent(card):
 		return
 	message.text = "Rewrite · %s moved to the back of the rival's line." % card.definition.display_name
+	if motion_enabled:
+		animate_counterwritten_cards()
 	if had_focus and not lesson.active:
 		end_button.grab_focus()
 	if motion_enabled and rewrite_fx.play(snapshot, rewrite_row, index):
@@ -707,12 +815,27 @@ func show_rewrite_destination() -> void:
 		intent_scroll.ensure_control_visible(rewrite_row.get_child(-1))
 
 
+func animate_counterwritten_cards() -> void:
+	if _counterwrite_tween != null:
+		_counterwrite_tween.kill()
+	_counterwrite_tween = create_tween().set_parallel()
+	var count := 0
+	for face: Control in hand_row.get_children():
+		var card: CardInstance = face.get_meta("card", null)
+		if card != null and card.definition.effects.any(func(effect: CardEffect): return effect != null and effect.after_rewrite):
+			face.modulate = Color(1.25, 1.12, 0.72)
+			_counterwrite_tween.tween_property(face, "modulate", Color.WHITE, 0.45).set_delay(count * 0.05)
+			count += 1
+	if count == 0:
+		_counterwrite_tween.kill()
+
+
 func set_motion_enabled(enabled: bool) -> void:
 	motion_enabled = enabled
 	if not enabled:
 		rewrite_fx.cancel()
 		card_stage.settle()
-		for tween in [_hand_tween, _feedback_tween, _cadence_tween, _pattern_tween]:
+		for tween in [_hand_tween, _feedback_tween, _cadence_tween, _pattern_tween, _phase_tween, _counterwrite_tween]:
 			if tween != null:
 				tween.kill()
 		for card in hand_row.get_children():
@@ -720,6 +843,7 @@ func set_motion_enabled(enabled: bool) -> void:
 		%CadencePips.modulate = Color.WHITE
 		%CadencePips.scale = Vector2.ONE
 		pattern_label.modulate = Color.WHITE
+		%RivalPhase.modulate = Color.WHITE
 		for step in %PatternSteps.get_children():
 			step.scale = Vector2.ONE
 		player_hp.modulate = Color.WHITE
@@ -876,11 +1000,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if session != null and session.player_turn and event.is_action_pressed("combat_inspect"):
 		get_viewport().set_input_as_handled()
-		var focus := get_viewport().gui_get_focus_owner() as HandPlayButton
-		if focus != null and hand_row.is_ancestor_of(focus):
+		var focus := get_viewport().gui_get_focus_owner()
+		if focus is HandPlayButton and hand_row.is_ancestor_of(focus):
 			inspect_hand_card(focus.card, focus)
+		elif focus is BaseButton and rewrite_row.is_ancestor_of(focus):
+			inspect_intent_card(focus.get_meta("card"), focus)
 		else:
-			message.text = "Focus a card in your hand to inspect it."
+			message.text = "Focus a card in your hand or the rival's line to inspect it."
 		return
 	if session != null and event.is_action_pressed("combat_guide"):
 		get_viewport().set_input_as_handled()
@@ -899,17 +1025,29 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _controller_hand_focus:
 			focus_hand()
 		else:
-			for button: Button in rewrite_row.get_children():
-				if not button.disabled:
-					button.grab_focus()
-					return
-			message.text = "No rival card can be rewritten right now."
+			focus_rival_line()
 	elif _end_shortcut and event.is_action_pressed("combat_end"):
 		get_viewport().set_input_as_handled()
 		end_turn()
 	elif event.is_action_pressed("combat_pile"):
 		get_viewport().set_input_as_handled()
 		inspect_pile("Draw", player_piles.draw_pile)
+
+
+func focus_rival_line() -> void:
+	var first_inspectable: Button
+	for button: Button in rewrite_row.get_children():
+		if button.disabled:
+			continue
+		if can_rewrite_card(button.get_meta("card")):
+			button.grab_focus()
+			return
+		if first_inspectable == null:
+			first_inspectable = button
+	if first_inspectable != null:
+		first_inspectable.grab_focus()
+	else:
+		message.text = "No rival card can be rewritten right now."
 
 
 func focus_hand(start: int = 0) -> void:
@@ -993,6 +1131,7 @@ func on_card_presented(card: CardInstance, by_player: bool) -> void:
 
 
 func on_session_changed() -> void:
+	var phase_started: bool = session.rival_final_phase and not _display_state.get("final_phase", false)
 	var new_hand: bool = session.player_turn and session.outcome.is_empty() and session.round_number > _display_state.get("round", 0)
 	var previous_cadence: int = _display_state.get("cadence", 0)
 	var cadence_changed: bool = session.cadence != previous_cadence
@@ -1001,6 +1140,15 @@ func on_session_changed() -> void:
 	present_state_changes()
 	restore_action_message()
 	refresh()
+	if phase_started:
+		message.text = "Final Revision — " + session.rival_definition.final_phase_name
+		combat_audio.rewrite_seal()
+		if motion_enabled:
+			if _phase_tween != null:
+				_phase_tween.kill()
+			%RivalPhase.modulate = Color(1.8, 1.3, 0.8)
+			_phase_tween = create_tween()
+			_phase_tween.tween_property(%RivalPhase, "modulate", Color.WHITE, 0.7)
 	if _controller_hand_focus and is_inside_tree() and not lesson.active and session.player_turn and session.outcome.is_empty() and get_viewport().gui_get_focus_owner() == null:
 		focus_hand()
 	if new_hand:

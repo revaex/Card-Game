@@ -1,20 +1,21 @@
 extends PanelContainer
-## Opaque, wrapped help content shared by board controls.
+## Translucent paper with opaque text, shared by board controls.
 
 const TextInk = preload("res://scripts/ui/text_ink.gd")
 
-static func create(text: String) -> Control:
+static func create(text: String, footer: String = "") -> Control:
 	# Godot can request a custom tooltip even when a control has no help text.
 	if text.strip_edges().is_empty():
 		return null
-	return load("res://scripts/ui/board_tooltip.gd").new(text)
+	return load("res://scripts/ui/board_tooltip.gd").new(text, footer)
 
 
-func _init(text: String = "") -> void:
+func _init(text: String = "", footer: String = "") -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	theme = preload("res://data/ui/game_theme.tres")
 	var panel := StyleBoxFlat.new()
 	panel.bg_color = Color("101c22")
+	panel.bg_color.a = 0.88
 	panel.border_color = Color("b99962")
 	panel.set_border_width_all(1)
 	panel.set_corner_radius_all(5)
@@ -22,7 +23,7 @@ func _init(text: String = "") -> void:
 	panel.content_margin_right = 16
 	panel.content_margin_top = 12
 	panel.content_margin_bottom = 12
-	panel.shadow_color = Color(0, 0, 0, 0.55)
+	panel.shadow_color = Color(0, 0, 0, 0.25)
 	panel.shadow_size = 5
 	add_theme_stylebox_override("panel", panel)
 	var content := VBoxContainer.new()
@@ -35,6 +36,18 @@ func _init(text: String = "") -> void:
 		add_text(content, text.substr(first_break + 1), Color("eee2c9"), 14)
 	else:
 		add_text(content, text, Color("eee2c9"), 14)
+	if not footer.is_empty():
+		var rule := HSeparator.new()
+		rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		content.add_child(rule)
+		var hint := Label.new()
+		hint.name = "DismissHint"
+		hint.text = footer
+		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		hint.add_theme_color_override("font_color", Color("e2c186"))
+		hint.add_theme_font_size_override("font_size", 13)
+		hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		content.add_child(hint)
 
 
 func add_text(parent: Node, text: String, color: Color, font_size: int) -> void:

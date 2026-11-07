@@ -12,9 +12,12 @@ signal reward_focus_changed
 const Tooltip = preload("res://scripts/ui/board_tooltip.gd")
 var _resting_frame: StyleBoxFlat
 var _reward_focused := false
+var _play_caption := "Click or drag to play"
 
-func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_action: Callable = Callable(), effective_text: String = "", details: String = "", pattern_name: String = "", action_hint: String = "Unavailable") -> void:
+func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_action: Callable = Callable(), effective_text: String = "", details: String = "", pattern_name: String = "", action_hint: String = "Unavailable", rewritten: bool = false) -> void:
 	var preview := play_action.is_null()
+	var counterwritten := rewritten and card.definition.effects.any(func(effect: CardEffect): return effect != null and effect.after_rewrite)
+	_play_caption = "✦ Counterwritten · play" if counterwritten else "Click or drag to play"
 	var kind := "TACTIC"
 	var accent := Color("c5ae77")
 	for effect in card.definition.effects:
@@ -35,7 +38,7 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	var frame := Style.box(Color("eadbb8"), accent)
 	if not playable and not preview:
 		frame.bg_color = Color("c4bea9")
-	if not pattern_name.is_empty():
+	if not pattern_name.is_empty() or counterwritten:
 		frame.border_color = Color("f4cc70")
 	frame.set_border_width_all(2)
 	frame.content_margin_left = 8
@@ -95,6 +98,8 @@ func setup(card: CardInstance, playable: bool, play_action: Callable, exhaust_ac
 	%Category.add_theme_color_override("font_color", CATEGORY_INK[card.get_category()])
 	%Description.text = TextInk.format(effective_text if not effective_text.is_empty() else card.definition.description)
 	%Footer.text = "CLICK TO PLAY" if playable else action_hint.to_upper()
+	if counterwritten and playable:
+		%Footer.text = "✦ COUNTERWRITTEN"
 	var play: Button = %Play
 	if preview:
 		play.hide()
@@ -126,6 +131,11 @@ func setup_preview(card: CardInstance, caption: String = "") -> void:
 	set_caption(caption)
 
 
+func set_compact(compact: bool) -> void:
+	custom_minimum_size.y = 198 if compact else 210
+	%ArtFrame.custom_minimum_size.y = 48 if compact else 64
+
+
 func set_reward_focus(focused: bool) -> void:
 	_reward_focused = focused
 	reward_focus_changed.emit()
@@ -150,7 +160,7 @@ func enable_hand_drag(table: Control, card: CardInstance, inspect_unavailable: b
 	%Play.face = self
 	size_flags_vertical = Control.SIZE_SHRINK_END
 	if not %Play.disabled:
-		set_caption("Click or drag to play")
+		set_caption(_play_caption)
 		%Play.tooltip_text = tooltip_text + "\nClick or drag to play. Right-click to inspect. Drag onto another card to reorder."
 	elif inspect_unavailable:
 		%Play.disabled = false
@@ -160,7 +170,7 @@ func enable_hand_drag(table: Control, card: CardInstance, inspect_unavailable: b
 
 func set_touch_selected(selected: bool) -> void:
 	self_modulate = Color(1.15, 1.06, 0.86) if selected else Color.WHITE
-	set_caption("Selected · tap again to cancel" if selected else "Click or drag to play")
+	set_caption("Selected · tap again to cancel" if selected else _play_caption)
 
 
 func make_snapshot() -> Control:

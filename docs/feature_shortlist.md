@@ -12,8 +12,8 @@ The core promise is: **read their next move, change its place, compose your answ
 | Cadence & Rewrite | Card-category changes buy control over the rival's sequence. | Implemented core. |
 | Three-card Patterns | Order chooses between defense, a stronger finisher, and another play. | Implemented core. |
 | Rival doctrines | Each rival has a readable way of composing its prepared line. | Implemented: Duelist, Warden, Scribe. |
-| Anchored intentions | Clearly marked moves resist rewriting, creating control puzzles. | Explore with elite rivals and alternative counterplay. |
-| Counterwritten cards | Cards gain effects when the player rewrites or targets enter reserve. | First focused content expansion. |
+| Anchored intentions | Clearly marked moves resist rewriting, creating control puzzles. | Implemented in the Scribe's Final Revision: first prepared card is sealed; other cards remain editable. |
+| Counterwritten cards | Cards gain effects when the player rewrites or targets enter reserve. | Implemented after-Rewrite effects: Errata, Paper Trail, Second Reading; a ten-card preset and chapter-two draft. |
 | Borrowed intentions | A displaced rival move becomes a temporary player card. | Try one rare card after core balance. |
 | Card editing | Between encounters, change a card's category instead of taking recovery. | Implemented: per-copy category revisions in a journey. |
 | Pattern sidegrades | A run changes one Pattern payoff, altering how a familiar deck is sequenced. | Try after a short run exists. |
@@ -22,7 +22,7 @@ The core promise is: **read their next move, change its place, compose your answ
 | The Redactor boss | A boss visibly revises its line in response to the player's control. | Boss candidate; reactions must be telegraphed. |
 | Rival memory | A returning character visibly prepares against earlier choices. | Narrative milestone, not opaque adaptive difficulty. |
 | Branching manuscript | Routes alter the next rivals, rule modifiers, and available edits. | Progression presentation candidate. |
-| Duel scorecards | Results highlight Patterns, rewrites, and damage prevented by control. | Expand summaries after attribution is defined. |
+| Duel scorecards | Results highlight Patterns, rewrites, and damage prevented by control. | Counts Patterns, rewrites, planned-to-reserve displacements, and Counterwritten plays. Displacements deliberately do not claim damage prevented. |
 | Daily written duels | A fixed deck and prepared line create a comparable tactical challenge. | Post-core replayability. |
 
 ## Chosen path

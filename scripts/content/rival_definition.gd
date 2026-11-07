@@ -13,6 +13,10 @@ enum Doctrine { PRESSURE, BASTION, INTRIGUE }
 @export var cards: Array[CardDefinition] = []
 @export var opening_line: Array[CardDefinition] = []
 @export_multiline var opening_advice: String
+@export_range(0, 999) var final_phase_health: int = 0
+@export var final_phase_name: String = "Final revision"
+@export var final_phase_doctrine: Doctrine = Doctrine.PRESSURE
+@export var final_phase_anchor: bool = false
 
 
 func create_deck() -> Array[CardInstance]:
@@ -41,18 +45,23 @@ func arrange_opening_draw(piles: CardPiles) -> void:
 	piles.draw_pile.assign(remaining)
 
 
-func doctrine_text() -> String:
-	match doctrine:
+func doctrine_text(final_phase: bool = false) -> String:
+	match final_phase_doctrine if final_phase else doctrine:
 		Doctrine.PRESSURE: return "Attack → Guard → Tactic"
 		Doctrine.BASTION: return "Guard → Attack → Tactic"
 		_: return "Tactic → Attack → Guard"
 
 
-func arrange_hand(piles: CardPiles) -> void:
+func final_phase_rules() -> String:
+	return "%s · %s" % [doctrine_text(true), "First card sealed against Rewrite" if final_phase_anchor else "All cards remain rewritable"]
+
+
+func arrange_hand(piles: CardPiles, final_phase: bool = false) -> void:
+	var active_doctrine := final_phase_doctrine if final_phase else doctrine
 	var priority: Array[int] = [0, 1, 2]
-	if doctrine == Doctrine.BASTION:
+	if active_doctrine == Doctrine.BASTION:
 		priority = [1, 0, 2]
-	elif doctrine == Doctrine.INTRIGUE:
+	elif active_doctrine == Doctrine.INTRIGUE:
 		priority = [2, 0, 1]
 	var ordered: Array[CardInstance] = []
 	for category in priority:
