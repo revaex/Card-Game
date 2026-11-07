@@ -30,4 +30,15 @@ func setup(summary: Dictionary, rematch: Callable, choose_decks: Callable, revie
 	%Rematch.pressed.connect(rematch)
 	%ChooseDecks.pressed.connect(choose_decks)
 	%Review.pressed.connect(review)
+	var actions: Array[Button] = [%Rematch, %ChooseDecks, %Review]
+	for index in range(actions.size()):
+		var action := actions[index]
+		var previous := action.get_path_to(actions[posmod(index - 1, actions.size())])
+		var next := action.get_path_to(actions[(index + 1) % actions.size()])
+		action.focus_neighbor_left = previous
+		action.focus_neighbor_top = previous
+		action.focus_neighbor_right = next
+		action.focus_neighbor_bottom = next
+		action.focus_previous = previous
+		action.focus_next = next
 	%Rematch.grab_focus()

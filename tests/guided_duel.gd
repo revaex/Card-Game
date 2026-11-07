@@ -72,7 +72,9 @@ func run() -> void:
 	await finish_folio(table)
 	check(table.session.cadence == 2 and lesson.get_node("%Heading").text.contains("Rewrite"), "Changing categories makes Rewrite the next step")
 	check(table.rewrite_row.get_child(1).disabled, "The lesson highlights and enables only the threatening intent")
+	table._touch_pointer = true
 	table.rewrite_row.get_child(0).pressed.emit()
+	table._touch_pointer = false
 	await finish_folio(table)
 	check(table.session.cadence == 0 and table.enemy_piles.hand.back().definition.id == &"strike", "Rewrite spends Cadence and moves Strike to the back")
 	for card in table.session.enemy_opening_plan():

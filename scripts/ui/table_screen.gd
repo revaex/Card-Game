@@ -740,7 +740,7 @@ func show_line_threat() -> void:
 
 
 func activate_intent_card(card: CardInstance, return_focus: BaseButton) -> void:
-	if _touch_pointer or not can_rewrite_card(card):
+	if not lesson.active and (_touch_pointer or not can_rewrite_card(card)):
 		inspect_intent_card(card, return_focus)
 	else:
 		rewrite_card(card)

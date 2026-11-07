@@ -702,16 +702,21 @@ func close_result() -> void:
 		remove_child(result_overlay)
 		result_overlay.queue_free()
 		result_overlay = null
+		body.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
 
 
 func review_result() -> void:
 	close_result()
 	screen = "table"
+	var table := body.get_node_or_null("CombatTable")
+	if table != null:
+		table.end_button.grab_focus()
 
 
 func show_result(summary: Dictionary) -> void:
 	close_result()
 	screen = "result"
+	body.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
 	result_overlay = CombatResult.instantiate()
 	add_child(result_overlay)
 	var table := body.get_node("CombatTable")
@@ -722,7 +727,7 @@ func show_result(summary: Dictionary) -> void:
 			journey.finish_encounter(body.get_node("CombatTable").session)
 			journey_checkpoint.save_run(journey, journey_deck_name)
 		var next := show_journey_reward if journey.phase == Journey.Phase.REWARD else show_journey_summary
-		result_overlay.setup(summary, next, end_journey, review_result, "Choose your next step" if journey.phase == Journey.Phase.REWARD else "Journey summary", "End journey")
+		result_overlay.setup(summary, next, confirm_end_journey, review_result, "Choose your next step" if journey.phase == Journey.Phase.REWARD else "Journey summary", "End journey")
 	else:
 		result_overlay.setup(summary, show_table, show_setup, review_result)
 	show_victory_spoils(table.session, summary)
@@ -831,8 +836,19 @@ func show_journey_overview() -> void:
 
 
 func confirm_end_journey() -> void:
-	%EndJourneyDialog.popup_centered()
-	%EndJourneyDialog.get_cancel_button().grab_focus()
+	var dialog: ConfirmationDialog = %EndJourneyDialog
+	var previous := get_viewport().gui_get_focus_owner()
+	dialog.popup_centered()
+	var cancel := dialog.get_cancel_button()
+	var accept := dialog.get_ok_button()
+	cancel.focus_neighbor_left = cancel.get_path_to(accept)
+	cancel.focus_neighbor_right = cancel.focus_neighbor_left
+	accept.focus_neighbor_left = accept.get_path_to(cancel)
+	accept.focus_neighbor_right = accept.focus_neighbor_left
+	cancel.grab_focus()
+	dialog.visibility_changed.connect(func():
+		if is_instance_valid(previous) and previous.is_visible_in_tree():
+			previous.grab_focus(), CONNECT_ONE_SHOT)
 
 
 func show_journey_encounter() -> void:
@@ -875,6 +891,9 @@ func show_journey_reward() -> void:
 		button.text = "Draft " + definition.display_name
 		button.pressed.connect(take_journey_draft.bind(definition))
 		preview_reward_profile(button, profile, definition.category)
+	var first_offer := reward.get_node("%Offers").get_child(0)
+	if first_offer != null:
+		first_offer.get_node("%Draft").grab_focus()
 	var revision: Button = reward.get_node("%RevisionToggle")
 	var removal: Button = reward.get_node("%RemovalToggle")
 	removal.disabled = journey.roster.size() <= 1
