@@ -333,17 +333,12 @@ theme_override_constants/separation = 5
 [node name="Controller" type="CheckButton" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Enable combat shortcuts"
+text = "Enable hand, rival-line, and draw-pile shortcuts"
 
 [node name="SwapShoulders" type="CheckButton" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Swap hand and rival focus shortcuts"
-
-[node name="EndShortcut" type="CheckButton" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Enable end-turn shortcut"
 
 [node name="MovementHeading" type="Label" parent="Background/Margin/Content/Tabs/Controls/Inset/Rows"]
 layout_mode = 2
@@ -423,6 +418,14 @@ unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(130, 40)
 text = "Quit game"
+
+[node name="MainMenu" type="Button" parent="Background/Margin/Content/Footer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(150, 40)
+text = "Main menu"
+tooltip_text = "Leave the table. An active Journey can be continued from the main menu."
 
 [connection signal="pressed" from="Background/Margin/Content/Footer/Close" to="." method="_on_close_pressed"]
 [connection signal="pressed" from="Background/Margin/Content/Footer/Quit" to="." method="_on_quit_pressed"]

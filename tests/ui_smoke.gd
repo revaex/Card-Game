@@ -36,10 +36,10 @@ func drag_card(from: Vector2, to: Vector2) -> void:
 	root.push_input(release, true)
 
 
-func controller_press(button: JoyButton) -> void:
+func controller_press(button: JoyButton, pressed: bool = true) -> void:
 	var event := InputEventJoypadButton.new()
 	event.button_index = button
-	event.pressed = true
+	event.pressed = pressed
 	root.push_input(event, true)
 
 
@@ -65,6 +65,14 @@ func tap(point: Vector2) -> void:
 	var release := event.duplicate() as InputEventMouseButton
 	release.pressed = false
 	root.push_input(release, true)
+
+
+func play_puzzle_card(session: RefCounted, id: StringName) -> void:
+	for card in session.player_piles.hand:
+		if card.definition.id == id:
+			check(session.play_card(card), "Puzzle can play %s" % id)
+			return
+	check(false, "Puzzle hand contains %s" % id)
 
 
 func run() -> void:
@@ -193,14 +201,51 @@ func run() -> void:
 	ui.show_editor(0, false)
 	var editor: Node = ui.body.get_node("DeckEditor")
 	var strike_entry := editor.get_node("%Cards/strike")
+	var search: LineEdit = editor.find_child("CatalogueSearch", true, false)
+	search.text = "inkblot"
+	search.text_changed.emit(search.text)
+	check(not strike_entry.visible and editor.get_node("%Cards/inkblot").visible, "Catalogue search matches card names")
+	search.clear()
+	search.text_changed.emit("")
+	var category_filter: OptionButton = editor.find_child("CatalogueCategory", true, false)
+	category_filter.select(2)
+	category_filter.item_selected.emit(2)
+	check(not strike_entry.visible and editor.get_node("%Cards/block").visible, "Catalogue filters by category")
+	category_filter.select(0)
+	category_filter.item_selected.emit(0)
+	var owned: CheckButton = editor.find_child("CatalogueInDeck", true, false)
+	owned.button_pressed = true
+	check(strike_entry.visible and not editor.get_node("%Cards/inkblot").visible, "In-deck filter hides unowned copies")
+	owned.button_pressed = false
 	var inkblot: RichTextLabel = editor.get_node("%Cards/inkblot/Card/Content/Description")
 	check(inkblot.text.contains("[color=#155479]Gain 4 block") and inkblot.text.contains("[color=#285524]Apply 4 Poison"), "A single card distinguishes its Block and Poison effects")
 	check(inkblot.get_parsed_text() == "Gain 4 block. Apply 4 Poison.", "Color preserves the readable card description")
-	strike_entry.get_node("%Add").pressed.emit()
+	await process_frame
+	await process_frame
+	var strike_face: Button = strike_entry.get_node("Card/HitArea/Play")
+	tap(strike_face.get_global_rect().get_center())
 	check(editor == ui.body.get_node("DeckEditor") and strike_entry.get_node("Card/Content/Footer").text == "6 IN DECK", "Adding a card updates the visible count without rebuilding the editor")
-	check(ui.library.total(ui.library.decks[0]) == 11, "Editor adds cards")
+	strike_face.grab_focus()
+	controller_press(JOY_BUTTON_A)
+	controller_press(JOY_BUTTON_A, false)
+	check(ui.library.total(ui.library.decks[0]) == 12, "Confirm adds exactly one copy on the focused card")
+	check(editor.get_node("%Total").text.contains("Attack 7") and editor.get_node("%JourneyStatus").text == "Ready for a Journey.", "Workshop reports category mix and Journey readiness")
+	check(editor.get_node("%DeckContents/strike/Caption").text == "Strike ×7" and not editor.get_node("%DeckContents/inkblot").visible, "Deck tray shows only cards with copies and updates with catalogue input")
+	var tray: Control = editor.get_node("%DeckTray")
+	drag_card(strike_face.get_global_rect().get_center(), tray.get_global_rect().position + Vector2(30, 18))
+	check(ui.library.total(ui.library.decks[0]) == 13, "Dragging a catalogue card to the tray adds exactly one copy")
+	editor.get_node("%DeckContents/strike/Remove").pressed.emit()
+	var catalogue: ScrollContainer = editor.get_node("%CatalogueScroll")
+	catalogue.scroll_vertical = int(catalogue.get_v_scroll_bar().max_value)
+	await process_frame
+	var late_card: Button = editor.get_node("%Cards/inkblot/Card/HitArea/Play")
+	check(catalogue.get_global_rect().has_point(late_card.get_global_rect().get_center()), "Scrolling the catalogue exposes later cards alongside the tray")
+	drag_card(late_card.get_global_rect().get_center(), tray.get_global_rect().position + Vector2(30, 18))
+	check(ui.library.decks[0].cards.get("inkblot", 0) == 1, "A card below the fold can still be dragged into the visible deck tray")
+	editor.get_node("%DeckContents/inkblot/Remove").pressed.emit()
 	ui.library.load_decks()
-	check(ui.library.total(ui.library.decks[0]) == 11, "Deck survives save/reload")
+	check(ui.library.total(ui.library.decks[0]) == 12, "Deck survives save/reload")
+	ui.change_count(0, "strike", -1, false)
 	ui.change_count(0, "strike", -1, false)
 	ui.show_setup()
 	check(ui.valid_selection() and ui.player_index == 0 and ui.enemy_index == 0, "First usable deck is selected for both sides")
@@ -272,9 +317,53 @@ func run() -> void:
 	check(not pile.visible and ui.screen == "table", "B closes the pile without leaving combat")
 	drag_table.session.cadence = 2
 	drag_table.refresh_intent()
+	var rival_shortcut := drag_table.get_node_or_null("%RivalShortcut") as Label
+	check(rival_shortcut != null and rival_shortcut.is_visible_in_tree() and rival_shortcut.text.ends_with(Bindings.active_label(&"menu_previous", 1)), "Rival line shows its swapped controller binding")
 	controller_press(JOY_BUTTON_LEFT_SHOULDER)
 	check(root.gui_get_focus_owner() == drag_table.rewrite_row.get_child(0), "Controller shortcut focuses a rewritable rival card")
+	check(drag_table.get_node("%ThreatPreview").text.begins_with("REWRITE PREVIEW") and drag_table.session.cadence == 2, "Rival shortcut previews Rewrite without spending Cadence")
 	check(drag_table.rewrite_row.get_child(0).get_node("%Index").text.begins_with("▶"), "The focused rival card shows a focus marker")
+	drag_table.configure_controller(true, false)
+	check(rival_shortcut.text.ends_with(Bindings.active_label(&"menu_next", 1)), "Rival line shows the unswapped controller binding")
+	drag_table.configure_controller(false, false)
+	check(not rival_shortcut.is_visible_in_tree(), "Disabling combat shortcuts hides the rival binding")
+	drag_table.configure_controller(true, true)
+	var saved_bindings: Dictionary = ui.control_bindings.duplicate(true)
+	var rival_rebind := saved_bindings.duplicate(true)
+	rival_rebind[&"menu_previous"] = [KEY_U, JOY_BUTTON_X]
+	rival_rebind[&"combat_pile"][1] = JOY_BUTTON_LEFT_SHOULDER
+	ui.change_option("bindings", rival_rebind)
+	check(rival_shortcut.is_visible_in_tree() and rival_shortcut.text.ends_with("U / X"), "Rival line updates after both inputs are rebound")
+	controller_press(JOY_BUTTON_RIGHT_SHOULDER)
+	controller_press(JOY_BUTTON_X)
+	check(root.gui_get_focus_owner() == drag_table.rewrite_row.get_child(0), "The rebound shortcut still focuses the rewritable rival card")
+	ui.change_option("bindings", saved_bindings)
+	var intent: Button = drag_table.rewrite_row.get_child(0)
+	var inspected_intent: CardInstance = intent.get_meta("card")
+	await process_frame
+	tap(intent.get_global_rect().get_center())
+	var touch_inspection: Window = drag_table.get_node_or_null("IntentInspection")
+	check(touch_inspection != null and touch_inspection.visible and drag_table.session.cadence == 2, "An actual tap offers inspection without spending Cadence")
+	if touch_inspection != null:
+		touch_inspection.push_input(back, true)
+		await process_frame
+	intent.grab_focus()
+	controller_press(JOY_BUTTON_LEFT_STICK)
+	var intent_window: Window = drag_table.get_node("IntentInspection")
+	check(intent_window.visible and drag_table.session.cadence == 2, "L3 inspects the focused rival card without spending Cadence")
+	intent_window.push_input(back, true)
+	await process_frame
+	controller_press(JOY_BUTTON_A)
+	controller_press(JOY_BUTTON_A, false)
+	check(not drag_table.has_node("IntentInspection") and drag_table.enemy_piles.hand.back() == inspected_intent and drag_table.session.cadence == 0, "A directly rewrites after both touch and L3 inspection")
+	if drag_table.rewrite_fx.is_active():
+		await drag_table.rewrite_fx.finished
+	drag_table.rewrite_row.get_child(0).grab_focus()
+	controller_press(JOY_BUTTON_A)
+	controller_press(JOY_BUTTON_A, false)
+	check(not drag_table.has_node("IntentInspection"), "Confirm on an unavailable Rewrite does not reopen inspection")
+	check(drag_table.message.text.contains("already used"), "Unavailable Rewrite explains why the action failed")
+	first = drag_row.get_child(0)
 	var second: Control = drag_row.get_child(1)
 	var dragged: CardInstance = first.get_meta("card")
 	drag_card(first.get_global_rect().get_center(), second.get_global_rect().get_center())
@@ -383,9 +472,9 @@ func run() -> void:
 		table.next_hand()
 		check(table.player_piles.hand.size() == 4, "UI redraw cannot invent a fifth card")
 		check(table.player_piles.total_cards() == 10, "UI conserves total card count")
-	table.configure_controller(true, false, true)
+	table.configure_controller(false, false)
 	controller_press(JOY_BUTTON_Y)
-	check(not table.session.player_turn and table.end_button.disabled, "UI locks player input during paced rival turn")
+	check(not table.session.player_turn and table.end_button.disabled, "Y ends the turn even when optional focus shortcuts are disabled")
 	ui.body.get_node("TableToolbar").get_node("%Options").pressed.emit()
 	var combat_options := ui.get_node("OptionsMenu")
 	check(table.rival_timer.is_stopped(), "Opening Options from combat pauses rival playback")
@@ -433,6 +522,9 @@ func run() -> void:
 	check(ui.screen == "result" and is_instance_valid(ui.result_overlay), "Poison victory opens the result panel")
 	check(finale.rival_timer.is_stopped(), "Lethal turn-start Poison does not start a presentation timer")
 	await process_frame
+	var result_focus := root.gui_get_focus_owner()
+	controller_press(JOY_BUTTON_BACK)
+	check(not finale.has_node("PatternGuide") and root.gui_get_focus_owner() == result_focus, "Pattern guide shortcut leaves the victory popup in control")
 	var result_review: Button = ui.result_overlay.get_node("%Review")
 	stick_flick(JOY_AXIS_LEFT_Y, -1.0)
 	check(root.gui_get_focus_owner() == result_review, "Stick up wraps from the primary result action to Review")
@@ -510,8 +602,9 @@ func run() -> void:
 	var rewrite_target: CardInstance = rhythm.enemy_piles.hand[0]
 	var rewrite_button: Button = rhythm.rewrite_row.get_child(0)
 	check(not rewrite_button.disabled, "Rival-line button unlocks when Cadence is available")
+	rhythm._touch_pointer = true
 	rewrite_button.pressed.emit()
-	check(rhythm.enemy_piles.hand[-1] == rewrite_target and rhythm.session.cadence == 0, "Rival-line button executes Rewrite")
+	check(not rhythm.has_node("IntentInspection") and rhythm.enemy_piles.hand[-1] == rewrite_target and rhythm.session.cadence == 0, "Rival-line Confirm ignores stale touch state")
 	check(rhythm.combat_log.text.contains("Rewrite:"), "Rewrite appears in combat log")
 	check(rhythm.rewrite_fx.is_active() and rhythm.rewrite_fx.get_child_count() == 5, "Rewrite animates the selected card and the cards it passes")
 	check(rhythm.get_node("%RewriteStatus").text.contains("LINE REWRITTEN"), "The line immediately confirms the Cadence spend")
@@ -569,6 +662,8 @@ func run() -> void:
 	controller_press(JOY_BUTTON_BACK)
 	var guide: Window = patterns.get_node("PatternGuide")
 	check(guide.pages.size() == 4 and guide.pages[1].title == "Shelter" and guide.pages[3].title == "Surge", "The illustrated guide includes every Pattern recipe")
+	var overview: String = guide.get_node("%Body").get_parsed_text()
+	check(overview.contains("Shelter") and overview.contains("Riposte") and overview.contains("Surge"), "The first Pattern Guide page lists all three payoffs")
 	guide.get_node("%Next").pressed.emit()
 	check(guide.get_node("%PatternSeal").visible and guide.get_node("%Route").get_parsed_text().contains("Guard"), "A recipe page shows its badge and ordered route")
 	guide.close_requested.emit()
@@ -594,8 +689,56 @@ func run() -> void:
 	named.end_turn()
 	ui.result_overlay.find_child("Rematch", true, false).pressed.emit()
 	check(ui.body.get_node("CombatTable").session.enemy.max_health == 46, "Rematch preserves rival identity")
+	check(not ui.body.get_node("CombatTable").get_node("%MarginBurn").visible, "Normal duels hide Margin Burn")
+	var marks_before_playtest: int = ui.relics.marks
+	ui.show_setup()
+	var experiment: CheckButton = ui.body.get_node("MarginBurnPlaytest")
+	experiment.button_pressed = true
+	for rival_index in range(3):
+		ui.select_rival(rival_index)
+		ui.show_table()
+		var trial: Control = ui.body.get_node("CombatTable")
+		var burn: Button = trial.get_node("%MarginBurn")
+		var sacrificed: CardInstance = trial.player_piles.hand[1]
+		var starting_energy: int = trial.session.energy
+		var preview: Dictionary = trial.session.preview_margin_burn(sacrificed)
+		check(burn.visible and not burn.disabled and preview.cadence == 2 and preview.rewrite_available, "Each rival supports a fresh Margin Burn and previews a legal Rewrite")
+		burn.pressed.emit()
+		var dialog: ConfirmationDialog = trial.get_node("MarginBurnDialog")
+		check(dialog.visible and dialog.gui_get_focus_owner() == dialog.get_cancel_button(), "Margin Burn asks for explicit confirmation with Cancel focused")
+		dialog.push_input(back, true)
+		await process_frame
+		check(not trial.has_node("MarginBurnDialog") and root.gui_get_focus_owner() == burn and trial.player_piles.hand.has(sacrificed) and trial.session.cadence == 0, "Controller Back closes the preview, restores focus, and leaves the card and Cadence alone")
+		burn.pressed.emit()
+		dialog = trial.get_node("MarginBurnDialog")
+		var picker: OptionButton = dialog.find_child("Sacrifice", true, false)
+		picker.select(1)
+		picker.item_selected.emit(1)
+		var burn_forecast: RichTextLabel = dialog.find_child("Forecast", true, false)
+		check(burn_forecast.text.contains(trial.session.describe_card(sacrificed)) and burn_forecast.text.contains("Rewrite available"), "The dialog previews the selected sacrifice and the available Rewrite")
+		dialog.get_ok_button().pressed.emit()
+		check(trial.player_piles.exhaust_pile.has(sacrificed) and trial.session.energy == starting_energy and trial.session.cadence == 2 and trial.session.pattern_history.is_empty(), "Confirm exhausts one card and grants Cadence without spending energy or advancing a Pattern")
+		check(burn.disabled and not trial.session.margin_burn(trial.player_piles.hand[0]), "Margin Burn cannot be used twice")
+		trial.session.enemy.apply_poison(99)
+		trial.end_turn()
+	check(ui.relics.marks == marks_before_playtest, "Margin Burn playtests grant no progression Marks")
 	ui.start_custom_duel()
 	check(ui.selected_rival == null and ui.valid_selection(), "Custom duel restores editable deck-versus-deck setup")
+	ui.library.decks.append({"name": "Legacy", "cards": {"strike": 7, "block": 5, "inkblot": 3}})
+	ui.library.save()
+	ui.library.load_decks()
+	ui.player_index = 2
+	check(ui.valid_selection() and ui.library.total(ui.library.decks[2]) == 15, "Legacy recipe survives reloading and stays usable in custom duels")
+	ui.show_journey_setup()
+	check(not ui.body.has_node("MarginBurnPlaytest"), "Journey setup keeps Margin Burn outside campaign progression")
+	check(not ui.valid_selection() and ui.library.journey_issues(ui.library.decks[2]).size() == 2, "Journey reports both size and copy violations")
+	ui.begin_journey()
+	check(ui.journey == null, "Invalid legacy recipes cannot start a Journey directly")
+	ui.show_editor(2, true)
+	editor = ui.body.get_node("DeckEditor")
+	editor.get_node("%DeckContents/inkblot/Remove").pressed.emit()
+	check(ui.library.total(ui.library.decks[2]) == 14 and ui.library.journey_issues(ui.library.decks[2]).is_empty(), "One removal repairs the legacy recipe without clipping its starter counts")
+	ui.player_index = 1
 	ui.show_journey_setup()
 	ui.begin_journey()
 	check(ui.screen == "journey" and ui.journey != null, "Journey preparation opens the route overview")
@@ -621,12 +764,14 @@ func run() -> void:
 	check(not enter.disabled and chart.get_node("%Title").text.contains("The Duelist"), "The active stop permits entering the duel")
 	enter.pressed.emit()
 	var journey_table = ui.body.get_node("CombatTable")
+	check(not journey_table.get_node("%MarginBurn").visible, "A standalone playtest opt-in does not carry into Journey combat")
 	var retained: RefCounted = journey_table.session
 	retained.player.gain_block(100)
 	journey_table.end_turn()
-	ui.show_journey_overview()
-	ui.show_menu()
-	ui.show_journey_overview()
+	ui.show_options()
+	ui.get_node("OptionsMenu").get_node("%MainMenu").pressed.emit()
+	check(ui.screen == "menu" and ui.journey.active_session == retained, "Options returns to the menu and preserves the active Journey duel")
+	ui.main_menu.get_node("%JourneyButton").pressed.emit()
 	ui.show_journey_encounter()
 	journey_table = ui.body.get_node("CombatTable")
 	check(journey_table.session == retained and not journey_table.rival_timer.is_stopped(), "Paused rival turn resumes the same encounter and restarts presentation")
@@ -639,7 +784,7 @@ func run() -> void:
 	var next_step: Button = ui.result_overlay.get_node("%Rematch")
 	var end_journey: Button = ui.result_overlay.get_node("%ChooseDecks")
 	var review_table: Button = ui.result_overlay.get_node("%Review")
-	check(root.gui_get_focus_owner() == next_step, "Journey victory initially focuses Choose your next step")
+	check(root.gui_get_focus_owner() == next_step and next_step.has_theme_stylebox_override("normal"), "Journey victory focuses the gold Choose reward action")
 	stick_flick(JOY_AXIS_LEFT_X, 1.0)
 	check(root.gui_get_focus_owner() == end_journey, "Stick right focuses End journey")
 	root.push_input(confirm, true)
@@ -696,7 +841,81 @@ func run() -> void:
 	end_dialog.push_input(confirm, true)
 	end_dialog.push_input(confirm_release, true)
 	check(ui.screen == "menu" and ui.journey == null, "Confirming End Journey clears the run")
+	var sustain: Dictionary = ui.library.counterpoint_sustain_recipe()
+	check(ui.library.journey_issues(sustain).is_empty() and sustain.cards.mend == 2, "Sustain preset adds healing within Journey rules")
+	var marks_before_puzzle: int = ui.relics.marks
+	ui.show_rivals()
+	var practice_buttons: Array = ui.body.find_children("*", "Button", true, false).filter(func(button): return button.text == "Practice fixed-opening puzzle")
+	check(practice_buttons.size() == 3, "Each rival has a practice entry")
+	for index in [0, 1]:
+		practice_buttons[index].pressed.emit()
+		var practice: RefCounted = ui.body.get_node("CombatTable").session
+		check(practice.rival_definition == ui.Rivals.ALL[index] and practice.player_piles.hand[0].definition.id == &"block", "Rival practice loads the correct fixed encounter")
+		ui.show_rivals()
+		practice_buttons = ui.body.find_children("*", "Button", true, false).filter(func(button): return button.text == "Practice fixed-opening puzzle")
+	practice_buttons[2].pressed.emit()
+	var first_puzzle: RefCounted = ui.body.get_node("CombatTable").session
+	ui.body.get_node("TableToolbar").find_children("*", "Button", true, false).filter(func(button): return button.text == "Restart puzzle")[0].pressed.emit()
+	check(ui.body.get_node("CombatTable").session != first_puzzle, "Restart puzzle creates a fresh attempt from the table")
+	for rewrite in [false, true]:
+		var puzzle: Control = ui.body.get_node("CombatTable")
+		var duel: RefCounted = puzzle.session
+		check(duel.player_piles.hand[0].definition.id == &"block" and duel.enemy_opening_plan()[0].definition.id == &"inkblot", "Puzzle and rematch share the fixed opening")
+		play_puzzle_card(duel, &"block")
+		if rewrite:
+			play_puzzle_card(duel, &"strike")
+			check(duel.rewrite_intent(duel.enemy_opening_plan()[0]), "Puzzle can Rewrite Inkblot out of the affordable line")
+			play_puzzle_card(duel, &"insight")
+		else:
+			play_puzzle_card(duel, &"insight")
+			play_puzzle_card(duel, &"strike")
+			check(duel.completed_pattern == "Riposte", "Puzzle supports a Riposte opening")
+		duel.end_turn()
+		check(duel.enemy.block == (0 if rewrite else 4), "Puzzle routes resolve different amounts of rival Block")
+		for attempt in range(3):
+			if duel.outcome.is_empty():
+				play_puzzle_card(duel, &"strike")
+		check(duel.outcome == "Victory" and ui.screen == "result" and ui.relics.marks == marks_before_puzzle, "Either puzzle solution wins without Journey or Marks progression")
+		check(ui.result_overlay.get_node("%Spoils").text.begins_with("Practice time · "), "Puzzle results show elapsed practice time")
+		check(ui.result_overlay.get_node("%Spoils").text.contains("Session best"), "Puzzle victory records a session best")
+		check(ui.result_overlay.get_node("%Spoils").text.contains("Attempt %d" % (3 if rewrite else 2)), "Puzzle attempts count restarts and rematches for this rival")
+		if not rewrite:
+			ui.result_overlay.get_node("%Rematch").pressed.emit()
+		else:
+			ui.result_overlay.get_node("%ChooseDecks").pressed.emit()
+			check(ui.screen == "rivals", "Puzzle results return to rival selection")
 	ui.show_library(false)
+	for recipe in ui.library.style_recipes():
+		check(ui.library.journey_issues(recipe).is_empty() and not ui.library.category_counts(recipe).has(0), "New style preset is Journey legal and supports Patterns")
+	var deck_search: LineEdit = ui.body.find_child("DeckSearch", true, false)
+	deck_search.text = "no-deck-with-this-name"
+	deck_search.text_changed.emit(deck_search.text)
+	var deck_rows: Array = ui.body.find_children("*", "PanelContainer", true, false).filter(func(panel): return panel.has_meta("recipe"))
+	check(not deck_rows.is_empty() and deck_rows.all(func(panel): return not panel.visible), "Deck library search hides unmatched recipes")
+	deck_search.clear()
+	deck_search.text_changed.emit("")
+	var ready_filter: CheckButton = ui.body.find_child("JourneyReadyFilter", true, false)
+	ready_filter.button_pressed = true
+	check(deck_rows.all(func(panel): return panel.visible == ui.library.journey_issues(panel.get_meta("recipe")).is_empty()), "Journey filter uses the shared validation")
+	var original: Dictionary = ui.library.decks[0].duplicate(true)
+	ui.duplicate_deck(0, false)
+	var copy_index: int = ui.library.decks.size() - 1
+	var copy_editor: Control = ui.body.get_node("DeckEditor")
+	var rename: LineEdit = copy_editor.find_child("DeckName", true, false)
+	rename.text_submitted.emit("Practice copy")
+	ui.change_count(copy_index, "strike", 1, false)
+	ui.library.load_decks()
+	check(ui.library.decks[0] == original and ui.library.decks[copy_index].name == "Practice copy", "Duplicate and rename save independently of the original recipe")
+	ui.start_custom_duel()
+	ui.player_index = 0
+	ui.enemy_index = 1
+	ui.show_setup()
+	ui.body.find_children("*", "Button", true, false).filter(func(button): return button.text == "Swap decks")[0].pressed.emit()
+	check(ui.player_index == 1 and ui.enemy_index == 0, "Custom duel swaps the selected recipes")
+	ui.body.find_children("*", "Button", true, false).filter(func(button): return button.text == "Edit this deck")[0].pressed.emit()
+	check(ui.screen == "editor", "Deck setup opens the selected recipe directly")
+	ui.body.get_node("DeckEditor").get_node("%Done").pressed.emit()
+	check(ui.screen == "setup", "Done returns to the duel setup")
 	ui.show_menu()
 	ui.queue_free()
 	await process_frame

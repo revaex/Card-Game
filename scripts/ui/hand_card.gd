@@ -131,6 +131,16 @@ func setup_preview(card: CardInstance, caption: String = "") -> void:
 	set_caption(caption)
 
 
+func setup_deck_add(card: CardInstance, add_copy: Callable) -> void:
+	setup(card, true, add_copy)
+	%Play.tooltip_text = "%s\nAdd one copy of %s with click or Confirm." % [tooltip_text, card.definition.display_name]
+	%Play.accessibility_name = "Add one copy of %s" % card.definition.display_name
+
+
+func set_deck_add_enabled(enabled: bool) -> void:
+	%Play.disabled = not enabled
+
+
 func set_compact(compact: bool) -> void:
 	custom_minimum_size.y = 198 if compact else 210
 	%ArtFrame.custom_minimum_size.y = 48 if compact else 64

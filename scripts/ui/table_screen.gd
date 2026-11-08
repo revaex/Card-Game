@@ -33,7 +33,7 @@ var _drag_face: Control
 var motion_enabled: bool = true
 var _controller_shortcuts: bool = true
 var _swap_shoulders: bool = false
-var _end_shortcut: bool = false
+var _log_scroll_device := -1
 var _controller_hand_focus: bool = false
 var _navigation_feedback := false
 var _touch_pointer: bool = false
@@ -76,6 +76,13 @@ var turn_label: Label
 var relic_label: Label
 var _phase_tween: Tween
 var _counterwrite_tween: Tween
+
+
+class MarginBurnDialog extends ConfirmationDialog:
+	func _unhandled_input(event: InputEvent) -> void:
+		if event.is_action_pressed("ui_cancel"):
+			set_input_as_handled()
+			canceled.emit()
 
 
 func setup(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], use_war_drum: bool = false, rival: Resource = null, existing_session: RefCounted = null) -> void:
@@ -133,6 +140,7 @@ func _bind_scene_nodes() -> void:
 	draw_button = %DrawButton
 	redraw_button = %RedrawButton
 	combat_log = %CombatLog
+	combat_log.tooltip_text = "Review earlier actions with the mouse wheel or right stick."
 	hand_title = %HandTitle
 	pattern_label = %PatternLabel
 	hand_row = %HandRow
@@ -275,7 +283,7 @@ func refresh() -> void:
 	refresh_pattern()
 	hand_title.text = "YOUR HAND" if session.player_turn else ("LAST RIVAL PLAY" if _last_presented_card != null and not _last_presented_by_player else "YOUR NEXT HAND")
 	hand_title.tooltip_text = "YOUR HAND\nUse arrows, D-pad, or left stick to inspect nearby cards. Click a card or focus it and use Confirm to play it." if session.player_turn else "RIVAL PLAYBACK\nThe most recently resolved rival card is displayed here for reference. It cannot be played. Your new hand arrives when the rival finishes."
-	update_hand_shortcut()
+	update_combat_shortcuts()
 	turn_label.text = "%s · %02d" % ["YOUR TURN" if session.player_turn else "RIVAL TURN", session.round_number]
 	turn_label.add_theme_color_override("font_color", Style.GOLD if session.player_turn else Color("df9e8d"))
 	turn_label.tooltip_text = "TURN\nYour turn: spend energy on cards, then end turn. The rival resolves its revealed line, then both hands are prepared again. Poison ticks at the affected side's turn start."
@@ -295,6 +303,10 @@ func refresh() -> void:
 	%CadenceDraw.text = "Draw ◆%d" % session.CADENCE_ACTION_COST
 	%Brace.tooltip_text = "BRACE\nSpend %d Cadence to gain %d Block." % [session.CADENCE_ACTION_COST, session.BRACE_BLOCK]
 	%CadenceDraw.tooltip_text = "DRAW\nSpend %d Cadence to draw 1 card. If both piles are empty, no Cadence is spent." % session.CADENCE_ACTION_COST
+	var burn: Button = %MarginBurn
+	burn.visible = session.margin_burn_enabled
+	burn.disabled = player_piles.hand.is_empty() or not session.can_margin_burn(player_piles.hand.front())
+	burn.text = "Burn used" if session.margin_burn_used else "Margin Burn"
 	if not brace_ready or not draw_ready:
 		var availability := "\nYou have %d Cadence." % session.cadence if session.player_turn else "\nAvailable on your turn."
 		if not brace_ready:
@@ -496,6 +508,13 @@ func refresh_pattern() -> void:
 		pattern_label.text = "Patterns reset each player turn"
 		return
 	pattern_label.text = "PATTERN CYCLE  /  Pick a starting card" if pattern == null else "%s locked  /  Next: %s" % [pattern.display_name, names[pattern.category_at(progress)].capitalize()]
+	if pattern != null:
+		if pattern.block_gain > 0:
+			pattern_label.text += "  ·  +%d Block" % pattern.block_gain
+		elif pattern.finishing_damage > 0:
+			pattern_label.text += "  ·  +%d damage/hit" % pattern.finishing_damage
+		elif pattern.energy_gain > 0:
+			pattern_label.text += "  ·  +%d energy" % pattern.energy_gain
 
 
 func _on_brace_pressed() -> void:
@@ -517,12 +536,14 @@ func show_pattern_guide() -> void:
 		rival_timer.stop()
 	var pages: Array[Dictionary] = [{
 		"section": "PATTERN FIELD GUIDE",
-		"title": "One cycle, three openings",
-		"body": "Your first card locks a Pattern for the turn. Follow the cycle from that card’s category. Only the next playable category carries the locked badge. Off-path cards, Rewrite, and other Cadence spends leave your progress in place.",
+		"title": "Pattern rewards",
+		"body": "",
 		"route": "ATTACK → GUARD → TACTIC → ATTACK",
 		"plate": 3,
 	}]
+	var overview := PackedStringArray()
 	for pattern in session.PATTERNS:
+		overview.append("%s · %s\n%s" % [pattern.display_name, pattern.sequence_text(), pattern.payoff_text()])
 		pages.append({
 			"section": "PATTERN FIELD GUIDE",
 			"title": pattern.display_name,
@@ -531,11 +552,13 @@ func show_pattern_guide() -> void:
 			"plate": [4, 2, 1][pattern.first],
 			"pattern_icon": pattern.first,
 		})
+	pages[0].body = "\n\n".join(overview)
 	var dialog := FolioReader.instantiate()
 	dialog.name = "PatternGuide"
 	add_child(dialog)
 	dialog.close_requested.connect(close_board_dialog.bind(dialog, resume_rival))
 	dialog.open(pages, "Return to duel", motion_enabled)
+	dialog.get_node("%Hint").text += "\n%s / %s to close" % [Bindings.active_label(&"ui_cancel", 0), Bindings.active_label(&"ui_cancel", 1)]
 
 
 func show_lesson_folio() -> void:
@@ -578,6 +601,59 @@ func close_board_dialog(dialog: Window, resume_rival: bool) -> void:
 	dialog.queue_free()
 	if resume_rival and not session.player_turn and session.outcome.is_empty():
 		rival_timer.start()
+
+
+func show_margin_burn() -> void:
+	if %MarginBurn.disabled or has_node("MarginBurnDialog"):
+		return
+	var cards: Array[CardInstance] = player_piles.hand.duplicate()
+	var dialog := MarginBurnDialog.new()
+	dialog.name = "MarginBurnDialog"
+	dialog.title = "Margin Burn"
+	dialog.ok_button_text = "Exhaust card"
+	dialog.dialog_hide_on_ok = false
+	dialog.transient = true
+	dialog.exclusive = true
+	add_child(dialog)
+	var content := Style.column(dialog)
+	Style.label(content, "Choose one card to exhaust for the rest of this duel.", 16)
+	var picker := OptionButton.new()
+	picker.name = "Sacrifice"
+	content.add_child(picker)
+	for card in cards:
+		var category: String = CardDefinition.Category.keys()[card.get_category()].capitalize()
+		picker.add_item("%s · %s" % [card.definition.display_name, category])
+	var forecast := RichTextLabel.new()
+	forecast.name = "Forecast"
+	forecast.custom_minimum_size = Vector2(370, 92)
+	forecast.add_theme_font_size_override("normal_font_size", 15)
+	forecast.add_theme_color_override("default_color", Style.INK)
+	content.add_child(forecast)
+	var preview := func(index: int):
+		var card := cards[index]
+		var result: Dictionary = session.preview_margin_burn(card)
+		dialog.get_ok_button().disabled = result.is_empty()
+		if result.is_empty():
+			forecast.text = "Margin Burn is unavailable."
+			return
+		var rewrite := "Rewrite available" if result.rewrite_available else "Rewrite unavailable this turn"
+		forecast.text = "%s\n0 energy · Cadence %d → %d/%d\n%s" % [session.describe_card(card), session.cadence, result.cadence, session.CADENCE_CAP, rewrite]
+	picker.item_selected.connect(preview)
+	var cancel := func():
+		close_board_dialog(dialog, false)
+		if not %MarginBurn.disabled:
+			%MarginBurn.grab_focus()
+	dialog.canceled.connect(cancel)
+	dialog.confirmed.connect(func():
+		var card := cards[picker.selected]
+		close_board_dialog(dialog, false)
+		if session.margin_burn(card):
+			message.text = "Exhausted %s · Cadence %d/%d" % [card.definition.display_name, session.cadence, session.CADENCE_CAP]
+			focus_hand())
+	picker.select(0)
+	preview.call(0)
+	dialog.popup_centered()
+	dialog.get_cancel_button().grab_focus()
 
 
 func show_card_forecast(card: CardInstance) -> void:
@@ -681,11 +757,8 @@ func refresh_intent() -> void:
 		rewrite_row.add_child(button)
 		button.show_card(card, index, state, can_rewrite_card(card), lesson.marks_threat(card), session.player_turn and not lesson.active, card == session.anchored_intent)
 		button.set_meta("card", card)
-		button.pressed.connect(activate_intent_card.bind(card, button))
-		button.gui_input.connect(func(event: InputEvent):
-			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-				button.accept_event()
-				inspect_intent_card(card, button))
+		button.pressed.connect(rewrite_card.bind(card))
+		button.gui_input.connect(handle_intent_pointer.bind(card, button))
 		if not button.disabled:
 			button.mouse_entered.connect(show_rewrite_hint.bind(card))
 			button.mouse_exited.connect(clear_rewrite_hint.bind(card))
@@ -739,11 +812,25 @@ func show_line_threat() -> void:
 	%ThreatPreview.text = "VISIBLE LINE · %d HP loss after Block · %d Poison added%s" % [threat.hp_loss, threat.poison, " · Draw follow-ups unknown" if threat.draws else ""]
 
 
-func activate_intent_card(card: CardInstance, return_focus: BaseButton) -> void:
-	if not lesson.active and (_touch_pointer or not can_rewrite_card(card)):
-		inspect_intent_card(card, return_focus)
-	else:
-		rewrite_card(card)
+func handle_intent_pointer(event: InputEvent, card: CardInstance, button: BaseButton) -> void:
+	if not event is InputEventMouseButton or lesson.active:
+		return
+	if event.button_index == MOUSE_BUTTON_RIGHT:
+		button.accept_event()
+		if event.pressed:
+			inspect_intent_card(card, button)
+	elif event.button_index == MOUSE_BUTTON_LEFT and event.device == InputEvent.DEVICE_ID_EMULATION:
+		# Route the tap itself, so a previous touch or modal never changes Confirm.
+		button.accept_event()
+		if not event.pressed and Rect2(Vector2.ZERO, button.size).has_point(event.position):
+			inspect_intent_card(card, button)
+
+
+func intent_names(cards: Array[CardInstance]) -> String:
+	var names := PackedStringArray()
+	for card in cards:
+		names.append(card.definition.display_name)
+	return ", ".join(names)
 
 
 func inspect_intent_card(card: CardInstance, return_focus: BaseButton) -> void:
@@ -752,10 +839,17 @@ func inspect_intent_card(card: CardInstance, return_focus: BaseButton) -> void:
 	var dialog := FolioReader.instantiate()
 	dialog.name = "IntentInspection"
 	add_child(dialog)
-	var details := "Planned: this card fits the rival's energy budget." if session.enemy_opening_plan().has(card) else "Reserve: this card does not currently fit the rival's energy budget."
+	var details := "Planned: this card fits the rival's energy budget." if session.enemy_opening_plan().has(card) else "Reserve: this card does not currently fit the rival's energy budget. Unplayed cards go to discard after this line resolves."
 	if can_rewrite_card(card):
 		var preview: Dictionary = session.preview_rewrite(card)
 		details += "\nRewrite moves it to the back for 2 Cadence.\nVisible HP loss: %d → %d. Poison added: %d → %d." % [preview.before.hp_loss, preview.after.hp_loss, preview.before.poison, preview.after.poison]
+		if preview.leaving.is_empty() and preview.entering.is_empty():
+			details += "\nThe same cards fit the rival's energy budget."
+		else:
+			if not preview.leaving.is_empty():
+				details += "\nMoves to reserve: " + intent_names(preview.leaving)
+			if not preview.entering.is_empty():
+				details += "\nEnters the affordable line: " + intent_names(preview.entering)
 		if preview.before.draws or preview.after.draws:
 			details += "\nDraw follow-ups are unknown."
 	elif card == session.anchored_intent:
@@ -789,7 +883,17 @@ func inspect_intent_card(card: CardInstance, return_focus: BaseButton) -> void:
 
 func rewrite_card(card: CardInstance) -> void:
 	if not can_rewrite_card(card):
-		show_rewrite_hint(card)
+		if session.player_turn and session.outcome.is_empty() and not lesson.active:
+			if card == session.anchored_intent:
+				message.text = "Sealed · choose another intent."
+			elif session.rewrote_this_turn:
+				message.text = "Rewrite was already used this turn."
+			elif enemy_piles.hand.back() == card:
+				message.text = "This intent is already at the back."
+			elif session.cadence < session.REWRITE_COST:
+				message.text = "Rewrite needs %d Cadence · you have %d." % [session.REWRITE_COST, session.cadence]
+			else:
+				message.text = "Rewrite is unavailable for this intent."
 		return
 	var index := enemy_piles.hand.find(card)
 	var snapshot: Array[Dictionary] = []
@@ -945,23 +1049,29 @@ func cancel_card_selection() -> void:
 	card_stage.show_selection("")
 
 
-func configure_controller(shortcuts: bool, swap: bool, quick_end: bool) -> void:
+func configure_controller(shortcuts: bool, swap: bool) -> void:
 	_controller_shortcuts = shortcuts
 	_swap_shoulders = swap
-	_end_shortcut = quick_end
 	if not shortcuts:
 		_controller_hand_focus = false
-	update_hand_shortcut()
+	update_combat_shortcuts()
 
 
-func update_hand_shortcut() -> void:
+func update_combat_shortcuts() -> void:
+	var show_hints: bool = session != null and session.player_turn and session.outcome.is_empty() and not guided
 	var hint: Label = %HandShortcut
-	hint.visible = session != null and session.player_turn and session.outcome.is_empty() and _controller_shortcuts and not guided
+	hint.visible = show_hints and _controller_shortcuts
 	var action := &"menu_next" if _swap_shoulders else &"menu_previous"
 	hint.text = "FOCUS  %s / %s" % [Bindings.active_label(action, 0), Bindings.active_label(action, 1)]
 	hint.tooltip_text = "Focus your hand\n" + hint.text.trim_prefix("FOCUS  ")
+	var rival_hint: Label = %RivalShortcut
+	var rival_action := &"menu_previous" if _swap_shoulders else &"menu_next"
+	var rival_binding := "%s / %s" % [Bindings.active_label(rival_action, 0), Bindings.active_label(rival_action, 1)]
+	rival_hint.visible = hint.visible
+	rival_hint.text = "FOCUS LINE  " + rival_binding
+	rival_hint.tooltip_text = "Focus the rival's prepared line. With enough Cadence, this previews a Rewrite.\n" + rival_binding
 	var inspect: Label = %InspectShortcut
-	inspect.visible = session != null and session.player_turn and session.outcome.is_empty() and not guided
+	inspect.visible = show_hints
 	var inspect_key := Bindings.active_label(&"combat_inspect", 0)
 	inspect.text = "INSPECT  " + inspect_key
 	inspect.tooltip_text = "Inspect a focused card: %s / %s, or right-click." % [inspect_key, Bindings.active_label(&"combat_inspect", 1)]
@@ -986,6 +1096,16 @@ func _input(event: InputEvent) -> void:
 		_touch_pointer = false
 
 
+func _process(delta: float) -> void:
+	if _log_scroll_device < 0 or combat_log == null or not is_processing_unhandled_input() or not get_window().has_focus() or not combat_log.is_visible_in_tree():
+		return
+	var axis := Input.get_joy_axis(_log_scroll_device, JOY_AXIS_RIGHT_Y)
+	if absf(axis) < 0.25:
+		return
+	var scrollbar := combat_log.get_v_scroll_bar()
+	scrollbar.value += axis * 420.0 * delta
+
+
 func _on_hand_focus() -> void:
 	if _navigation_feedback:
 		_navigation_feedback = false
@@ -993,6 +1113,10 @@ func _on_hand_focus() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventJoypadMotion and event.axis == JOY_AXIS_RIGHT_Y:
+		_log_scroll_device = event.device
+		get_viewport().set_input_as_handled()
+		return
 	if _selected_card != null and event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
 		cancel_card_selection()
@@ -1012,6 +1136,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		show_pattern_guide()
 		return
+	if session != null and session.player_turn and session.outcome.is_empty() and event.is_action_pressed("combat_end"):
+		get_viewport().set_input_as_handled()
+		end_turn()
+		return
 	if session != null and session.player_turn and session.outcome.is_empty() and get_viewport().gui_get_focus_owner() == null:
 		if event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"):
 			get_viewport().set_input_as_handled()
@@ -1026,9 +1154,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			focus_hand()
 		else:
 			focus_rival_line()
-	elif _end_shortcut and event.is_action_pressed("combat_end"):
-		get_viewport().set_input_as_handled()
-		end_turn()
 	elif event.is_action_pressed("combat_pile"):
 		get_viewport().set_input_as_handled()
 		inspect_pile("Draw", player_piles.draw_pile)

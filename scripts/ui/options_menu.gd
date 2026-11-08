@@ -2,6 +2,7 @@ extends Window
 
 signal preference_changed(key: String, value: Variant)
 signal quit_requested
+signal main_menu_requested
 
 const Bindings = preload("res://scripts/ui/control_bindings.gd")
 const BindingRow = preload("res://scenes/ui/control_binding_row.tscn")
@@ -15,7 +16,7 @@ var _capture_action: StringName = &""
 var _capture_column := 0
 
 
-func open(settings: Dictionary, desktop_display: bool = true) -> void:
+func open(settings: Dictionary, desktop_display: bool = true, can_return_to_menu: bool = false) -> void:
 	%Sound.set_pressed_no_signal(settings.sound)
 	%Motion.set_pressed_no_signal(settings.motion)
 	%Speed.set_pressed_no_signal(settings.fast_turns)
@@ -29,12 +30,13 @@ func open(settings: Dictionary, desktop_display: bool = true) -> void:
 	%WindowSize.disabled = not desktop_display or settings.window_mode != 0
 	%VSync.disabled = not desktop_display
 	%Quit.visible = not OS.has_feature("web")
+	%MainMenu.visible = can_return_to_menu
+	%MainMenu.pressed.connect(func(): main_menu_requested.emit())
 	if not desktop_display:
 		%DisplayDetail.text = "Window size, fullscreen, and refresh settings are managed by your device or browser."
 	%VSync.set_pressed_no_signal(settings.vsync)
 	%Controller.set_pressed_no_signal(settings.controller)
 	%SwapShoulders.set_pressed_no_signal(settings.swap_shoulders)
-	%EndShortcut.set_pressed_no_signal(settings.end_shortcut)
 	_bindings = settings.bindings.duplicate(true)
 	for action: StringName in Bindings.ACTIONS:
 		var row := BindingRow.instantiate()
@@ -50,7 +52,7 @@ func open(settings: Dictionary, desktop_display: bool = true) -> void:
 	%ResetBindings.pressed.connect(reset_bindings)
 	update_mapping()
 	for entry in [[%Sound, "sound"], [%Motion, "motion"], [%Speed, "fast_turns"], [%VSync, "vsync"],
-			[%Controller, "controller"], [%SwapShoulders, "swap_shoulders"], [%EndShortcut, "end_shortcut"]]:
+			[%Controller, "controller"], [%SwapShoulders, "swap_shoulders"]]:
 		entry[0].toggled.connect(_on_toggle.bind(entry[1]))
 	_parent_window = get_parent().get_window()
 	_parent_window.size_changed.connect(fit_to_parent)
@@ -73,7 +75,6 @@ func fit_to_parent() -> void:
 func update_mapping() -> void:
 	var active: bool = %Controller.button_pressed
 	%SwapShoulders.disabled = not active
-	%EndShortcut.disabled = not active
 	var swapped: bool = %SwapShoulders.button_pressed
 	for action: StringName in _binding_rows:
 		var row: Control = _binding_rows[action]

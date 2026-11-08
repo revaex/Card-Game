@@ -5,6 +5,10 @@ Still finding its final name and setting.
 
 Open `project.godot` in Godot 4 and press **F5**.
 
+To resume development, start with the [development queue](docs/development_queue.md),
+then see the [feature shortlist](docs/feature_shortlist.md),
+[release roadmap](docs/release_roadmap.md), and [project brief](docs/project_brief.md).
+
 ## Playing
 
 - Change between Attack, Guard, and Tactic cards to build Cadence.
@@ -13,8 +17,11 @@ Open `project.godot` in Godot 4 and press **F5**.
 - Hover cards for damage previews. **Pattern guide** shows the recipes.
 - Hover or focus a rival card to preview how Rewrite changes planned cards,
   attack HP loss, and Poison. Draw follow-ups are explicitly unknown.
+- The rival discards unplayed reserves after its turn and prepares a fresh hand.
 - Right-click or use **Inspect** on a focused card in either line. On touch,
   tapping a rival card opens inspection with an explicit Rewrite confirmation.
+- On the default controller layout, **Y** ends the turn and the right stick
+  scrolls the combat log. **View / Select** opens the Pattern reward overview.
 
 **Begin a journey** takes you through the Duelist, Warden, and Scribe. HP carries
 between fights. After a win, recover 8 HP, draft a card, remove one, or change
@@ -31,7 +38,17 @@ in the deck builder and the draft before the Scribe. Add the ten-card
 **Counterwritten** preset from **Your decks → Add a preset…**.
 
 You can also challenge a single rival or play a custom deck-versus-deck duel.
-**Your decks** is where you build and save decks. Counterpoint includes all three
-categories and is a good place to start.
+Choose **Practice fixed-opening puzzle** on any rival card for a supplied
+deck, a timed result, and a rematch. Attempts and best times are tracked
+per rival during the current app session.
+In **Your decks**, click a card, use Confirm, or drag it into the deck tray.
+Use **−** in the tray to remove a copy. Journeys start with 10–14 cards and at most two
+copies of each card, with Strike and Block exempt from the copy limit.
+Counterpoint includes all three categories and is a good place to start.
+The deck library can filter by name or Journey readiness. Try the Poison
+Pressure, Riposte Guard, or Surge Cycle presets to explore different styles.
+
+Enable **Playtest Margin Burn** in standalone duel setup to try exhausting one
+card for up to 2 Cadence once per duel. Playtest wins award no progression.
 
 Built with Godot and GDScript.

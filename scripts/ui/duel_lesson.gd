@@ -3,6 +3,7 @@ extends PanelContainer
 
 signal changed
 signal completed
+signal exit_requested
 signal reading_requested
 
 enum Step { READ, ATTACK, GUARD, REWRITE, PATTERN, END_TURN, COMPLETE }
@@ -11,14 +12,15 @@ const COPY = [
 	["01 / Read the line", "Read the briefing to get started."],
 	["02 / Open with Attack", "Play Strike to start Shelter and charge Cadence."],
 	["03 / Change category", "Play Block to earn a second Cadence."],
-	["04 / Rewrite Strike", "Select Strike in the rival’s line."],
-	["05 / Finish Shelter", "Play the badged Insight to complete Shelter."],
+	["04 / Rewrite Strike", "Move the first Strike. One attack will still get through the energy budget."],
+	["05 / Finish Shelter", "Play Insight to draw two cards and shield yourself from the remaining Strike."],
 	["06 / Let the rival act", "End the turn and watch the revised line play out."],
-	["Lesson complete", "Continue to Journey or keep practicing here."],
+	["Lesson complete", "Your Rewrite and Shelter kept you at full health. Continue to Journey or return to the menu."],
 ]
 
 var active := false
 var step: Step = Step.READ
+var _opening_strike: CardInstance
 
 
 func start() -> void:
@@ -35,12 +37,14 @@ func update_prompt() -> void:
 	%Continue.visible = step == Step.READ or step == Step.COMPLETE
 	%Continue.text = "Read briefing" if step == Step.READ else "Go to journey"
 	%Read.visible = step != Step.READ
-	%Skip.text = "Free duel" if step == Step.COMPLETE else "Skip lesson"
+	%Skip.text = "Main menu"
 
 
 func observe(session: RefCounted) -> void:
 	if not active:
 		return
+	if step == Step.READ and _opening_strike == null:
+		_opening_strike = session.enemy_piles.hand.front()
 	match step:
 		Step.ATTACK:
 			if session.statistics.player.cards == 1:
@@ -71,7 +75,7 @@ func allows_card(card: CardInstance) -> bool:
 
 
 func marks_threat(card: CardInstance) -> bool:
-	return active and step in [Step.READ, Step.REWRITE] and card.definition.id == &"strike"
+	return active and step in [Step.READ, Step.REWRITE] and card == _opening_strike
 
 
 func allows_rewrite(card: CardInstance) -> bool:
@@ -98,14 +102,14 @@ func pages(session: RefCounted) -> Array[Dictionary]:
 			result.append(leaf("Change category", "Strike was an Attack. Play Block next to switch to Guard and earn a second Cadence. Its Pattern badge shows that Guard advances Shelter. Right-click Block or use Inspect on the focused card to see the forecast.", 1, shelter.sequence_text()))
 		Step.REWRITE:
 			result.append(leaf("Spend Cadence on Rewrite", "Choose the rival’s Strike. Rewrite costs %d Cadence and sends that card to the back of the line. You can Rewrite once per turn." % session.REWRITE_COST, 2))
-			result.append(leaf("Read the new plan", "The rival will now spend its energy on Blocks before it reaches Strike. In other fights, moving a card back can bring a different threat forward. Check which cards are marked Planned after every Rewrite.", 0))
+			result.append(leaf("Read the new plan", "The other Strike will still attack for 10 damage. Your 8 Block leaves 2 HP exposed. Check the forecast after you Rewrite, then use Shelter to cover the difference.", 0))
 		Step.PATTERN:
 			result.append(leaf("Your first card locks the Pattern", "Opening with Attack locked Shelter. From any starting category, the cycle is Attack → Guard → Tactic → Attack. An off-path card leaves the locked Pattern where it is. You can complete one Pattern per turn.", 3, shelter.sequence_text()))
 			result.append(leaf("Finish Shelter", "Look for the Shelter badge on Insight. Only the next playable category shows the locked badge. Play Insight to finish the sequence. " + shelter.payoff_text(), 4, shelter.sequence_text()))
 		Step.END_TURN:
-			result.append(leaf("Let the revised line resolve", "End your turn and watch the rival spend its energy on defense. Pattern progress resets when your next turn begins. Unspent Cadence carries forward.", 0))
+			result.append(leaf("Let the revised line resolve", "End your turn. Watch your Block absorb the remaining Strike. Pattern progress resets at the start of your next turn. Unspent Cadence carries forward.", 0))
 		Step.COMPLETE:
-			result.append(leaf("You changed the outcome", "The rival defended instead of attacking. You finished the exercise with %d HP. Try the same decision against a rival whose reserve cards can punish the wrong Rewrite." % session.player.health, 4))
+			result.append(leaf("You changed the outcome", "Rewrite pushed one Strike into reserve. Shelter covered the 2 damage that would have pierced your Block. You finished with %d HP. In other duels, use Riposte to push damage through Block or Surge to afford another play." % session.player.health, 4))
 	return result
 
 
@@ -132,6 +136,4 @@ func _on_read() -> void:
 
 
 func _on_skip() -> void:
-	active = false
-	update_prompt()
-	changed.emit()
+	exit_requested.emit()

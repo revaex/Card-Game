@@ -71,23 +71,26 @@ func run() -> void:
 	play_named(table, &"block")
 	await finish_folio(table)
 	check(table.session.cadence == 2 and lesson.get_node("%Heading").text.contains("Rewrite"), "Changing categories makes Rewrite the next step")
+	check(table.session.line_threat(table.session.enemy_opening_plan()).hp_loss == 12, "Both Strikes would pierce the player's 8 Block")
 	check(table.rewrite_row.get_child(1).disabled, "The lesson highlights and enables only the threatening intent")
+	var opening_strike: CardInstance = table.enemy_piles.hand.front()
 	table._touch_pointer = true
 	table.rewrite_row.get_child(0).pressed.emit()
 	table._touch_pointer = false
 	await finish_folio(table)
-	check(table.session.cadence == 0 and table.enemy_piles.hand.back().definition.id == &"strike", "Rewrite spends Cadence and moves Strike to the back")
-	for card in table.session.enemy_opening_plan():
-		check(card.definition.id != &"strike", "The new affordable line excludes Strike")
+	check(table.session.cadence == 0 and table.enemy_piles.hand.back() == opening_strike, "Rewrite spends Cadence and moves the highlighted copy to the back")
+	check(not table.session.enemy_opening_plan().has(opening_strike) and table.session.line_threat(table.session.enemy_opening_plan()).hp_loss == 2, "The remaining Strike still threatens 2 HP before Shelter")
+	var hand_size: int = table.player_piles.hand.size()
 	play_named(table, &"insight")
 	await finish_folio(table)
 	check(table.session.completed_pattern == "Shelter" and not table.end_button.disabled, "The correct sequence completes Shelter and unlocks End turn")
+	check(table.player_piles.hand.size() == hand_size + 1 and table.session.line_threat(table.session.enemy_opening_plan()).hp_loss == 0, "Insight draws two cards and Shelter covers the remaining damage")
 	table.end_button.pressed.emit()
 	for index in range(8):
 		if table.session.player_turn:
 			break
 		table.advance_rival_presentation()
-	check(table.session.round_number == 2 and table.session.player.health == 30, "Rival completes its revised line without damaging the player")
+	check(table.session.round_number == 2 and table.session.player.health == 30 and table.session.statistics.player.absorbed == 10, "Shelter absorbs the attack during playback")
 	check(lesson.get_node("%Heading").text == "Lesson complete", "Lesson confirms the result")
 	await finish_folio(table)
 	lesson.get_node("%Continue").pressed.emit()
@@ -95,7 +98,11 @@ func run() -> void:
 	ui.show_lesson()
 	table = ui.body.get_node("CombatTable")
 	table.lesson.get_node("%Skip").pressed.emit()
-	check(not table.lesson.visible and not table.end_button.disabled, "Skip removes guidance and restores free play")
+	check(ui.screen == "menu", "Leaving the tutorial returns to the main menu")
+	ui.show_lesson()
+	ui.show_options()
+	ui.get_node("OptionsMenu").get_node("%MainMenu").pressed.emit()
+	check(ui.screen == "menu" and not ui.body.has_node("CombatTable"), "Options can leave a match for the main menu")
 	ui.free()
 	await process_frame
 	print("Guided duel: ", "PASSED" if failures == 0 else "FAILED")

@@ -18,6 +18,15 @@ The pitch: **read the rival's next move, then rewrite their plan.** The first us
 
 Keep the campaign scope at three rivals until those checks identify what is worth expanding. Prioritize a distinctive final encounter and better between-fight choices before adding more regions or cards.
 
+The [deck workshop batch](development_queue.md#batch-5--deck-workshop-and-margin-burn-playtest)
+adds provisional rules for new Journey recipes. Include a legacy recipe in
+demo QA and verify players can understand and repair an invalid deck.
+Margin Burn is an opt-in standalone balance experiment with progression
+rewards disabled. Its role in the demo depends on the three-rival playtest.
+The Scribe's fixed-opening practice duel and the Counterpoint sustain preset
+are available for local testing. Use repeat clear times and chapter health
+before committing either to the demo path.
+
 | Milestone | Work | Exit gate |
 |---|---|---|
 | 0. Platform foundation | Add touch selection and repeatable Windows/Web exports. Get a browser build running on a test host. Inventory platform assumptions around display, focus, font fallback, audio, and saves. | A complete duel works in a Windows export and a hosted browser export. Mouse and touch can play and cancel a card without ambiguity. |
@@ -57,6 +66,7 @@ Plan in small increments. Implement one new rival or reward loop at a time with 
 - **Sound:** Keep existing cues. Normalize their relative levels, avoid overlapping sharp cues, and tune on headphones, small speakers, and a phone. Add a subtle music or ambience layer only if it strengthens the setting. Track the provenance and license for any new audio, font, art, or tool-generated asset.
 - **Input and accessibility:** Test pointer, keyboard, controller, and touch as different flows. Add an explicit inspect/confirm path for information normally shown on hover. Check text contrast, color-independent states, focus order, safe areas, browser canvas focus, and pause/resume. Keep typography bundled so browser and mobile builds match desktop. The current build uses DejaVu Sans and Serif with their license in the project. [DejaVu upstream and license](https://github.com/dejavu-fonts/dejavu-fonts)
 - **Saves:** Version the save format. Keep settings, deck recipes, and run state separate. Save at deterministic boundaries, make writes recoverable, and test upgrades with old saves. First ship reliable local saves. Evaluate Steam Cloud after local save recovery works. Browser saves belong to the browser origin and can be unavailable or cleared, so test that case and explain it in the demo. [Godot Web export and persistence](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_web.html)
+- **Final title and demo URL.** Check exact-title collisions on Google, YouTube, Steam, and itch.io before choosing. Centralize the display title, update UI, exports, docs, and published listings or trailers, then regenerate the builds. Keep card IDs, Resource paths, and save keys stable. Verify that the renamed desktop build opens an existing deck, Journey checkpoint, and relic balance. Publish the web export as a Pages artifact with a landing page at the published root and the game at `/play/`. A custom play subdomain is optional. Keep the existing link working during transition and verify browser save behavior at the destination URL.
 
 ## Shipping paths
 
@@ -72,7 +82,34 @@ Plan in small increments. Implement one new rival or reward loop at a time with 
 
 Use the same GDScript and Compatibility renderer, with a single-threaded Web preset to simplify hosting. Export to `index.html`, serve the generated files together over HTTPS with proper WebAssembly MIME handling, and version releases so old cached files cannot mix with a new build. Add a visible start action for audio and a clear Steam wishlist link once the store page exists. Host a test build before promising a mobile browser release. Smoke test current Chrome/Edge and Firefox, plus Safari if advertised, and test at least one actual phone. Check load time, sound after first input, tab background/resume, and settings persistence with storage blocked. Keep the demo route short. [Godot Web export](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_web.html) · [Godot Web preset options](https://docs.godotengine.org/en/stable/classes/class_editorexportplatformweb.html)
 
+### Title and demo handoff
+
+Before settling the title, compare exact-name results across search, YouTube,
+Steam and itch.io. The owner flagged a music-name collision for Ink & Intent.
+Once selected, update the shared UI title, export names, release copy and public
+listings, then rebuild the web export. Preserve stable card and save IDs.
+Verify that existing decks, Journey checkpoints and relic balances survive
+the desktop rename and any browser URL change.
+
+Publish the demo from a generated Pages artifact with a landing page at the
+site root and a stable `/play/` entry. Check existing public links before
+moving the export and preserve or redirect them. A branded subdomain is an
+option after the title and domain are chosen.
+
 ### Android and Google Play
+
+Validate one complete short duel on a physical phone before building recurring
+challenges or a shop. Start in landscape. Keep the rival line, forecast and
+hand readable together, use tap to inspect and an explicit action to play or
+Rewrite, and make drag optional. Check that OS Back dismisses inspection first.
+Background the app and force-stop it at a turn boundary and at pending rewards.
+Measure how much progress a player loses before deciding whether standalone
+duels need turn-level resume. See the [short rival puzzle plan](feature_shortlist.md#short-rival-puzzles-and-mobile-replay).
+
+Evaluate a free demo with a clear one-time full-game unlock before adding a
+store. If the Play build sells digital goods, plan for Play Billing, purchase
+restoration and entitlement tests before release. Keep paid offers separate
+from the earned boss reward pool. [Google Play payments policy](https://support.google.com/googleplay/android-developer/answer/9858738)
 
 Start with a debuggable APK installed on devices. Test landscape layout, cutouts, backgrounding, OS back, audio interruptions, and process death. When ready for Play, choose the permanent application ID, set version codes, and export a signed release **Android App Bundle** using the appropriate Godot, Android SDK, Java, and Gradle setup. Keep upload keys and credentials outside the repo, backed up separately. Verify Play App Signing and run the app on an ARM64 device and a 16 KB page-size environment. At the time of this plan, ordinary new phone submissions must target **Android 16 / API 36 or higher**. Recheck the policy before submission. [Godot Android export](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_android.html) · [Play target API policy](https://support.google.com/googleplay/android-developer/answer/11926878) · [Android 16 KB guidance](https://developer.android.com/guide/practices/page-sizes)
 
@@ -100,4 +137,4 @@ godot --headless --path . --export-release "Web Demo" builds/web/index.html
 
 Run `builds/windows/InkAndIntent.exe` with its PCK beside it. For a local browser check, serve the whole Web folder with `python -m http.server 8080 --bind 127.0.0.1 --directory builds/web` and open `http://127.0.0.1:8080`. Opening the HTML directly from disk is not the same as serving it.
 
-The guided opening duel is available from **Learn to duel**. It uses the normal combat session to teach reading intent, changing categories to build Cadence, using Rewrite to push Strike out of the affordable line, and finishing Shelter. The next gate is to watch first-time players try it, then use that feedback to design the second and third fights of the public-demo route.
+The guided opening duel is available from **Learn to duel**. It uses the normal combat session to teach reading intent, building Cadence, rewriting one of two Strikes, and using Shelter to absorb the other. Insight draws two cards during the exercise. The next gate is to see whether first-time players can explain what each decision prevented. Validate the Duelist's opening difficulty and available healing before freezing the public-demo route. See the [Journey playthrough follow-ups](feature_shortlist.md#journey-playthrough-follow-ups).

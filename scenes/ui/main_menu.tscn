@@ -111,6 +111,7 @@ theme_override_font_sizes/font_size = 19
 theme_override_colors/font_color = Color(0.082, 0.141, 0.149, 1)
 theme_override_colors/font_hover_color = Color(0.082, 0.141, 0.149, 1)
 theme_override_colors/font_pressed_color = Color(0.082, 0.141, 0.149, 1)
+theme_override_colors/font_focus_color = Color(0.082, 0.141, 0.149, 1)
 theme_override_styles/normal = SubResource("PrimaryNormal")
 theme_override_styles/hover = SubResource("PrimaryHover")
 theme_override_styles/pressed = SubResource("PrimaryNormal")

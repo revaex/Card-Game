@@ -32,6 +32,12 @@ var journey_checkpoint := JourneyCheckpoint.new()
 var preparing_journey: bool = false
 var journey_deck_name: String = ""
 var _table_is_journey: bool = false
+var _table_is_puzzle: bool = false
+var _puzzle_started_at := 0
+var _puzzle_elapsed := -1
+var _puzzle_bests := {}
+var _puzzle_attempts := {}
+var margin_burn_playtest: bool = false
 var selected_rival: Resource
 var library = Library.new()
 @onready var body: VBoxContainer = %Body
@@ -54,7 +60,6 @@ var window_size: int = 0
 var vsync: bool = true
 var controller_shortcuts: bool = true
 var swap_shoulders: bool = false
-var end_shortcut: bool = false
 var options_path: String = "user://options.cfg"
 var result_overlay: Control
 var _back_action: Callable
@@ -158,6 +163,7 @@ func show_rivals() -> void:
 		Style.label(panel, "%d HP  ·  %d cards" % [rival.health, rival.cards.size()], 14, Style.GOLD)
 		Style.label(panel, rival.doctrine_text(), 13, rival.accent)
 		Style.primary(Style.button(panel, "Challenge  →", select_rival.bind(index)))
+		Style.button(panel, "Practice fixed-opening puzzle", show_rival_puzzle.bind(index))
 	Style.button(body, "← Main menu", show_menu)
 	_back_action = show_menu
 
@@ -190,14 +196,25 @@ func show_library(selecting: bool) -> void:
 	var presets := OptionButton.new()
 	presets.add_item("Add a preset…")
 	presets.set_item_disabled(0, true)
-	presets.add_item("Counterpoint")
-	presets.add_item("Palimpsest")
-	presets.add_item("Counterwritten")
+	var recipes: Array[Dictionary] = [library.counterpoint_recipe(), library.palimpsest_recipe(), library.counterwritten_recipe(), library.counterpoint_sustain_recipe()]
+	recipes.append_array(library.style_recipes())
+	for recipe in recipes:
+		presets.add_item(recipe.name)
 	presets.item_selected.connect(func(item: int):
-		library.decks.append([library.counterpoint_recipe(), library.palimpsest_recipe(), library.counterwritten_recipe()][item - 1])
+		library.decks.append(recipes[item - 1].duplicate(true))
 		library.save()
 		show_editor(library.decks.size() - 1, selecting))
 	toolbar.add_child(presets)
+	var filters := Style.row(body)
+	var search := LineEdit.new()
+	search.name = "DeckSearch"
+	search.placeholder_text = "Search deck names"
+	search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	filters.add_child(search)
+	var ready := CheckButton.new()
+	ready.name = "JourneyReadyFilter"
+	ready.text = "Journey ready only"
+	filters.add_child(ready)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(scroll)
@@ -207,14 +224,57 @@ func show_library(selecting: bool) -> void:
 	for index in range(library.decks.size()):
 		var recipe: Dictionary = library.decks[index]
 		var item := Style.panel(list)
+		item.get_parent().set_meta("recipe", recipe)
 		var line := Style.row(item)
 		var name_label := Style.label(line, "%s   /   %d cards" % [recipe.name, library.total(recipe)], 22)
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		Style.button(line, "View cards", show_deck_cards.bind(index))
 		Style.button(line, "Edit cards", show_editor.bind(index, selecting))
+		Style.button(line, "Duplicate", duplicate_deck.bind(index, selecting))
 		Style.button(line, "Remove", confirm_remove.bind(index, selecting))
+	var no_matches := Style.label(list, "No decks match these filters.", 16, Style.MUTED)
+	no_matches.hide()
+	var apply_filter := func():
+		var matches := 0
+		for row in list.get_children():
+			if not row.has_meta("recipe"):
+				continue
+			var recipe: Dictionary = row.get_meta("recipe")
+			var query := search.text.strip_edges()
+			row.visible = (query.is_empty() or String(recipe.name).containsn(query)) and (not ready.button_pressed or library.journey_issues(recipe).is_empty())
+			matches += int(row.visible)
+		no_matches.visible = matches == 0 and not library.decks.is_empty()
+	search.text_changed.connect(func(_value: String): apply_filter.call())
+	ready.toggled.connect(func(_value: bool): apply_filter.call())
 	_back_action = show_setup if selecting else show_menu
 	Style.button(body, "← Back", _back_action)
+
+
+func duplicate_deck(index: int, selecting: bool) -> void:
+	var copy: Dictionary = library.decks[index].duplicate(true)
+	copy.name = String(copy.name).left(27) + " copy"
+	library.decks.append(copy)
+	if library.save():
+		show_editor(library.decks.size() - 1, selecting)
+	else:
+		library.decks.pop_back()
+		show_library(selecting)
+
+
+func rename_deck(index: int, value: String, status: Label) -> void:
+	var name_text := value.strip_edges()
+	if name_text.is_empty():
+		status.text = "Enter a deck name."
+		return
+	var recipe: Dictionary = library.decks[index]
+	var previous: String = recipe.name
+	recipe.name = name_text
+	if library.save():
+		body.get_node("PageHeading").get_node("%Title").text = name_text
+		status.text = "Name saved."
+	else:
+		recipe.name = previous
+		status.text = library.error_message
 
 
 func confirm_remove(index: int, selecting: bool) -> void:
@@ -233,51 +293,193 @@ func confirm_remove(index: int, selecting: bool) -> void:
 	dialog.popup_centered()
 
 
-func show_editor(index: int, selecting: bool) -> void:
+func show_editor(index: int, selecting: bool, from_setup: bool = false) -> void:
 	screen = "editor"
 	editing = index
 	var recipe: Dictionary = library.decks[index]
-	clear(recipe.name, "Build your deck from the almanac. Mix Attack, Guard, and Tactic to unlock Patterns.")
+	clear(recipe.name, "Click, press Confirm, or drag a card to the deck tray to add it. Use − to remove a copy.")
 	var editor := DeckEditor.instantiate()
 	body.add_child(editor)
-	_back_action = show_library.bind(selecting)
+	_back_action = show_setup if from_setup else show_library.bind(selecting)
 	editor.get_node("%Done").pressed.connect(_back_action)
+	var tray: PanelContainer = editor.get_node("%DeckTray")
+	tray.add_theme_stylebox_override("panel", Style.box(Color("142a2c")))
+	tray.set_drag_forwarding(Callable(), can_drop_deck_card.bind(editor, recipe), drop_deck_card.bind(index, selecting))
+	var foley := AudioStreamPlayer.new()
+	foley.name = "DeckAddSound"
+	foley.stream = preload("res://data/audio/deal.wav")
+	foley.bus = &"Effects"
+	foley.volume_db = -6.0
+	editor.add_child(foley)
+	var equipped := relics.equipped()
+	editor.get_node("%EquippedRelic").text = "Profile relic · " + (equipped.title if equipped != null else "None")
 	var cards := editor.get_node("%Cards")
+	var contents := editor.get_node("%DeckContents")
+	var controls := Style.row(editor)
+	editor.move_child(controls, editor.get_node("Workshop").get_index())
+	var query := LineEdit.new()
+	query.name = "CatalogueSearch"
+	query.placeholder_text = "Search cards"
+	query.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	controls.add_child(query)
+	var category := OptionButton.new()
+	category.name = "CatalogueCategory"
+	category.add_item("All categories")
+	for title in CardDefinition.Category.keys():
+		category.add_item(title.capitalize())
+	controls.add_child(category)
+	var in_deck := CheckButton.new()
+	in_deck.name = "CatalogueInDeck"
+	in_deck.text = "In deck"
+	controls.add_child(in_deck)
+	var no_matches := Style.label(cards, "No matching cards.", 16, Style.MUTED)
+	no_matches.hide()
+	var apply_filter := func():
+		var matches := 0
+		var search_text := query.text.strip_edges()
+		for definition in Library.CARDS:
+			var id := String(definition.id)
+			var visible_card: bool = (category.selected == 0 or definition.category == category.selected - 1) and (not in_deck.button_pressed or int(recipe.cards.get(id, 0)) > 0)
+			visible_card = visible_card and (search_text.is_empty() or String(definition.display_name).containsn(search_text))
+			cards.get_node(id).visible = visible_card
+			matches += int(visible_card)
+		no_matches.visible = matches == 0
+	editor.set_meta("apply_filter", apply_filter)
+	query.text_changed.connect(func(_value: String): apply_filter.call())
+	category.item_selected.connect(func(_value: int): apply_filter.call())
+	in_deck.toggled.connect(func(_value: bool): apply_filter.call())
+	var naming := Style.row(editor)
+	editor.move_child(naming, controls.get_index())
+	var name_input := LineEdit.new()
+	name_input.name = "DeckName"
+	name_input.text = recipe.name
+	name_input.max_length = 32
+	name_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	naming.add_child(name_input)
+	var name_status := Style.label(naming, "", 14, Style.MUTED)
+	Style.button(naming, "Rename deck", func(): rename_deck(index, name_input.text, name_status))
+	name_input.text_submitted.connect(func(value: String): rename_deck(index, value, name_status))
 	for definition in Library.CARDS:
 		var id := String(definition.id)
 		var entry := DeckCard.instantiate()
 		entry.name = id
 		cards.add_child(entry)
-		entry.get_node("%Card").setup_preview(CardInstance.new(definition))
+		var add_copy := change_count.bind(index, id, 1, selecting)
+		var card: Control = entry.get_node("%Card")
+		card.setup_deck_add(CardInstance.new(definition), add_copy)
+		card.get_node("%Play").set_drag_forwarding(drag_deck_card.bind(card, editor, id), Callable(), Callable())
 		var remove: Button = entry.get_node("%Remove")
 		var add: Button = entry.get_node("%Add")
 		remove.tooltip_text = "Remove one copy of %s" % definition.display_name
-		add.tooltip_text = "Add one copy of %s (maximum 50)" % definition.display_name
-		remove.pressed.connect(change_count.bind(index, id, -1, selecting))
-		add.pressed.connect(change_count.bind(index, id, 1, selecting))
-		update_deck_card(entry, int(recipe.cards.get(id, 0)))
-	editor.get_node("%Total").text = "%d cards in deck" % library.total(recipe)
+		add.tooltip_text = "Add one copy of %s" % definition.display_name
+		var remove_copy := change_count.bind(index, id, -1, selecting)
+		remove.pressed.connect(remove_copy)
+		add.pressed.connect(add_copy)
+		var row := Style.row(contents)
+		row.name = id
+		var caption := Style.label(row, definition.display_name, 14)
+		caption.name = "Caption"
+		caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var tray_remove := Style.button(row, "−", remove_copy)
+		tray_remove.name = "Remove"
+		tray_remove.accessibility_name = remove.tooltip_text
+		tray_remove.tooltip_text = remove.tooltip_text
+		Style.quiet(tray_remove)
+		update_deck_card(entry, row, int(recipe.cards.get(id, 0)))
+	update_deck_summary(editor, recipe)
 
 
-func update_deck_card(entry: Node, count: int) -> void:
-	entry.get_node("%Card").set_caption("%d in deck" % count)
+func drag_deck_card(_position: Vector2, card: Control, editor: Node, id: String) -> Variant:
+	if card.get_node("%Play").disabled:
+		return null
+	var preview := Control.new()
+	var snapshot: Control = card.make_snapshot()
+	preview.add_child(snapshot)
+	snapshot.scale = Vector2.ONE * 0.75
+	snapshot.position = -snapshot.size * 0.375
+	card.set_drag_preview(preview)
+	return {"deck_editor": editor.get_instance_id(), "card_id": id}
+
+
+func can_drop_deck_card(_position: Vector2, data: Variant, editor: Node, recipe: Dictionary) -> bool:
+	if not data is Dictionary or data.get("deck_editor") != editor.get_instance_id():
+		return false
+	var id: String = data.get("card_id", "")
+	return not id.is_empty() and editor.get_node("%Cards").has_node(id) and int(recipe.cards.get(id, 0)) < Library.RECIPE_COPY_LIMIT
+
+
+func drop_deck_card(_position: Vector2, data: Dictionary, index: int, selecting: bool) -> void:
+	change_count(index, data.card_id, 1, selecting)
+
+
+func play_deck_add_feedback(editor: Control, card: Control) -> void:
+	if combat_sound:
+		editor.get_node("DeckAddSound").play()
+	if not combat_motion or not card.is_visible_in_tree():
+		return
+	var snapshot: Control = card.make_snapshot()
+	add_child(snapshot)
+	editor.tree_exiting.connect(snapshot.queue_free, CONNECT_ONE_SHOT)
+	snapshot.global_position = card.global_position
+	snapshot.z_index = 20
+	var tray: Control = editor.get_node("%DeckTray")
+	var destination := tray.global_position + tray.size * Vector2(0.5, 0.2) - snapshot.size * 0.17
+	var flight := snapshot.create_tween().set_parallel().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	flight.tween_property(snapshot, "global_position", destination, 0.26)
+	flight.tween_property(snapshot, "scale", Vector2.ONE * 0.34, 0.26)
+	flight.tween_property(snapshot, "modulate:a", 0.0, 0.16).set_delay(0.10)
+	flight.chain().tween_callback(snapshot.queue_free)
+
+
+func update_deck_card(entry: Node, tray_row: HBoxContainer, count: int) -> void:
+	var card := entry.get_node("%Card")
+	card.set_caption("%d in deck" % count)
+	card.set_deck_add_enabled(count < Library.RECIPE_COPY_LIMIT)
 	entry.get_node("%Remove").disabled = count == 0
-	entry.get_node("%Add").disabled = count >= 50
+	entry.get_node("%Add").disabled = count >= Library.RECIPE_COPY_LIMIT
+	if count == 0 and tray_row.get_node("Remove").has_focus():
+		card.get_node("%Play").grab_focus()
+	tray_row.visible = count > 0
+	tray_row.get_node("Caption").text = "%s ×%d" % [card.get_node("%Title").text, count]
+
+
+func update_deck_summary(editor: Node, recipe: Dictionary) -> void:
+	var counts: Array[int] = library.category_counts(recipe)
+	var size: int = library.total(recipe)
+	editor.get_node("%Total").text = "%d cards  ·  Attack %d  ·  Guard %d  ·  Tactic %d" % [size, counts[0], counts[1], counts[2]]
+	editor.get_node("%EmptyDeck").visible = size == 0
+	var issues: PackedStringArray = library.journey_issues(recipe)
+	var status: Label = editor.get_node("%JourneyStatus")
+	status.text = "Ready for a Journey." if issues.is_empty() else "Journey requirements\n" + "\n".join(issues)
+	status.tooltip_text = "Journeys start with %d–%d cards and up to %d copies of each card. Strike and Block are exempt from the copy limit." % [Library.JOURNEY_MIN_CARDS, Library.JOURNEY_MAX_CARDS, Library.JOURNEY_COPY_LIMIT]
+	if not library.error_message.is_empty():
+		status.text += "\n" + library.error_message
 
 
 func change_count(index: int, id: String, amount: int, selecting: bool) -> void:
 	var recipe: Dictionary = library.decks[index]
-	var count := clampi(int(recipe.cards.get(id, 0)) + amount, 0, 50)
+	var previous := int(recipe.cards.get(id, 0))
+	var count := clampi(previous + amount, 0, Library.RECIPE_COPY_LIMIT)
+	if count == previous:
+		return
 	recipe.cards[id] = count
 	var saved: bool = library.save()
+	if not saved:
+		recipe.cards[id] = previous
+		count = previous
 	var editor := body.get_node_or_null("DeckEditor")
 	if screen != "editor" or editing != index or editor == null:
 		show_editor(index, selecting)
 		return
 	var entry := editor.get_node("%Cards").get_node_or_null(id)
 	if entry != null:
-		update_deck_card(entry, count)
-	editor.get_node("%Total").text = "%d cards in deck" % library.total(recipe) if saved else library.error_message
+		update_deck_card(entry, editor.get_node("%DeckContents").get_node(id), count)
+		if saved and amount > 0:
+			play_deck_add_feedback(editor, entry.get_node("%Card"))
+	update_deck_summary(editor, recipe)
+	var apply_filter: Callable = editor.get_meta("apply_filter")
+	apply_filter.call()
 
 
 func show_setup() -> void:
@@ -317,8 +519,12 @@ func show_setup() -> void:
 			show_setup())
 		if selected >= 0 and selected < library.decks.size():
 			Style.button(panel, "View deck cards", show_deck_cards.bind(selected))
+			Style.button(panel, "Edit this deck", show_editor.bind(selected, true, true))
 			var counts: Array[int] = library.category_counts(library.decks[selected])
 			Style.label(panel, "Attack %d  ·  Guard %d  ·  Tactic %d" % counts, 13, Style.MUTED)
+			if side == "player" and preparing_journey:
+				for issue in library.journey_issues(library.decks[selected]):
+					Style.label(panel, issue, 16, Color("ffa293")).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			if side == "player" and counts.has(0):
 				Style.label(panel, "Patterns use all three categories.", 13, Style.GOLD)
 				Style.button(panel, "Try the Counterpoint deck", use_counterpoint_deck)
@@ -326,12 +532,27 @@ func show_setup() -> void:
 	var equipped := relics.equipped()
 	Style.label(equipment, "RELIC   /   " + (equipped.title if equipped != null else "None"), 15, Style.GOLD)
 	Style.button(equipment, "Change relic", show_relics.bind(true))
+	if not preparing_journey:
+		var experiment := CheckButton.new()
+		experiment.name = "MarginBurnPlaytest"
+		experiment.text = "Playtest Margin Burn (no progression rewards)"
+		experiment.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		experiment.tooltip_text = "Once per duel, exhaust a card in hand for up to 2 Cadence. Playtest victories award no Marks or milestones."
+		experiment.set_pressed_no_signal(margin_burn_playtest)
+		experiment.toggled.connect(func(enabled: bool): margin_burn_playtest = enabled)
+		body.add_child(experiment)
 	var actions := HFlowContainer.new()
 	body.add_child(actions)
 	var confirm := Style.button(actions, "Begin the journey  →" if preparing_journey else "Begin the duel  →", begin_journey if preparing_journey else show_table)
 	Style.primary(confirm)
 	confirm.disabled = not valid_selection()
 	Style.button(actions, "Create / edit decks", show_library.bind(true))
+	if selected_rival == null and valid_selection() and player_index != enemy_index:
+		Style.button(actions, "Swap decks", func():
+			var previous := player_index
+			player_index = enemy_index
+			enemy_index = previous
+			show_setup())
 	Style.button(actions, "← Main menu", show_menu)
 	_back_action = show_menu
 
@@ -404,12 +625,14 @@ func show_deck_cards(index: int) -> void:
 	var dialog := CardBrowser.instantiate()
 	add_child(dialog)
 	dialog.close_requested.connect(dialog.queue_free)
-	dialog.show_cards(recipe.name, library.instantiate_deck(recipe), "Saved deck")
+	var counts: Array[int] = library.category_counts(recipe)
+	dialog.show_cards(recipe.name, library.instantiate_deck(recipe), "Attack %d  ·  Guard %d  ·  Tactic %d" % counts)
 
 
 func use_counterpoint_deck() -> void:
 	for index in range(library.decks.size()):
-		if library.decks[index].name == "Counterpoint" and not library.category_counts(library.decks[index]).has(0):
+		var recipe: Dictionary = library.decks[index]
+		if recipe.name == "Counterpoint" and not library.category_counts(recipe).has(0) and (not preparing_journey or library.journey_issues(recipe).is_empty()):
 			player_index = index
 			show_setup()
 			return
@@ -421,6 +644,8 @@ func use_counterpoint_deck() -> void:
 
 func valid_selection() -> bool:
 	var player_valid: bool = player_index >= 0 and player_index < library.decks.size() and library.total(library.decks[player_index]) > 0
+	if player_valid and preparing_journey:
+		player_valid = library.journey_issues(library.decks[player_index]).is_empty()
 	var enemy_valid: bool = selected_rival != null or (enemy_index >= 0 and enemy_index < library.decks.size() and library.total(library.decks[enemy_index]) > 0)
 	return player_valid and enemy_valid
 
@@ -444,22 +669,49 @@ func show_table() -> void:
 	var enemy_cards: Array[CardInstance] = selected_rival.create_deck() if selected_rival != null else library.instantiate_deck(library.decks[enemy_index])
 	var player_cards: Array[CardInstance] = library.instantiate_deck(library.decks[player_index])
 	var duel := CombatSession.new(player_cards, enemy_cards, true, false, selected_rival, 30, relics.equipped())
+	duel.margin_burn_enabled = not preparing_journey and margin_burn_playtest
 	mount_table(player_cards, enemy_cards, library.decks[player_index].name, enemy_name, selected_rival, duel)
+
+
+func show_rival_puzzle(index: int) -> void:
+	var rival: Resource = Rivals.ALL[index]
+	var mend := preload("res://data/cards/mend.tres")
+	var strike := StarterDeck.STRIKE
+	var block := StarterDeck.BLOCK
+	# CardPiles draws from the end. Keep both opening solutions reproducible.
+	var cards: Array[CardInstance] = []
+	for definition in [strike, strike, strike, mend, INSIGHT, mend, block, strike, INSIGHT, block]:
+		cards.append(CardInstance.new(definition))
+	var enemy_cards: Array[CardInstance] = rival.create_deck()
+	var duel := CombatSession.new(cards, enemy_cards, false, false, rival)
+	mount_table(cards, enemy_cards, "%s puzzle" % rival.display_name.trim_prefix("The "), rival.display_name, rival, duel, false, false, true)
+	var table := body.get_node("CombatTable")
+	table.message.text = ["Use Rewrite to break up the attack sequence.", "Find a way through the Warden’s opening guard.", "Find a damage window: Rewrite Inkblot or finish Riposte."][index]
 
 
 func show_lesson() -> void:
 	var player_cards: Array[CardInstance] = [CardInstance.new(INSIGHT), CardInstance.new(StarterDeck.BLOCK), CardInstance.new(StarterDeck.STRIKE)]
+	for index in range(3):
+		player_cards.push_front(CardInstance.new(StarterDeck.BLOCK))
+		player_cards.push_front(CardInstance.new(StarterDeck.STRIKE))
+	player_cards.push_front(CardInstance.new(INSIGHT))
 	var rival_cards: Array[CardInstance] = []
-	for index in range(4):
+	for index in range(3):
 		rival_cards.append(CardInstance.new(StarterDeck.BLOCK))
+	rival_cards.append(CardInstance.new(StarterDeck.STRIKE))
 	rival_cards.append(CardInstance.new(StarterDeck.STRIKE))
 	var practice := CombatSession.new(player_cards, rival_cards, false)
 	mount_table(player_cards, rival_cards, "First lesson", "Practice rival", null, practice, false, true)
 
 
-func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], player_name: String, enemy_name: String, rival: Resource, existing: RefCounted = null, in_journey: bool = false, guided: bool = false) -> void:
+func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], player_name: String, enemy_name: String, rival: Resource, existing: RefCounted = null, in_journey: bool = false, guided: bool = false, puzzle: bool = false) -> void:
 	screen = "table"
 	_table_is_journey = in_journey
+	_table_is_puzzle = puzzle
+	if puzzle:
+		_puzzle_started_at = Time.get_ticks_msec()
+		_puzzle_elapsed = -1
+		_puzzle_attempts[rival.id] = _puzzle_attempts.get(rival.id, 0) + 1
 	clear("The table", "%s vs %s" % [player_name, enemy_name])
 	body.get_node("PageHeading").hide()
 	var toolbar := TableToolbar.instantiate()
@@ -481,20 +733,27 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	Style.quiet(toolbar.get_node("%Options"))
 	leave.text = "Journey" if in_journey else ("← Main menu" if guided else "← Leave table")
 	_back_action = show_journey_overview if in_journey else (show_menu if guided else show_setup)
+	if puzzle:
+		leave.text = "← Rivals"
+		_back_action = show_rivals
 	leave.pressed.connect(_back_action)
 	Style.quiet(leave)
 	leave.tooltip_text = "JOURNEY\nPause this duel and view your route. Returning here resumes the fight. Closing the game restarts this chapter." if in_journey else "LEAVE TABLE\nReturn to deck preparation. This single duel is discarded; saved decks are unchanged."
+	if puzzle:
+		leave.tooltip_text = "Return to rival selection. Reopening the puzzle starts a fresh attempt."
+		Style.button(toolbar, "Restart puzzle", show_rival_puzzle.bind(Rivals.ALL.find(rival)))
 	var table := Table.instantiate()
 	table.name = "CombatTable"
 	table.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(table)
 	table.motion_enabled = combat_motion
 	table.guided = guided
-	table.configure_controller(controller_shortcuts, swap_shoulders, end_shortcut)
+	table.configure_controller(controller_shortcuts, swap_shoulders)
 	table.combat_audio.set_enabled(combat_sound)
 	table.setup(player_cards, enemy_cards, false, rival, existing)
 	if guided:
 		table.lesson.completed.connect(show_journey_setup)
+		table.lesson.exit_requested.connect(show_menu)
 		table.lesson.get_node("%Continue").grab_focus()
 	table.rival_timer.wait_time = 0.70 if fast_rival_turns else 1.15
 	table.combat_finished.connect(show_result)
@@ -529,7 +788,6 @@ func load_options() -> void:
 		vsync = bool(config.get_value("table", "vsync", true))
 		controller_shortcuts = bool(config.get_value("table", "controller", true))
 		swap_shoulders = bool(config.get_value("table", "swap_shoulders", false))
-		end_shortcut = bool(config.get_value("table", "end_shortcut", false))
 		%FocusHelp.hints_enabled = bool(config.get_value("table", "focus_tooltips", true))
 		if config.has_section_key("table", "window_mode"):
 			apply_window.call_deferred()
@@ -571,7 +829,7 @@ func option_values() -> Dictionary:
 		"sound": combat_sound, "motion": combat_motion, "fast_turns": fast_rival_turns,
 		"volume": master_volume, "effects_volume": effects_volume,
 		"window_mode": window_mode, "window_size": window_size, "vsync": vsync,
-		"controller": controller_shortcuts, "swap_shoulders": swap_shoulders, "end_shortcut": end_shortcut,
+		"controller": controller_shortcuts, "swap_shoulders": swap_shoulders,
 		"bindings": control_bindings,
 		"focus_tooltips": %FocusHelp.hints_enabled,
 	}
@@ -625,20 +883,19 @@ func change_option(key: String, value: Variant) -> void:
 			control_bindings = Bindings.sanitize(value)
 			Bindings.apply(control_bindings)
 			if table != null:
-				table.update_hand_shortcut()
+				table.update_combat_shortcuts()
 			if toolbar != null:
 				update_tooltip_toggle(toolbar)
 		"focus_tooltips":
 			%FocusHelp.hints_enabled = value
 			if toolbar != null:
 				update_tooltip_toggle(toolbar)
-		"controller", "swap_shoulders", "end_shortcut":
+		"controller", "swap_shoulders":
 			match key:
 				"controller": controller_shortcuts = value
 				"swap_shoulders": swap_shoulders = value
-				"end_shortcut": end_shortcut = value
 			if table != null:
-				table.configure_controller(controller_shortcuts, swap_shoulders, end_shortcut)
+				table.configure_controller(controller_shortcuts, swap_shoulders)
 	var config := ConfigFile.new()
 	var values := option_values()
 	for option in values:
@@ -662,6 +919,10 @@ func show_options() -> void:
 	add_child(menu)
 	menu.preference_changed.connect(change_option)
 	menu.quit_requested.connect(func(): get_tree().quit())
+	menu.main_menu_requested.connect(func():
+		menu.hide()
+		menu.queue_free()
+		show_menu())
 	menu.close_requested.connect(func():
 		menu.hide()
 		menu.queue_free()
@@ -671,7 +932,7 @@ func show_options() -> void:
 			table.pause_lesson_delay(false)
 		if resume and is_instance_valid(table) and not table.session.player_turn and table.session.outcome.is_empty():
 			table.rival_timer.start())
-	menu.open(option_values(), supports_desktop_display())
+	menu.open(option_values(), supports_desktop_display(), screen != "menu")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -703,6 +964,9 @@ func close_result() -> void:
 		result_overlay.queue_free()
 		result_overlay = null
 		body.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
+		var table := body.get_node_or_null("CombatTable")
+		if table != null:
+			table.set_process_unhandled_input(true)
 
 
 func review_result() -> void:
@@ -720,23 +984,48 @@ func show_result(summary: Dictionary) -> void:
 	result_overlay = CombatResult.instantiate()
 	add_child(result_overlay)
 	var table := body.get_node("CombatTable")
+	table.set_process_unhandled_input(false)
 	if table.guided:
 		result_overlay.setup(summary, show_lesson, show_menu, review_result, "Retry lesson", "Main menu")
+	elif _table_is_puzzle:
+		var rival: Resource = table.session.rival_definition
+		result_overlay.setup(summary, show_rival_puzzle.bind(Rivals.ALL.find(rival)), show_rivals, review_result, "Rematch puzzle", "Rivals")
+		Style.primary(result_overlay.get_node("%Rematch"))
+		var best: int = _puzzle_bests.get(rival.id, -1)
+		if _puzzle_elapsed < 0:
+			_puzzle_elapsed = floori((Time.get_ticks_msec() - _puzzle_started_at) / 1000.0)
+			if summary.outcome == "Victory" and (best < 0 or _puzzle_elapsed < best):
+				best = _puzzle_elapsed
+				_puzzle_bests[rival.id] = best
+		var timing := "Practice time · %s  /  Attempt %d" % [format_puzzle_time(_puzzle_elapsed), _puzzle_attempts[rival.id]]
+		if best >= 0:
+			timing += "\nSession best · " + format_puzzle_time(best)
+		result_overlay.set_spoils(timing)
 	elif _table_is_journey and journey != null:
 		if journey.phase == Journey.Phase.DUEL:
 			journey.finish_encounter(body.get_node("CombatTable").session)
 			journey_checkpoint.save_run(journey, journey_deck_name)
 		var next := show_journey_reward if journey.phase == Journey.Phase.REWARD else show_journey_summary
-		result_overlay.setup(summary, next, confirm_end_journey, review_result, "Choose your next step" if journey.phase == Journey.Phase.REWARD else "Journey summary", "End journey")
+		result_overlay.setup(summary, next, confirm_end_journey, review_result, "Choose reward  →" if journey.phase == Journey.Phase.REWARD else "Journey summary", "End journey")
+		if journey.phase == Journey.Phase.REWARD:
+			Style.primary(result_overlay.get_node("%Rematch"))
 	else:
 		result_overlay.setup(summary, show_table, show_setup, review_result)
-	show_victory_spoils(table.session, summary)
+	if not _table_is_puzzle:
+		show_victory_spoils(table.session, summary)
 	if _table_is_journey and not journey_checkpoint.error_message.is_empty():
 		result_overlay.set_spoils(journey_checkpoint.error_message)
 
 
+func format_puzzle_time(seconds: int) -> String:
+	return "%d:%02d" % [floori(seconds / 60.0), seconds % 60]
+
+
 func show_victory_spoils(session: RefCounted, summary: Dictionary) -> void:
 	if summary.outcome != "Victory" or session.rival_definition == null:
+		return
+	if session.margin_burn_enabled:
+		result_overlay.set_spoils("Margin Burn playtest · no progression rewards")
 		return
 	if _paid_session != session:
 		var rival_id: String = session.rival_definition.id

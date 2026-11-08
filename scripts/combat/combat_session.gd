@@ -25,6 +25,7 @@ var statistics: Dictionary = {"player": {}, "enemy": {}}
 var last_action: Dictionary = {}
 const CADENCE_CAP: int = 3
 const REWRITE_COST: int = 2
+const MARGIN_BURN_GAIN: int = 2
 const CADENCE_ACTION_COST: int = 2
 const BRACE_BLOCK: int = 4
 enum CadenceAction { BRACE, DRAW }
@@ -36,6 +37,8 @@ var _finishing_damage: int = 0
 var cadence: int = 0
 var last_category: int = -1
 var rewrote_this_turn: bool = false
+var margin_burn_enabled: bool = false
+var margin_burn_used: bool = false
 var rival_definition: Resource
 var rival_final_phase: bool = false
 var rival_phase_pending: bool = false
@@ -237,8 +240,38 @@ func spend_cadence(action: CadenceAction) -> bool:
 	return true
 
 
+func can_margin_burn(card: CardInstance) -> bool:
+	return margin_burn_enabled and not margin_burn_used and not _resolving and player_turn and outcome.is_empty() and card != null and player_piles.hand.has(card)
+
+
+func preview_margin_burn(card: CardInstance) -> Dictionary:
+	if not can_margin_burn(card):
+		return {}
+	var resulting_cadence := mini(CADENCE_CAP, cadence + MARGIN_BURN_GAIN)
+	var rewrite_available := enemy_piles.hand.any(func(intent: CardInstance): return can_rewrite_with_cadence(intent, resulting_cadence))
+	return {"cadence": resulting_cadence, "rewrite_available": rewrite_available}
+
+
+func margin_burn(card: CardInstance) -> bool:
+	if not can_margin_burn(card):
+		return false
+	_resolving = true
+	margin_burn_used = true
+	var gained := mini(MARGIN_BURN_GAIN, CADENCE_CAP - cadence)
+	cadence += gained
+	log_event("Margin Burn: exhausted %s and gained %d Cadence (%d/%d)." % [card.definition.display_name, gained, cadence, CADENCE_CAP])
+	player_piles.exhaust_card(card)
+	_resolving = false
+	changed.emit()
+	return true
+
+
 func can_rewrite(card: CardInstance) -> bool:
-	return not _resolving and player_turn and outcome.is_empty() and cadence >= REWRITE_COST and not rewrote_this_turn and enemy.poison < enemy.health and card != null and card != anchored_intent and enemy_piles.hand.has(card) and enemy_piles.hand[-1] != card
+	return can_rewrite_with_cadence(card, cadence)
+
+
+func can_rewrite_with_cadence(card: CardInstance, available_cadence: int) -> bool:
+	return not _resolving and player_turn and outcome.is_empty() and available_cadence >= REWRITE_COST and not rewrote_this_turn and enemy.poison < enemy.health and card != null and card != anchored_intent and enemy_piles.hand.has(card) and enemy_piles.hand[-1] != card
 
 
 func preview_rewrite(card: CardInstance) -> Dictionary:
@@ -250,7 +283,16 @@ func preview_rewrite(card: CardInstance) -> Dictionary:
 	line.append(card)
 	var before := enemy_opening_plan()
 	var after := plan_for_line(line)
-	return {"before": line_threat(before), "after": line_threat(after), "plan": after, "displaced": before.has(card) and not after.has(card)}
+	var leaving := before.filter(func(intent: CardInstance): return not after.has(intent))
+	var entering := after.filter(func(intent: CardInstance): return not before.has(intent))
+	return {
+		"before": line_threat(before),
+		"after": line_threat(after),
+		"plan": after,
+		"displaced": leaving.has(card),
+		"leaving": leaving,
+		"entering": entering,
+	}
 
 
 func line_threat(plan: Array[CardInstance]) -> Dictionary:

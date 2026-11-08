@@ -19,6 +19,11 @@ const CARDS = [
 	preload("res://data/cards/inkblot.tres"),
 ]
 const SAVE_PATH = "user://decks.json"
+const JOURNEY_MIN_CARDS := 10
+const JOURNEY_MAX_CARDS := 14
+const JOURNEY_COPY_LIMIT := 2
+const STARTER_IDS := ["strike", "block"]
+const RECIPE_COPY_LIMIT := 50
 var save_path: String = SAVE_PATH
 var decks: Array[Dictionary] = []
 var error_message: String = ""
@@ -39,7 +44,7 @@ func load_decks() -> void:
 			continue
 		var counts: Dictionary = {}
 		for card in CARDS:
-			counts[String(card.id)] = clampi(int(entry.cards.get(String(card.id), 0)), 0, 50)
+			counts[String(card.id)] = clampi(int(entry.cards.get(String(card.id), 0)), 0, RECIPE_COPY_LIMIT)
 		decks.append({"name": entry.name, "cards": counts})
 
 
@@ -60,6 +65,19 @@ func total(recipe: Dictionary) -> int:
 	return count
 
 
+func journey_issues(recipe: Dictionary) -> PackedStringArray:
+	var issues := PackedStringArray()
+	var size := total(recipe)
+	if size < JOURNEY_MIN_CARDS or size > JOURNEY_MAX_CARDS:
+		issues.append("Use %d–%d cards (currently %d)." % [JOURNEY_MIN_CARDS, JOURNEY_MAX_CARDS, size])
+	for definition in CARDS:
+		var id := String(definition.id)
+		var copies := int(recipe.cards.get(id, 0))
+		if id not in STARTER_IDS and copies > JOURNEY_COPY_LIMIT:
+			issues.append("%s has %d copies. Use at most %d." % [definition.display_name, copies, JOURNEY_COPY_LIMIT])
+	return issues
+
+
 func instantiate_deck(recipe: Dictionary) -> Array[CardInstance]:
 	var result: Array[CardInstance] = []
 	for definition in CARDS:
@@ -76,11 +94,27 @@ func palimpsest_recipe() -> Dictionary:
 	return {"name": "Palimpsest", "cards": {"redline": 2, "iron_seal": 2, "marginalia": 2, "inkblot": 1, "crosscut": 2, "block": 1}}
 
 
+func counterpoint_sustain_recipe() -> Dictionary:
+	var recipe := counterpoint_recipe()
+	recipe.name = "Counterpoint · Sustain"
+	recipe.cards.mend = 2
+	recipe.cards.venom = 0
+	return recipe
+
+
 func category_counts(recipe: Dictionary) -> Array[int]:
 	var counts: Array[int] = [0, 0, 0]
 	for definition in CARDS:
 		counts[definition.category] += int(recipe.cards.get(String(definition.id), 0))
 	return counts
+
+
+func style_recipes() -> Array[Dictionary]:
+	return [
+		{"name": "Poison Pressure", "cards": {"strike": 2, "block": 2, "venom": 2, "inkblot": 2, "siphon": 2}},
+		{"name": "Riposte Guard", "cards": {"strike": 3, "block": 2, "iron_seal": 2, "insight": 2, "mend": 1}},
+		{"name": "Surge Cycle", "cards": {"redline": 2, "crosscut": 2, "switchback": 2, "insight": 2, "block": 2}},
+	]
 
 
 func counterwritten_recipe() -> Dictionary:

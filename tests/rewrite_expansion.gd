@@ -42,7 +42,30 @@ func activate(session: RefCounted) -> void:
 	check(session.rewrite_intent(session.enemy_piles.hand[0]), "Rewrite activates the counterwritten condition")
 
 
+func check_margin_burn() -> void:
+	var session := Session.new(copies(StarterDeck.BLOCK), copies(StarterDeck.STRIKE), false)
+	var card := session.player_piles.hand[0]
+	check(session.preview_margin_burn(card).is_empty() and not session.margin_burn(card), "Regular encounters reject Margin Burn")
+	session.margin_burn_enabled = true
+	check(not session.margin_burn(session.player_piles.draw_pile[0]), "Margin Burn rejects a card outside the hand")
+	activate(session)
+	check(not session.preview_margin_burn(card).rewrite_available, "Burning cannot restore a Rewrite already used this turn")
+	session.cadence = 2
+	var preview := session.preview_margin_burn(card)
+	check(preview.cadence == 3 and session.cadence == 2 and session.player_piles.hand.has(card), "Margin Burn preview applies the cap without changing state")
+	check(session.margin_burn(card) and session.cadence == 3 and session.player.block == 0, "Margin Burn applies the cap and skips the sacrificed card's effects")
+	session.player.gain_block(100)
+	session.end_turn()
+	check(session.player_turn and not session.margin_burn(session.player_piles.hand[0]), "Margin Burn stays spent after the next turn starts")
+	check(session.player_piles.exhaust_pile == [card] and session.player_piles.total_cards() == 10, "The exact sacrificed copy stays out of the draw cycle")
+	var sealed := Session.new(copies(StarterDeck.BLOCK), copies(StarterDeck.STRIKE, 2), false)
+	sealed.margin_burn_enabled = true
+	sealed.anchored_intent = sealed.enemy_piles.hand[0]
+	check(not sealed.preview_margin_burn(sealed.player_piles.hand[0]).rewrite_available, "The forecast accounts for a sealed first card and a final card already at the back")
+
+
 func run() -> void:
+	check_margin_burn()
 	var session = duel(Errata)
 	var card: CardInstance = session.player_piles.hand[0]
 	check(session.preview_attack(card).damage == 4, "Dormant bonus is excluded from damage forecasts")
@@ -84,6 +107,7 @@ func run() -> void:
 	var history: Array[String] = session.history.duplicate()
 	var preview: Dictionary = session.preview_rewrite(line[0])
 	check(preview.before.poison == 7 and preview.after.poison == 3, "Scribe preview captures Poison tradeoff")
+	check(preview.leaving == [line[0]] and preview.entering == [line[2], line[3]], "Rewrite forecast names the exact copies leaving and entering the Scribe's affordable line")
 	check(preview.before.hp_loss == 0 and preview.after.hp_loss == 5 and preview.after.draws, "Preview exposes incoming Siphon and uncertainty from draws")
 	check(session.enemy_piles.hand == line and session.history == history and session.cadence == 2, "Forecast is read-only")
 	session.player.gain_block(3)
@@ -149,11 +173,17 @@ func run() -> void:
 	view.clear_rewrite_hint(card)
 	check(view.get_node("%ThreatPreview").text.begins_with("VISIBLE LINE"), "Leaving the card restores the current line forecast")
 	check(not view.rewrite_row.get_child(0).get_node("%Index").text.contains("→"), "Leaving the preview restores actual line labels")
-	view._touch_pointer = true
-	view.activate_intent_card(card, view.rewrite_row.get_child(0))
+	var touch := InputEventMouseButton.new()
+	touch.device = InputEvent.DEVICE_ID_EMULATION
+	touch.button_index = MOUSE_BUTTON_LEFT
+	var tile: Button = view.rewrite_row.get_child(0)
+	touch.position = tile.size * 0.5
+	view.handle_intent_pointer(touch, card, tile)
 	check(view.has_node("IntentInspection") and fresh.cadence == 2, "Touch opens inspection without spending Cadence")
 	var inspection: Window = view.get_node("IntentInspection")
 	check(inspection.find_child("ConfirmRewrite", true, false) != null, "Touch inspection offers explicit confirmation")
+	var details: String = inspection.get_node("%Body").get_parsed_text()
+	check(details.contains("Moves to reserve: Inkblot") and details.contains("Enters the affordable line: Insight, Siphon"), "Touch inspection explicitly names the affordable-line changes")
 	inspection.close_requested.emit()
 	await process_frame
 	check(fresh.cadence == 2 and not fresh.rewrote_this_turn, "Cancelling inspection preserves combat state")

@@ -75,12 +75,156 @@ limited to the current batch and confirmed follow-up work.
 - The audit also found a discoverability issue in the first Journey fight.
   Reach two Cadence with a controller and check the board's shortcut hints.
   The opposite shoulder focuses the rival line and shows a Rewrite preview,
-  but the binding is listed in Options. See `table_screen.gd` and
-  `options_menu.gd`. This remains a follow-up.
+  but the binding was listed only in Options. Batch 4 addresses this.
 - All eight headless Godot 4.7.2 suites passed. Logs are under
   `.godot/batch3-final-*.log`.
 - Hardware checks still open: run the post-duel sequence with a physical
   controller, and tap through guided Rewrite on a touch device.
+
+## Batch 4 — rival-line shortcut and victory popup input
+
+- The prepared rival line displays **Focus line** with the active keyboard
+  and controller bindings. UI smoke covers both shoulder layouts, rebound
+  inputs, and disabled combat shortcuts. At two Cadence, focusing the line
+  shows the Rewrite forecast and leaves Cadence available.
+- In the pre-fix smoke test, View/Select opened the table's Pattern Guide
+  while victory results were active. The table now suspends shortcut input
+  until results close. UI smoke verifies that View/Select leaves focus on
+  the popup and that Review, reopening results, and Journey reward entry
+  still work.
+- All eight headless Godot 4.7.2 suites passed. Logs are under
+  `.godot/batch4-final-*.log`. Rendered captures at 1100 × 700 show the
+  hint alongside both the Rewrite-ready status and the live preview.
+- The local Windows build in `builds/batch4-windows/` passed headless startup.
+  In an isolated profile, start a Journey with the Starter deck, enter
+  chapter one, and play Block and Strike. PageDown focused the rival Strike
+  and previewed Rewrite with Cadence still at two. Winning through the menus
+  recorded 20 Marks. A headless restart preserved the pending reward
+  checkpoint and the 20-Mark receipt byte for byte. PCK SHA-256
+  `D8F5F8886A4A680EC1D268BF2DEB9BD66D209288E5680EC5ECBBE45C88FD0144`.
+- A mouse tooltip for End Turn was visible over the first packaged victory
+  capture. To check whether it persists, leave the pointer over End Turn
+  after clicking it, then use the keyboard to win on the next turn. The
+  tooltip should clear when results open. Duration is unverified.
+- The full packaged Continue Journey menu matrix and older-build menu
+  upgrade remain open, along with the physical controller and touch checks.
+
+## Batch 5 — deck workshop and Margin Burn playtest
+
+| Ticket | State | Completion check |
+| --- | --- | --- |
+| B5-01 Workshop and Journey entry | Implemented | Click or Confirm to add. Remove from the tray or catalogue and see both counts update. Reload an old 15-card recipe with three Inkblots, reject it at Journey entry, then repair it with one removal. Custom duels accept the old recipe. |
+| B5-02 Margin Burn | Opt-in prototype | In each standalone rival duel, preview a sacrifice and cancel, then exhaust the selected copy at zero energy for up to 2 Cadence. The action stays spent across turns. Check availability after an earlier Rewrite and against a sealed line. Playtests are excluded from progression. |
+| B5-03 Rewrite inspection | Implemented | Inspect the Scribe's opening Inkblot with 2 Cadence. Read which card moves to reserve and which cards enter alongside the existing HP loss and Poison deltas. |
+
+All eight Godot 4.7.2 headless suites passed, including 62 Rewrite expansion
+checks and the workshop and three-rival playtest paths in UI smoke. Logs are
+under `.godot/batch5-final-*.log`. Godot rendered the workshop, playtest
+dialog, and Rewrite inspection at 1100 × 700. Hardware controller and touch
+checks remain open. In a manual playtest against each
+rival, record which card was sacrificed, whether the extra Cadence changed
+the chosen Rewrite, and whether burning at the cap was worthwhile for
+thinning. Use those results before selecting the first card unlocks or
+relics from the [shortlist](feature_shortlist.md#deck-building-exhaust-and-relic-experiments).
+
+## Next local playtest batch
+
+1. Capture a repeat Scribe encounter with the owner's deck if available.
+   A controlled source probe on the Batch 5 working tree (base `41acdeb`,
+   Godot 4.7.2) used four Strikes, two Blocks, two Insights and two Mends
+   without a relic. The draw order was Block, Insight, Strike, Block, Mend,
+   Insight, Mend, Strike, Strike, Strike. Inkblot and Venom resolved for
+   4 Block and 7 Poison. Rewriting Inkblot brought in Insight and Siphon, leaving 0 rival
+   Block and 3 Poison applied. Both scripted openings won on turn two.
+   The Riposte route triggered Final Revision and got through 4 Block with
+   two Strikes. The Rewrite route faced 25 HP and used three Strikes.
+   Logs are in `.godot/batch5-scribe-probe.log`. The reported repeated Block
+   buildup and human clear times remain unverified.
+2. Play the fixed-opening Scribe puzzle from **Challenge a rival**. Try both
+   Rewrite and Riposte. Compare repeat clear times against the 2–4 minute
+   target using the result timer, and record how the player found the opening.
+3. Try the same duel on a landscape Android device. Verify readable forecast,
+   tap inspection, explicit actions, Back, and interruption at a turn boundary
+   and pending rewards. Record the device and build. Physical hardware is required.
+
+See [short rival puzzles](feature_shortlist.md#short-rival-puzzles-and-mobile-replay)
+for reward and challenge candidates, [deck building and Exhaust](feature_shortlist.md#deck-building-and-exhaust)
+for separate prototypes, and [title and demo handoff](release_roadmap.md#title-and-demo-handoff)
+for work gated on the final name. The Batch 1–4 manual checks remain open.
+
+## Batch 6 — Journey playthrough feedback
+
+| Ticket | Acceptance check |
+| --- | --- |
+| B6-01 Useful tutorial payoff | Rewrite reduces the forecast from 12 to 2 HP loss after Block. Insight draws two cards and finishes Shelter. Playback absorbs the remaining Strike and the player finishes at full health. Exit to the main menu or continue to Journey setup. |
+| B6-02 Workshop feedback | Drop a catalogue card in the tray and add exactly one copy. Click and Confirm use the same feedback. An invalid Journey recipe shows its size range and selected count in red. |
+| B6-03 Combat and menu input | L3 opens Inspect and A executes a legal Rewrite after closing it. Y ends the turn regardless of the optional focus shortcuts. Right-stick vertical input scrolls the log. Options can return to the main menu. |
+| B6-04 Readable progression and help | Focus is visible on a gold button. The Journey reward action is gold. The first Pattern Guide page shows all three rewards and Back closes it. |
+
+All eight Godot 4.7.2 headless suites passed. UI smoke also passed after
+the catalogue was made independently scrollable, including a drag from
+the bottom of the catalogue into the tray. A 1100 × 700 rendered check
+confirmed focus contrast, the red Journey size message, and the Pattern
+overview. Injected right-stick input scrolled the rendered log in both
+directions. Physical controller and touch testing remain open.
+Logs are under `.godot/batch6-final-*.log` and `.godot/batch6-render.log`.
+
+The owner reported that Inspect could repeatedly intercept Rewrite for the
+rest of a run. Rival cards now handle inspection from the current touch or
+right-click event, or the Inspect binding. Their normal Confirm path goes
+directly through Rewrite's legality check and ignores earlier touch state.
+Regression checks cover closing touch and L3 inspection before pressing A.
+
+For the next owner playtest, record Counterpoint's chapter-one HP and whether
+the first Mend arrives when it can help. Compare one opening difficulty or
+healing change at a time. Other gameplay experiments are in the
+[playthrough shortlist](feature_shortlist.md#journey-playthrough-follow-ups).
+
+## Batch 7 — Scribe practice and sustain comparison
+
+- **Scribe puzzle.** The Scribe's rival card offers a standalone practice
+  duel with the supplied deck from the Batch 5 probe. Both openings win in
+  the scripted check. Rematch restores the fixed opening, results show
+  elapsed practice time, and victories award no progression. Human timing
+  and difficulty are still open.
+- **Counterpoint · Sustain.** Add the preset from the deck library to compare
+  Counterpoint with a second Mend in place of Venom. Log chapter-entry HP,
+  healing actually used, and damage or tempo lost from the swap. Keep rival
+  order fixed for this comparison.
+- All eight Godot 4.7.2 headless suites passed. UI smoke covers both puzzle
+  wins, rematch, elapsed time, and the sustain recipe. Rival selection and
+  puzzle results were checked at 1100 × 700.
+
+## Batch 8 — workshop, puzzle, and combat usability
+
+1. Search the catalogue by card name.
+2. Filter the catalogue by category.
+3. Show only cards with copies in the current deck.
+4. Duplicate a recipe without sharing its card counts.
+5. Rename a deck and persist the name on reload.
+6. Edit the selected recipe from duel setup and return there with Done.
+7. Restart the Scribe puzzle directly from the table.
+8. Show the fastest Scribe clear in the current app session.
+9. Show the locked Pattern's payoff beside its next step.
+10. Explain why Rewrite is unavailable on an attempted click or Confirm.
+
+## Batch 9 — practice and deck selection
+
+1. Fixed-opening Duelist practice.
+2. Fixed-opening Warden practice.
+3. Poison Pressure preset with Poison and sustain.
+4. Riposte Guard preset with defensive setup and finishing hits.
+5. Surge Cycle preset with free attacks and draw.
+6. Deck library search by recipe name.
+7. Deck library filter for Journey-ready recipes.
+8. Swap selected decks in a custom duel.
+9. Show category totals in the saved-deck browser.
+10. Count practice attempts per rival for the current session.
+
+Practice uses the supplied ten-card deck and awards no progression. Session
+bests are tracked per rival. Test the new rivals for human clear times and
+whether the opening problem reads clearly. Compare the new presets without
+changing the Journey route or the default decks.
 
 ## Run a batch
 
