@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/cards/card_definition.gd" id="card"]
+[ext_resource type="Script" path="res://scripts/effects/card_effect.gd" id="effect"]
+[ext_resource type="Script" path="res://scripts/effects/apply_poison_effect.gd" id="poison"]
+[ext_resource type="Script" path="res://scripts/effects/draw_effect.gd" id="draw"]
+
+[sub_resource type="Resource" id="Effect0"]
+script = ExtResource("poison")
+stacks = 2
+
+[sub_resource type="Resource" id="Effect1"]
+script = ExtResource("draw")
+amount = 1
+
+[resource]
+script = ExtResource("card")
+id = &"tainted_index"
+display_name = "Tainted Index"
+description = "Apply 2 Poison. Draw 1 card."
+energy_cost = 1
+category = 2
+effects = Array[ExtResource("effect")]([SubResource("Effect0"), SubResource("Effect1")])

@@ -133,6 +133,10 @@ path from duel setup.
 
 ## Current Pattern rules
 
+The [workshop content batch](development_queue.md#batch-12--workshop-card-and-deck-playtest)
+adds optional cards and presets for testing these payoffs. Tune them
+against the existing three-rival route before selecting unlocks or rewards.
+
 - Attack → Guard → Tactic: **Shelter**, gain 6 block before the last card.
 - Guard → Tactic → Attack: **Riposte**, the last card gains +6 damage per hit.
 - Tactic → Attack → Guard: **Surge**, gain 1 energy before the last card.
@@ -157,3 +161,8 @@ fixes and their checks are tracked in the [development queue](development_queue.
 | Pattern continuation | After Surge, the next Tactic completes the overlapping Attack → Guard → Tactic sequence. Prototype one half-strength follow-through per turn starting with 3 Block for Shelter. Check how it changes sequencing and Surge's advantage. Half an energy needs a separate rule before extending it to every Pattern. |
 | More Cadence spends | Try 3 Cadence for 1 energy, 2 for a 5-damage hit, or a small heal such as 3 HP in separate trials. Measure whether they crowd out Rewrite or reward stalling to farm healing. Define how damage interacts with Block before testing it. |
 | Reserve carryover | Reserve currently means outside the current affordable line. Remaining cards are discarded, then the next hand draws and the rival's doctrine orders it. Prototype a visible carried prefix in its final revised order, then fill the rest of the hand normally. Decide how draws and sealed phase openings interact with the prefix. Compare how often players can use the extra information and whether Rewrite becomes too strong across consecutive turns. |
+| Strict queue | Try stopping at the first unaffordable card. With 3 energy, a 1 → 1 → 2 → 1 line should end with 1 energy unspent. Test the version where free cards behind the blocker also wait. Compare with the current skip rule, where the final 1-cost card resolves. Keep this experiment separate from reserve carryover at first. |
+
+Strict queue, reserve carryover, and the Cadence energy trade are available
+as independent [practice experiments](development_queue.md#batch-13--rival-queue-practice-rules).
+Damage and healing Cadence spends and Pattern continuation remain candidates.

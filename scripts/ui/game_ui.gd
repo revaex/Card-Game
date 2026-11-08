@@ -37,6 +37,12 @@ var _puzzle_started_at := 0
 var _puzzle_elapsed := -1
 var _puzzle_bests := {}
 var _puzzle_attempts := {}
+var _puzzle_wins := {}
+var _puzzle_best_rounds := {}
+var _practice_strict := false
+var _practice_carry := false
+var _practice_energy := false
+var _practice_record_key := ""
 var margin_burn_playtest: bool = false
 var selected_rival: Resource
 var library = Library.new()
@@ -142,6 +148,29 @@ func show_rivals() -> void:
 	preparing_journey = false
 	screen = "rivals"
 	clear("Every rival writes differently.", "Choose a doctrine to challenge. Their prepared line is yours to reshape.")
+	var rules := Style.row(body)
+	Style.label(rules, "Practice rules", 15, Style.GOLD)
+	var strict := CheckButton.new()
+	strict.name = "StrictPracticeQueue"
+	strict.text = "Strict queue"
+	strict.tooltip_text = "Stop at the first unaffordable card. Cards behind it wait, including free cards."
+	strict.set_pressed_no_signal(_practice_strict)
+	strict.toggled.connect(func(enabled: bool): _practice_strict = enabled)
+	rules.add_child(strict)
+	var carry := CheckButton.new()
+	carry.name = "CarryPracticeReserves"
+	carry.text = "Carry reserves"
+	carry.tooltip_text = "Keep unplayed cards at the front of the next hand. Doctrine orders only the new draws."
+	carry.set_pressed_no_signal(_practice_carry)
+	carry.toggled.connect(func(enabled: bool): _practice_carry = enabled)
+	rules.add_child(carry)
+	var energy_trade := CheckButton.new()
+	energy_trade.name = "PracticeCadenceEnergy"
+	energy_trade.text = "Cadence for energy"
+	energy_trade.tooltip_text = "Spend 3 Cadence for 1 energy once per player turn."
+	energy_trade.set_pressed_no_signal(_practice_energy)
+	energy_trade.toggled.connect(func(enabled: bool): _practice_energy = enabled)
+	rules.add_child(energy_trade)
 	var choices := Style.row(body)
 	choices.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	for index in range(Rivals.ALL.size()):
@@ -163,9 +192,56 @@ func show_rivals() -> void:
 		Style.label(panel, "%d HP  ·  %d cards" % [rival.health, rival.cards.size()], 14, Style.GOLD)
 		Style.label(panel, rival.doctrine_text(), 13, rival.accent)
 		Style.primary(Style.button(panel, "Challenge  →", select_rival.bind(index)))
-		Style.button(panel, "Practice fixed-opening puzzle", show_rival_puzzle.bind(index))
+		Style.button(panel, "Practice fixed-opening puzzle", func(): show_rival_puzzle(index, _practice_strict, _practice_carry, _practice_energy))
+		Style.button(panel, "Scout opening", scout_rival_opening.bind(rival))
 	Style.button(body, "← Main menu", show_menu)
 	_back_action = show_menu
+
+
+func scout_rival_opening(rival: Resource) -> void:
+	var cards: Array[CardInstance] = rival.create_deck()
+	var player_cards: Array[CardInstance] = [CardInstance.new(StarterDeck.BLOCK)]
+	var preview := CombatSession.new(player_cards, cards, false, false, rival)
+	var names := PackedStringArray()
+	var affordable := PackedStringArray()
+	var plan: Array[CardInstance] = preview.enemy_opening_plan()
+	for card in preview.enemy_piles.hand:
+		names.append(card.definition.display_name)
+		if plan.has(card):
+			affordable.append(card.definition.display_name)
+	var previous := get_viewport().gui_get_focus_owner()
+	var dialog := preload("res://scenes/ui/folio_reader.tscn").instantiate()
+	dialog.name = "OpeningScout"
+	add_child(dialog)
+	dialog.close_requested.connect(func():
+		dialog.hide()
+		dialog.queue_free()
+		if is_instance_valid(previous):
+			previous.grab_focus())
+	var opening_notes := "Affordable opening: %s\nDoctrine for new hands: %s\n\n%s" % [" → ".join(affordable), rival.doctrine_text(), rival.opening_advice]
+	var pages: Array[Dictionary] = [{"section": "SCOUT OPENING", "title": rival.display_name, "route": " → ".join(names), "body": opening_notes}]
+	if _practice_strict or _practice_carry or _practice_energy:
+		preview.strict_rival_queue = _practice_strict
+		preview.carry_rival_reserves = _practice_carry
+		preview.cadence_energy_enabled = _practice_energy
+		plan = preview.enemy_opening_plan()
+		var planned := PackedStringArray()
+		for card in plan:
+			planned.append(card.definition.display_name)
+		var threat := preview.line_threat(plan)
+		var blocker := preview.rival_queue_blocker(preview.enemy_piles.hand, plan)
+		var reserves := PackedStringArray()
+		for card in preview.rival_carryover(preview.enemy_piles.hand, plan):
+			reserves.append(card.definition.display_name)
+		var details := "Visible energy spent %d · unused %d." % [threat.spent, threat.unused]
+		if blocker != null:
+			details += "\nStrict queue stops at %s." % blocker.definition.display_name
+		if _practice_carry:
+			details += "\nNext front: %s." % (", ".join(reserves) if not reserves.is_empty() else "none visible")
+		if threat.draws:
+			details += "\nDraw effects may change the remaining line."
+		pages.append({"section": "PRACTICE SCOUT", "title": practice_rules_text(preview), "route": " → ".join(planned), "body": details})
+	dialog.open(pages, "Return to rivals", combat_motion)
 
 
 func select_rival(index: int) -> void:
@@ -215,6 +291,10 @@ func show_library(selecting: bool) -> void:
 	ready.name = "JourneyReadyFilter"
 	ready.text = "Journey ready only"
 	filters.add_child(ready)
+	var alphabetical := CheckButton.new()
+	alphabetical.name = "AlphabeticalDecks"
+	alphabetical.text = "A–Z"
+	filters.add_child(alphabetical)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(scroll)
@@ -234,6 +314,13 @@ func show_library(selecting: bool) -> void:
 		Style.button(line, "Remove", confirm_remove.bind(index, selecting))
 	var no_matches := Style.label(list, "No decks match these filters.", 16, Style.MUTED)
 	no_matches.hide()
+	var deck_rows: Array[Node] = list.get_children().filter(func(row): return row.has_meta("recipe"))
+	alphabetical.toggled.connect(func(enabled: bool):
+		var order := deck_rows.duplicate()
+		if enabled:
+			order.sort_custom(func(a: Node, b: Node): return String(a.get_meta("recipe").name).naturalnocasecmp_to(String(b.get_meta("recipe").name)) < 0)
+		for index in range(order.size()):
+			list.move_child(order[index], index))
 	var apply_filter := func():
 		var matches := 0
 		for row in list.get_children():
@@ -319,7 +406,7 @@ func show_editor(index: int, selecting: bool, from_setup: bool = false) -> void:
 	editor.move_child(controls, editor.get_node("Workshop").get_index())
 	var query := LineEdit.new()
 	query.name = "CatalogueSearch"
-	query.placeholder_text = "Search cards"
+	query.placeholder_text = "Search card names or effects"
 	query.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	controls.add_child(query)
 	var category := OptionButton.new()
@@ -328,6 +415,17 @@ func show_editor(index: int, selecting: bool, from_setup: bool = false) -> void:
 	for title in CardDefinition.Category.keys():
 		category.add_item(title.capitalize())
 	controls.add_child(category)
+	var energy_filter := OptionButton.new()
+	energy_filter.name = "CatalogueEnergy"
+	energy_filter.add_item("Any energy")
+	var costs: Array[int] = []
+	for definition in Library.CARDS:
+		if definition.energy_cost not in costs:
+			costs.append(definition.energy_cost)
+	costs.sort()
+	for cost in costs:
+		energy_filter.add_item("%d energy" % cost, cost)
+	controls.add_child(energy_filter)
 	var in_deck := CheckButton.new()
 	in_deck.name = "CatalogueInDeck"
 	in_deck.text = "In deck"
@@ -337,17 +435,26 @@ func show_editor(index: int, selecting: bool, from_setup: bool = false) -> void:
 	var apply_filter := func():
 		var matches := 0
 		var search_text := query.text.strip_edges()
+		var energy := energy_filter.get_selected_id()
 		for definition in Library.CARDS:
 			var id := String(definition.id)
 			var visible_card: bool = (category.selected == 0 or definition.category == category.selected - 1) and (not in_deck.button_pressed or int(recipe.cards.get(id, 0)) > 0)
-			visible_card = visible_card and (search_text.is_empty() or String(definition.display_name).containsn(search_text))
+			visible_card = visible_card and (energy_filter.selected == 0 or definition.energy_cost == energy)
+			visible_card = visible_card and (search_text.is_empty() or String(definition.display_name).containsn(search_text) or String(definition.description).containsn(search_text))
 			cards.get_node(id).visible = visible_card
 			matches += int(visible_card)
 		no_matches.visible = matches == 0
 	editor.set_meta("apply_filter", apply_filter)
 	query.text_changed.connect(func(_value: String): apply_filter.call())
 	category.item_selected.connect(func(_value: int): apply_filter.call())
+	energy_filter.item_selected.connect(func(_value: int): apply_filter.call())
 	in_deck.toggled.connect(func(_value: bool): apply_filter.call())
+	Style.button(controls, "Clear filters", func():
+		query.clear()
+		category.select(0)
+		energy_filter.select(0)
+		in_deck.set_pressed_no_signal(false)
+		apply_filter.call())
 	var naming := Style.row(editor)
 	editor.move_child(naming, controls.get_index())
 	var name_input := LineEdit.new()
@@ -449,6 +556,7 @@ func update_deck_summary(editor: Node, recipe: Dictionary) -> void:
 	var size: int = library.total(recipe)
 	editor.get_node("%Total").text = "%d cards  ·  Attack %d  ·  Guard %d  ·  Tactic %d" % [size, counts[0], counts[1], counts[2]]
 	editor.get_node("%EmptyDeck").visible = size == 0
+	editor.get_node("%DeckProfile").text = library.profile_text(recipe)
 	var issues: PackedStringArray = library.journey_issues(recipe)
 	var status: Label = editor.get_node("%JourneyStatus")
 	status.text = "Ready for a Journey." if issues.is_empty() else "Journey requirements\n" + "\n".join(issues)
@@ -673,7 +781,7 @@ func show_table() -> void:
 	mount_table(player_cards, enemy_cards, library.decks[player_index].name, enemy_name, selected_rival, duel)
 
 
-func show_rival_puzzle(index: int) -> void:
+func show_rival_puzzle(index: int, strict: bool = false, carry: bool = false, energy_trade: bool = false) -> void:
 	var rival: Resource = Rivals.ALL[index]
 	var mend := preload("res://data/cards/mend.tres")
 	var strike := StarterDeck.STRIKE
@@ -684,6 +792,9 @@ func show_rival_puzzle(index: int) -> void:
 		cards.append(CardInstance.new(definition))
 	var enemy_cards: Array[CardInstance] = rival.create_deck()
 	var duel := CombatSession.new(cards, enemy_cards, false, false, rival)
+	duel.strict_rival_queue = strict
+	duel.carry_rival_reserves = carry
+	duel.cadence_energy_enabled = energy_trade
 	mount_table(cards, enemy_cards, "%s puzzle" % rival.display_name.trim_prefix("The "), rival.display_name, rival, duel, false, false, true)
 	var table := body.get_node("CombatTable")
 	table.message.text = ["Use Rewrite to break up the attack sequence.", "Find a way through the Warden’s opening guard.", "Find a damage window: Rewrite Inkblot or finish Riposte."][index]
@@ -711,7 +822,8 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	if puzzle:
 		_puzzle_started_at = Time.get_ticks_msec()
 		_puzzle_elapsed = -1
-		_puzzle_attempts[rival.id] = _puzzle_attempts.get(rival.id, 0) + 1
+		_practice_record_key = "%s/%d/%d/%d" % [rival.id, int(existing.strict_rival_queue), int(existing.carry_rival_reserves), int(existing.cadence_energy_enabled)]
+		_puzzle_attempts[_practice_record_key] = _puzzle_attempts.get(_practice_record_key, 0) + 1
 	clear("The table", "%s vs %s" % [player_name, enemy_name])
 	body.get_node("PageHeading").hide()
 	var toolbar := TableToolbar.instantiate()
@@ -741,13 +853,14 @@ func mount_table(player_cards: Array[CardInstance], enemy_cards: Array[CardInsta
 	leave.tooltip_text = "JOURNEY\nPause this duel and view your route. Returning here resumes the fight. Closing the game restarts this chapter." if in_journey else "LEAVE TABLE\nReturn to deck preparation. This single duel is discarded; saved decks are unchanged."
 	if puzzle:
 		leave.tooltip_text = "Return to rival selection. Reopening the puzzle starts a fresh attempt."
-		Style.button(toolbar, "Restart puzzle", show_rival_puzzle.bind(Rivals.ALL.find(rival)))
+		Style.button(toolbar, "Restart puzzle", puzzle_restart(existing))
 	var table := Table.instantiate()
 	table.name = "CombatTable"
 	table.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(table)
 	table.motion_enabled = combat_motion
 	table.guided = guided
+	table.allow_lab = not puzzle
 	table.configure_controller(controller_shortcuts, swap_shoulders)
 	table.combat_audio.set_enabled(combat_sound)
 	table.setup(player_cards, enemy_cards, false, rival, existing)
@@ -988,18 +1101,24 @@ func show_result(summary: Dictionary) -> void:
 	if table.guided:
 		result_overlay.setup(summary, show_lesson, show_menu, review_result, "Retry lesson", "Main menu")
 	elif _table_is_puzzle:
-		var rival: Resource = table.session.rival_definition
-		result_overlay.setup(summary, show_rival_puzzle.bind(Rivals.ALL.find(rival)), show_rivals, review_result, "Rematch puzzle", "Rivals")
+		result_overlay.setup(summary, puzzle_restart(table.session), show_rivals, review_result, "Rematch puzzle", "Rivals")
 		Style.primary(result_overlay.get_node("%Rematch"))
-		var best: int = _puzzle_bests.get(rival.id, -1)
+		var key := _practice_record_key
+		var best: int = _puzzle_bests.get(key, -1)
 		if _puzzle_elapsed < 0:
 			_puzzle_elapsed = floori((Time.get_ticks_msec() - _puzzle_started_at) / 1000.0)
-			if summary.outcome == "Victory" and (best < 0 or _puzzle_elapsed < best):
-				best = _puzzle_elapsed
-				_puzzle_bests[rival.id] = best
-		var timing := "Practice time · %s  /  Attempt %d" % [format_puzzle_time(_puzzle_elapsed), _puzzle_attempts[rival.id]]
+			if summary.outcome == "Victory":
+				_puzzle_wins[key] = _puzzle_wins.get(key, 0) + 1
+				_puzzle_best_rounds[key] = mini(int(summary.rounds), _puzzle_best_rounds.get(key, int(summary.rounds)))
+				if best < 0 or _puzzle_elapsed < best:
+					best = _puzzle_elapsed
+					_puzzle_bests[key] = best
+		var timing := "Practice time · %s  /  Attempt %d" % [format_puzzle_time(_puzzle_elapsed), _puzzle_attempts[key]]
 		if best >= 0:
 			timing += "\nSession best · " + format_puzzle_time(best)
+			timing += "  /  Fewest turns · %d  /  Wins · %d" % [_puzzle_best_rounds[key], _puzzle_wins[key]]
+		timing += "\nRival unused energy %d · Queue stops %d · Cards carried %d" % [table.session.rival_unused_energy, table.session.rival_queue_stops, table.session.reserves_carried_total]
+		timing += "\n" + practice_rules_text(table.session)
 		result_overlay.set_spoils(timing)
 	elif _table_is_journey and journey != null:
 		if journey.phase == Journey.Phase.DUEL:
@@ -1015,6 +1134,21 @@ func show_result(summary: Dictionary) -> void:
 		show_victory_spoils(table.session, summary)
 	if _table_is_journey and not journey_checkpoint.error_message.is_empty():
 		result_overlay.set_spoils(journey_checkpoint.error_message)
+
+
+func practice_rules_text(duel: RefCounted) -> String:
+	var names := PackedStringArray()
+	if duel.strict_rival_queue:
+		names.append("Strict queue")
+	if duel.carry_rival_reserves:
+		names.append("Carry reserves")
+	if duel.cadence_energy_enabled:
+		names.append("Cadence for energy")
+	return " · ".join(names) if not names.is_empty() else "Standard rules"
+
+
+func puzzle_restart(duel: RefCounted) -> Callable:
+	return show_rival_puzzle.bind(Rivals.ALL.find(duel.rival_definition), duel.strict_rival_queue, duel.carry_rival_reserves, duel.cadence_energy_enabled)
 
 
 func format_puzzle_time(seconds: int) -> String:

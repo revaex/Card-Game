@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/cards/card_definition.gd" id="card"]
+[ext_resource type="Script" path="res://scripts/effects/card_effect.gd" id="effect"]
+[ext_resource type="Script" path="res://scripts/effects/damage_effect.gd" id="damage"]
+
+[sub_resource type="Resource" id="Effect0"]
+script = ExtResource("damage")
+damage = 8
+
+[sub_resource type="Resource" id="Effect1"]
+script = ExtResource("damage")
+damage = 8
+
+[resource]
+script = ExtResource("card")
+id = &"double_notch"
+display_name = "Double Notch"
+description = "Deal 8 damage. Deal 8 damage."
+energy_cost = 2
+category = 0
+effects = Array[ExtResource("effect")]([SubResource("Effect0"), SubResource("Effect1")])

@@ -47,6 +47,7 @@ var rival_timer: Timer
 var _last_log_text: String = ""
 var session: RefCounted
 var sandbox: bool = false
+var allow_lab := true
 var status_label: Label
 var end_button: Button
 var draw_button: Button
@@ -152,7 +153,7 @@ func apply_compact_layout() -> void:
 	if not is_inside_tree() or is_queued_for_deletion():
 		return
 	var compact := get_viewport_rect().size.y <= 760
-	add_theme_constant_override("separation", 4 if compact else 8)
+	add_theme_constant_override("separation", 2 if compact else 8)
 	$HandScroll.custom_minimum_size.y = 224 if compact else 250
 	hand_row.custom_minimum_size.y = 218 if compact else 244
 	for face: Control in hand_row.get_children():
@@ -161,7 +162,7 @@ func apply_compact_layout() -> void:
 
 
 func _on_lab_toggled(enabled: bool) -> void:
-	sandbox = enabled
+	sandbox = enabled and allow_lab
 	refresh()
 
 
@@ -251,7 +252,7 @@ func refresh() -> void:
 	lesson.get_node("%Read").disabled = lesson_briefing_pending()
 	lesson.get_node("%Continue").disabled = lesson_briefing_pending()
 	$Middle/RecordPanel.visible = not lesson.active
-	$Middle/Field/Actions/LabToggle.visible = not lesson.active
+	$Middle/Field/Actions/LabToggle.visible = allow_lab and not lesson.active
 	if _hand_tween != null:
 		_hand_tween.kill()
 		_hand_tween = null
@@ -293,6 +294,10 @@ func refresh() -> void:
 	%CadencePips.tooltip_text = artifact_label.tooltip_text
 	%Brace.visible = not lesson.active
 	%CadenceDraw.visible = not lesson.active
+	%CadenceEnergy.visible = session.cadence_energy_enabled and not lesson.active
+	%CadenceEnergy.disabled = not session.can_spend_cadence(Session.CadenceAction.ENERGY)
+	%CadenceEnergy.text = "+1E ◆%d" % session.CADENCE_ENERGY_COST
+	%CadenceEnergy.tooltip_text = "Spend %d Cadence to gain 1 energy once per turn." % session.CADENCE_ENERGY_COST
 	var brace_ready: bool = session.can_spend_cadence(Session.CadenceAction.BRACE)
 	var draw_ready: bool = session.can_spend_cadence(Session.CadenceAction.DRAW)
 	for entry in [[%Brace, brace_ready], [%CadenceDraw, draw_ready]]:
@@ -528,6 +533,11 @@ func _on_cadence_draw_pressed() -> void:
 		combat_audio.paper(true)
 
 
+func _on_cadence_energy_pressed() -> void:
+	if not lesson.active and session.spend_cadence(Session.CadenceAction.ENERGY):
+		message.text = "Cadence spent · gained 1 energy."
+
+
 func show_pattern_guide() -> void:
 	if lesson_briefing_pending() or has_node("PatternGuide"):
 		return
@@ -553,6 +563,19 @@ func show_pattern_guide() -> void:
 			"pattern_icon": pattern.first,
 		})
 	pages[0].body = "\n\n".join(overview)
+	var resolution := "The rival scans left to right and skips cards it cannot afford. A free card can still play at zero energy."
+	if session.strict_rival_queue:
+		resolution = "Strict queue: the rival stops at the first unaffordable card. Everything behind it waits, including free cards."
+	var preparation := "Unused cards go to discard. The rival draws a new line and sorts it by doctrine."
+	if session.carry_rival_reserves:
+		preparation = "Carry reserves: unplayed cards keep their order at the front of the next line. The rival fills to five and applies doctrine only to new draws. In Final Revision, the first card is sealed even if it was carried."
+	pages.append({
+		"section": "RIVAL FIELD GUIDE",
+		"title": "How the rival line resolves",
+		"body": resolution + " Draw effects add cards at the back.\n\n" + preparation,
+		"route": "Prepared line → Resolve → Prepare next line",
+		"plate": 0,
+	})
 	var dialog := FolioReader.instantiate()
 	dialog.name = "PatternGuide"
 	add_child(dialog)
@@ -653,7 +676,12 @@ func show_margin_burn() -> void:
 	picker.select(0)
 	preview.call(0)
 	dialog.popup_centered()
-	dialog.get_cancel_button().grab_focus()
+	var cancel_button := dialog.get_cancel_button()
+	var exhaust_button := dialog.get_ok_button()
+	cancel_button.focus_neighbor_top = cancel_button.get_path_to(picker)
+	exhaust_button.focus_neighbor_top = exhaust_button.get_path_to(picker)
+	picker.focus_neighbor_bottom = picker.get_path_to(cancel_button)
+	cancel_button.grab_focus()
 
 
 func show_card_forecast(card: CardInstance) -> void:
@@ -734,6 +762,10 @@ func refresh_intent() -> void:
 	intent_label.visible = false
 	%IntentBand.show()
 	var opening: Array[CardInstance] = session.enemy_opening_plan()
+	var doctrine: Label = %IntentDoctrine
+	var order: String = session.rival_definition.doctrine_text(session.rival_final_phase or session.rival_phase_pending) if session.rival_definition != null else "Draw order"
+	doctrine.text = ("NEW DRAWS · " if session.carry_rival_reserves else "NEXT HAND ORDER · ") + order
+	doctrine.tooltip_text = "Carried cards keep their order. Doctrine sorts only new draws." if session.carry_rival_reserves else "This order applies when the rival prepares a new hand. Unplayed reserves go to discard."
 	show_line_threat()
 	var ready: bool = enemy_piles.hand.any(func(card: CardInstance): return can_rewrite_card(card))
 	var cost: int = session.REWRITE_COST
@@ -755,7 +787,8 @@ func refresh_intent() -> void:
 		var state := "NEXT" if next_play else ("PLANNED" if opening.has(card) else "RESERVE")
 		var button := IntentCard.instantiate()
 		rewrite_row.add_child(button)
-		button.show_card(card, index, state, can_rewrite_card(card), lesson.marks_threat(card), session.player_turn and not lesson.active, card == session.anchored_intent)
+		var carried: bool = session.carried_intents.has(card)
+		button.show_card(card, index, state, can_rewrite_card(card), lesson.marks_threat(card), session.player_turn and not lesson.active, card == session.anchored_intent, carried)
 		button.set_meta("card", card)
 		button.pressed.connect(rewrite_card.bind(card))
 		button.gui_input.connect(handle_intent_pointer.bind(card, button))
@@ -776,6 +809,8 @@ func refresh_intent() -> void:
 		elif session.cadence < cost:
 			reason = "Build Cadence by changing card categories."
 		button.tooltip_text = "%s · %s\n%s · %d energy\n%s\n%s" % [card.definition.display_name, state, CardDefinition.Category.keys()[card.get_category()].capitalize(), card.get_energy_cost(), session.describe_card(card, false), reason]
+		if carried:
+			button.tooltip_text += "\n↪ Carried from the previous line."
 	link_focus_row(rewrite_row)
 
 
@@ -786,6 +821,8 @@ func show_rewrite_hint(card: CardInstance) -> void:
 		%RewriteStatus.text = "%s   →   BACK OF LINE   /   −%d CADENCE" % [card.definition.display_name.to_upper(), session.REWRITE_COST]
 		var preview: Dictionary = session.preview_rewrite(card)
 		%ThreatPreview.text = "REWRITE PREVIEW · HP loss %d → %d · Poison added %d → %d%s" % [preview.before.hp_loss, preview.after.hp_loss, preview.before.poison, preview.after.poison, " · Draw follow-ups unknown" if preview.before.draws or preview.after.draws else ""]
+		%IntentBudget.text = "Energy spent %d → %d · Unused %d → %d · Rival Block %d → %d" % [preview.before.spent, preview.after.spent, preview.before.unused, preview.after.unused, preview.before.rival_block, preview.after.rival_block]
+		show_experiment_forecast(preview.blocker, preview.carryover, preview.after.draws)
 		for tile: Control in rewrite_row.get_children():
 			var in_plan: bool = preview.plan.has(tile.get_meta("card"))
 			tile.preview_plan(in_plan)
@@ -808,8 +845,29 @@ func clear_rewrite_hint(card: CardInstance) -> void:
 
 
 func show_line_threat() -> void:
-	var threat: Dictionary = session.line_threat(session.enemy_opening_plan())
+	var plan: Array[CardInstance] = session.enemy_opening_plan()
+	var threat: Dictionary = session.line_threat(plan)
 	%ThreatPreview.text = "VISIBLE LINE · %d HP loss after Block · %d Poison added%s" % [threat.hp_loss, threat.poison, " · Draw follow-ups unknown" if threat.draws else ""]
+	%IntentBudget.text = "Energy spent %d · Unused %d · Block used %d · Rival +%d Block · Heal up to %d" % [threat.spent, threat.unused, threat.absorbed, threat.rival_block, threat.rival_heal]
+	show_experiment_forecast(session.rival_queue_blocker(enemy_piles.hand, plan), session.rival_carryover(enemy_piles.hand, plan), threat.draws)
+
+
+func experiment_forecast(blocker: CardInstance, carryover: Array[CardInstance], draws: bool) -> String:
+	var lines := PackedStringArray()
+	if session.strict_rival_queue:
+		lines.append("Strict queue · stops at %s" % blocker.definition.display_name if blocker != null else "Strict queue · no visible blocker")
+	if session.carry_rival_reserves:
+		var prefix := intent_names(carryover) if not carryover.is_empty() else "none visible"
+		lines.append("Next front · " + prefix)
+	if not lines.is_empty() and draws:
+		lines.append("draws may change this")
+	return "  /  ".join(lines)
+
+
+func show_experiment_forecast(blocker: CardInstance, carryover: Array[CardInstance], draws: bool) -> void:
+	var forecast := experiment_forecast(blocker, carryover, draws)
+	%IntentExperiment.text = forecast
+	%IntentExperiment.visible = not forecast.is_empty()
 
 
 func handle_intent_pointer(event: InputEvent, card: CardInstance, button: BaseButton) -> void:
@@ -839,10 +897,19 @@ func inspect_intent_card(card: CardInstance, return_focus: BaseButton) -> void:
 	var dialog := FolioReader.instantiate()
 	dialog.name = "IntentInspection"
 	add_child(dialog)
-	var details := "Planned: this card fits the rival's energy budget." if session.enemy_opening_plan().has(card) else "Reserve: this card does not currently fit the rival's energy budget. Unplayed cards go to discard after this line resolves."
+	var plan: Array[CardInstance] = session.enemy_opening_plan()
+	var details := "Planned: this card is expected to play." if plan.has(card) else "Reserve: this card is outside the current play forecast."
+	details += "\nPlanned order: " + intent_names(plan)
+	var current_rules := experiment_forecast(session.rival_queue_blocker(enemy_piles.hand, plan), session.rival_carryover(enemy_piles.hand, plan), session.line_threat(plan).draws)
+	if not current_rules.is_empty():
+		details += "\n" + current_rules
 	if can_rewrite_card(card):
 		var preview: Dictionary = session.preview_rewrite(card)
 		details += "\nRewrite moves it to the back for 2 Cadence.\nVisible HP loss: %d → %d. Poison added: %d → %d." % [preview.before.hp_loss, preview.after.hp_loss, preview.before.poison, preview.after.poison]
+		details += "\nRevised order: %s\nEnergy spent: %d → %d. Rival Block: %d → %d." % [intent_names(preview.plan), preview.before.spent, preview.after.spent, preview.before.rival_block, preview.after.rival_block]
+		var revised_rules := experiment_forecast(preview.blocker, preview.carryover, preview.after.draws)
+		if not revised_rules.is_empty():
+			details += "\nAfter Rewrite: " + revised_rules
 		if preview.leaving.is_empty() and preview.entering.is_empty():
 			details += "\nThe same cards fit the rival's energy budget."
 		else:

@@ -8,13 +8,15 @@ var _line_index := 0
 var _sealed := false
 
 
-func show_card(card: CardInstance, index: int, state: String, rewritable: bool, highlighted: bool = false, inspectable: bool = false, sealed: bool = false) -> void:
+func show_card(card: CardInstance, index: int, state: String, rewritable: bool, highlighted: bool = false, inspectable: bool = false, sealed: bool = false, carried: bool = false) -> void:
 	set_meta("intent_state", state)
 	_line_index = index
 	_sealed = sealed
 	%Index.text = "%02d   /   %s" % [index + 1, state]
 	if sealed:
 		%Index.text = "%02d / SEALED" % (index + 1)
+	if carried:
+		%Index.text += " ↪"
 	%CardName.text = card.definition.display_name
 	%Energy.text = "%d E" % card.get_energy_cost()
 	var paper := get_theme_stylebox("normal").duplicate() as StyleBoxFlat

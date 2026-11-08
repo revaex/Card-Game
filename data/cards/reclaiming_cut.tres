@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/cards/card_definition.gd" id="card"]
+[ext_resource type="Script" path="res://scripts/effects/card_effect.gd" id="effect"]
+[ext_resource type="Script" path="res://scripts/effects/damage_effect.gd" id="damage"]
+[ext_resource type="Script" path="res://scripts/effects/heal_effect.gd" id="heal"]
+
+[sub_resource type="Resource" id="Effect0"]
+script = ExtResource("damage")
+damage = 6
+
+[sub_resource type="Resource" id="Effect1"]
+script = ExtResource("heal")
+after_rewrite = true
+amount = 3
+
+[resource]
+script = ExtResource("card")
+id = &"reclaiming_cut"
+display_name = "Reclaiming Cut"
+description = "Deal 6 damage. After Rewrite: Heal up to 3 HP."
+energy_cost = 1
+category = 0
+effects = Array[ExtResource("effect")]([SubResource("Effect0"), SubResource("Effect1")])

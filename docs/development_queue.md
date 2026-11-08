@@ -226,6 +226,93 @@ bests are tracked per rival. Test the new rivals for human clear times and
 whether the opening problem reads clearly. Compare the new presets without
 changing the Journey route or the default decks.
 
+## Batch 10 — deck analysis and practice scouting
+
+1. Search catalogue card effects as well as names.
+2. Filter catalogue cards by energy cost.
+3. Clear all catalogue filters with one action.
+4. Sort saved recipes by name without changing their stored order.
+5. Show the selected recipe's energy curve in the deck tray.
+6. Count healing cards in the recipe.
+7. Count cards that deal direct damage or apply Poison.
+8. Scout a rival's opening line and advice from rival selection.
+9. Count practice wins per rival in the current session.
+10. Track the fewest turns in a practice win per rival in the current session.
+
+Margin Burn follow-up: controller Up reaches the sacrifice dropdown from
+either action. Down returns to Cancel. Confirm on the dropdown opens the
+card list without spending the action.
+
+## Batch 11 — rival line readability
+
+- Show the next-hand doctrine and add rival line rules to the Pattern Guide.
+- Forecast visible energy spent and unused, player Block used, rival Block
+  gained, and potential rival healing.
+- Show Rewrite's energy and rival Block changes and the revised affordable
+  order in inspection.
+- Show the affordable opening and doctrine in rival scouting.
+- Count Block, draw, and Counterwritten cards in the deck tray.
+
+### Queue experiments in practice
+
+1. Playtest strict stopping independently. Check 1 → 1 → 2 → 1 with
+   3 energy and include a free card after the unaffordable card. Compare
+   forecast against playback.
+2. Playtest visible carryover independently. After three Strikes resolve,
+   two unplayed Blocks should remain in order at the front of the next
+   hand. Doctrine orders new draws only. Final Revision seals the first
+   slot, even when occupied by a carried card.
+3. Compare the combined rules after each is understandable alone. Track
+   energy denied by Rewrite, stalled lines, and whether players can explain
+   their next-turn plan.
+
+## Batch 13 — rival queue practice rules
+
+Use **Challenge a rival → Practice rules** to test strict stopping, carry
+reserves, or 3 Cadence for 1 energy. Each option is independent. The energy
+purchase is limited to once per player turn. Journey and normal challenges
+keep their existing rules. The practice scout compares the selected rules
+with the standard opening. Practice rematches retain the rules and track
+records per combination. Results show unused rival energy on completed
+rival turns, strict queue stops, and cards carried. Lab tools are hidden
+in timed practice.
+
+Draw effects append to the rival line. Carryover retains the order of the
+unplayed cards and fills open slots to five. Draw overflow may leave more
+than five carried cards. Copies already played in the same turn cannot
+play again if redrawn and do not carry as unplayed reserves.
+
+Next playtest: compare standard, strict only, carry only, and both against
+the same rival. Record whether the player can explain the first blocker
+and the carried prefix before End turn. Test Cadence energy separately to
+see whether players give up meaningful Rewrite opportunities.
+
+Example fixture: with 3 energy, the strict 1 → 1 → 2 → 0 → 1 line
+plays the first two cards and leaves 1 energy. With carryover enabled,
+the 2 → 0 → 1 prefix remains visible in that order next turn.
+The combined rules were rendered at 1100 × 700 with the forecast, controls,
+and complete hand visible.
+
+## Batch 12 — workshop card and deck playtest
+
+Twelve opt-in workshop cards use existing effect Resources. The default
+decks, rival decks, and Journey reward pools keep their current recipes.
+
+| Category | Cards and playtest hooks |
+| --- | --- |
+| Attack | Parry Cut mixes damage and Block. Double Notch hits twice for Riposte. Venom Edge mixes damage and Poison. Reclaiming Cut heals after Rewrite. |
+| Guard | Field Dressing mixes Block and healing. Loose Leaf offers free Block and conditional draw. Folio Wall trades two energy for Block and a draw. Bitter Guard applies Poison after Rewrite. |
+| Tactic | Breathing Room draws and heals. Tainted Index cycles while applying Poison. Restoration spends two energy on healing and Block. Revision Note deals light damage and draws after Rewrite. |
+
+Eight presets are available under **Deck library → Add a preset**.
+Measured Guard, Twin Riposte, Toxic Ledger, Rewrite Engine, Recovery Line,
+Zero Margin, Shelter Archive, and Poison and Steel each use a legal
+ten-card Journey recipe with all three categories.
+
+Playtest the values before putting these cards into progression. Compare
+Double Notch's Riposte burst, Loose Leaf's free play and conditional draw,
+and how often the healing decks trade useful pressure for recovery.
+
 ## Run a batch
 
 Work in priority order on a local feature branch. For each ticket, reproduce,

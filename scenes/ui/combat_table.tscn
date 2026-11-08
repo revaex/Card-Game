@@ -124,6 +124,12 @@ theme_override_colors/font_color = Color(0.812, 0.667, 0.4, 1)
 theme_override_font_sizes/font_size = 12
 text = "RIVAL'S PREPARED LINE"
 
+[node name="IntentDoctrine" type="Label" parent="IntentBand/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+script = ExtResource("label")
+
 [node name="RivalShortcut" type="Label" parent="IntentBand/Content/Header"]
 unique_name_in_owner = true
 visible = false
@@ -148,6 +154,26 @@ theme_override_colors/font_color = Color(0.73, 0.82, 0.78, 1)
 text = "Visible line"
 autowrap_mode = 3
 mouse_filter = 2
+
+[node name="BudgetRow" type="HBoxContainer" parent="IntentBand/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="IntentBudget" type="Label" parent="IntentBand/Content/BudgetRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+
+[node name="IntentExperiment" type="Label" parent="IntentBand/Content/BudgetRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.84, 0.75, 0.53, 1)
+autowrap_mode = 3
 
 [node name="Stage" type="Control" parent="IntentBand/Content"]
 custom_minimum_size = Vector2(0, 68)
@@ -272,6 +298,15 @@ layout_mode = 2
 mouse_default_cursor_shape = 2
 theme_override_styles/normal = SubResource("Quiet")
 text = "Draw · 2"
+script = ExtResource("button")
+
+[node name="CadenceEnergy" type="Button" parent="Middle/Field/Actions"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("Quiet")
+text = "+1E ◆3"
 script = ExtResource("button")
 
 [node name="LabToggle" type="CheckButton" parent="Middle/Field/Actions"]
@@ -448,6 +483,7 @@ one_shot = true
 [connection signal="pressed" from="Middle/Field/Actions/EndTurnButton" to="." method="end_turn"]
 [connection signal="pressed" from="Middle/Field/Actions/Brace" to="." method="_on_brace_pressed"]
 [connection signal="pressed" from="Middle/Field/Actions/CadenceDraw" to="." method="_on_cadence_draw_pressed"]
+[connection signal="pressed" from="Middle/Field/Actions/CadenceEnergy" to="." method="_on_cadence_energy_pressed"]
 [connection signal="pressed" from="Middle/Field/Actions/MarginBurn" to="." method="show_margin_burn"]
 [connection signal="toggled" from="Middle/Field/Actions/LabToggle" to="." method="_on_lab_toggled"]
 [connection signal="pressed" from="Middle/Field/DebugActions/DrawButton" to="." method="draw_one"]

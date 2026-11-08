@@ -27,8 +27,9 @@ const CADENCE_CAP: int = 3
 const REWRITE_COST: int = 2
 const MARGIN_BURN_GAIN: int = 2
 const CADENCE_ACTION_COST: int = 2
+const CADENCE_ENERGY_COST: int = 3
 const BRACE_BLOCK: int = 4
-enum CadenceAction { BRACE, DRAW }
+enum CadenceAction { BRACE, DRAW, ENERGY }
 const PATTERNS = [preload("res://data/patterns/shelter.tres"), preload("res://data/patterns/riposte.tres"), preload("res://data/patterns/surge.tres")]
 var pattern_history: Array[int] = []
 var active_pattern: Resource
@@ -39,6 +40,14 @@ var last_category: int = -1
 var rewrote_this_turn: bool = false
 var margin_burn_enabled: bool = false
 var margin_burn_used: bool = false
+var strict_rival_queue: bool = false
+var carry_rival_reserves: bool = false
+var carried_intents: Array[CardInstance] = []
+var cadence_energy_enabled := false
+var cadence_energy_used := false
+var rival_unused_energy := 0
+var rival_queue_stops := 0
+var reserves_carried_total := 0
 var rival_definition: Resource
 var rival_final_phase: bool = false
 var rival_phase_pending: bool = false
@@ -70,16 +79,22 @@ func _init(player_cards: Array[CardInstance], enemy_cards: Array[CardInstance], 
 
 
 func prepare_rival_hand() -> void:
-	enemy_piles.draw_cards(5)
+	carried_intents.clear()
+	if carry_rival_reserves:
+		carried_intents.assign(enemy_piles.hand)
+	enemy_piles.draw_cards(maxi(0, 5 - carried_intents.size()))
 	if rival_definition != null:
 		if not rival_final_phase and rival_definition.final_phase_health > 0 and (rival_phase_pending or enemy.health <= rival_definition.final_phase_health):
 			rival_final_phase = true
 			rival_phase_pending = false
 			log_event("Final revision: %s. %s." % [rival_definition.final_phase_name, rival_definition.final_phase_rules()])
-		rival_definition.arrange_hand(enemy_piles, rival_final_phase)
+		rival_definition.arrange_hand(enemy_piles, rival_final_phase, carried_intents.size())
 	anchored_intent = null
 	if rival_final_phase and rival_definition.final_phase_anchor and not enemy_piles.hand.is_empty():
 		anchored_intent = enemy_piles.hand[0]
+	if not carried_intents.is_empty():
+		reserves_carried_total += carried_intents.size()
+		log_event("Rival carried %d unplayed cards into the front of its new line." % carried_intents.size())
 
 
 func apply_turn_relic() -> void:
@@ -127,14 +142,39 @@ func plan_for_line(line: Array[CardInstance]) -> Array[CardInstance]:
 	var plan: Array[CardInstance] = []
 	var remaining := ENERGY_PER_TURN if player_turn else enemy_energy
 	for card in line:
-		if (player_turn or not _enemy_played.has(card)) and is_affordable(card, remaining):
+		if not can_consider_rival_card(card):
+			continue
+		if is_affordable(card, remaining):
 			plan.append(card)
 			remaining -= card.get_energy_cost()
+		elif strict_rival_queue:
+			break
 	return plan
 
 
 func is_affordable(card: CardInstance, available_energy: int) -> bool:
 	return card.get_energy_cost() <= available_energy and not card.definition.effects.is_empty()
+
+
+func can_consider_rival_card(card: CardInstance) -> bool:
+	return not card.definition.effects.is_empty() and (player_turn or not _enemy_played.has(card))
+
+
+func rival_queue_blocker(line: Array[CardInstance], plan: Array[CardInstance]) -> CardInstance:
+	if strict_rival_queue:
+		for card in line:
+			if can_consider_rival_card(card) and not plan.has(card):
+				return card
+	return null
+
+
+func rival_carryover(line: Array[CardInstance], plan: Array[CardInstance]) -> Array[CardInstance]:
+	var remaining: Array[CardInstance] = []
+	if carry_rival_reserves:
+		for card in line:
+			if can_consider_rival_card(card) and not plan.has(card):
+				remaining.append(card)
+	return remaining
 
 
 func preview_bonus(card: CardInstance, by_player: bool = true) -> int:
@@ -216,25 +256,35 @@ func cadence_gain(card: CardInstance) -> int:
 
 
 func can_spend_cadence(action: CadenceAction) -> bool:
-	if _resolving or not player_turn or not outcome.is_empty() or cadence < CADENCE_ACTION_COST:
+	if _resolving or not player_turn or not outcome.is_empty() or cadence < cadence_action_cost(action):
 		return false
 	match action:
 		CadenceAction.BRACE: return true
 		CadenceAction.DRAW: return not player_piles.draw_pile.is_empty() or not player_piles.discard_pile.is_empty()
+		CadenceAction.ENERGY: return cadence_energy_enabled and not cadence_energy_used
 	return false
+
+
+func cadence_action_cost(action: CadenceAction) -> int:
+	return CADENCE_ENERGY_COST if action == CadenceAction.ENERGY else CADENCE_ACTION_COST
 
 
 func spend_cadence(action: CadenceAction) -> bool:
 	if not can_spend_cadence(action):
 		return false
 	_resolving = true
-	cadence -= CADENCE_ACTION_COST
-	if action == CadenceAction.BRACE:
-		player.gain_block(BRACE_BLOCK)
-		log_event("Cadence: Brace granted %d Block." % BRACE_BLOCK)
-	else:
-		player_piles.draw_cards(1)
-		log_event("Cadence: drew 1 card.")
+	cadence -= cadence_action_cost(action)
+	match action:
+		CadenceAction.BRACE:
+			player.gain_block(BRACE_BLOCK)
+			log_event("Cadence: Brace granted %d Block." % BRACE_BLOCK)
+		CadenceAction.DRAW:
+			player_piles.draw_cards(1)
+			log_event("Cadence: drew 1 card.")
+		CadenceAction.ENERGY:
+			cadence_energy_used = true
+			energy += 1
+			log_event("Cadence: gained 1 energy.")
 	_resolving = false
 	changed.emit()
 	return true
@@ -292,6 +342,8 @@ func preview_rewrite(card: CardInstance) -> Dictionary:
 		"displaced": leaving.has(card),
 		"leaving": leaving,
 		"entering": entering,
+		"blocker": rival_queue_blocker(line, after),
+		"carryover": rival_carryover(line, after),
 	}
 
 
@@ -301,20 +353,35 @@ func line_threat(plan: Array[CardInstance]) -> Dictionary:
 	var shield := player.block
 	var poison := 0
 	var uncertain := false
+	var spent := 0
+	var absorbed := 0
+	var rival_block := 0
+	var rival_heal := 0
 	for card in plan:
+		spent += card.get_energy_cost()
 		for effect in card.definition.effects:
 			if effect == null or effect.after_rewrite or hp <= 0:
 				continue
 			if effect is DamageEffect:
 				var hit: int = effect.effective_damage()
 				var blocked := mini(shield, hit)
+				absorbed += blocked
 				shield -= blocked
 				hp = maxi(0, hp - hit + blocked)
 			elif effect is ApplyPoisonEffect:
 				poison += effect.stacks
 			elif effect is DrawEffect:
 				uncertain = true
-	return {"hp_loss": player.health - hp, "poison": poison, "draws": uncertain}
+			elif effect is GainBlockEffect:
+				rival_block += effect.block_amount
+			elif effect is HealEffect:
+				rival_heal += effect.amount
+	var budget := ENERGY_PER_TURN if player_turn else enemy_energy
+	return {
+		"hp_loss": player.health - hp, "poison": poison, "draws": uncertain,
+		"spent": spent, "unused": budget - spent, "absorbed": absorbed,
+		"rival_block": rival_block, "rival_heal": rival_heal,
+	}
 
 
 func rewrite_intent(card: CardInstance) -> bool:
@@ -474,12 +541,9 @@ func advance_rival_turn() -> bool:
 	if _resolving or player_turn or not outcome.is_empty():
 		return false
 	_resolving = true
-	var next: CardInstance = null
-	for card in enemy_piles.hand:
-		if not _enemy_played.has(card) and is_affordable(card, enemy_energy):
-			next = card
-			break
-	if next != null:
+	var plan := plan_for_line(enemy_piles.hand)
+	if not plan.is_empty():
+		var next := plan[0]
 		_enemy_played.append(next)
 		enemy_energy -= next.get_energy_cost()
 		resolve_card(next, enemy, player, enemy_piles, false)
@@ -488,7 +552,18 @@ func advance_rival_turn() -> bool:
 		_resolving = false
 		changed.emit()
 		return true
-	enemy_piles.discard_hand()
+	var blocker := rival_queue_blocker(enemy_piles.hand, plan)
+	rival_unused_energy += enemy_energy
+	if blocker != null:
+		rival_queue_stops += 1
+		log_event("Strict queue stopped at %s with %d energy unused." % [blocker.definition.display_name, enemy_energy])
+	if carry_rival_reserves:
+		var reserves := rival_carryover(enemy_piles.hand, plan)
+		for card in enemy_piles.hand.duplicate():
+			if not reserves.has(card):
+				enemy_piles.discard_card(card)
+	else:
+		enemy_piles.discard_hand()
 	if outcome.is_empty():
 		round_number += 1
 		start_turn(player, true)
@@ -497,6 +572,7 @@ func advance_rival_turn() -> bool:
 			apply_turn_relic()
 			last_category = -1
 			rewrote_this_turn = false
+			cadence_energy_used = false
 			pattern_history.clear()
 			active_pattern = null
 			completed_pattern = ""

@@ -56,16 +56,17 @@ func final_phase_rules() -> String:
 	return "%s · %s" % [doctrine_text(true), "First card sealed against Rewrite" if final_phase_anchor else "All cards remain rewritable"]
 
 
-func arrange_hand(piles: CardPiles, final_phase: bool = false) -> void:
+func arrange_hand(piles: CardPiles, final_phase: bool = false, carried_count: int = 0) -> void:
 	var active_doctrine := final_phase_doctrine if final_phase else doctrine
 	var priority: Array[int] = [0, 1, 2]
 	if active_doctrine == Doctrine.BASTION:
 		priority = [1, 0, 2]
 	elif active_doctrine == Doctrine.INTRIGUE:
 		priority = [2, 0, 1]
-	var ordered: Array[CardInstance] = []
+	var ordered: Array[CardInstance] = piles.hand.slice(0, carried_count)
+	var fresh: Array[CardInstance] = piles.hand.slice(carried_count)
 	for category in priority:
-		for card in piles.hand:
+		for card in fresh:
 			if card.get_category() == category:
 				ordered.append(card)
 	piles.hand.assign(ordered)

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="CardDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/cards/card_definition.gd" id="card"]
+[ext_resource type="Script" path="res://scripts/effects/card_effect.gd" id="effect"]
+[ext_resource type="Script" path="res://scripts/effects/damage_effect.gd" id="damage"]
+[ext_resource type="Script" path="res://scripts/effects/gain_block_effect.gd" id="block"]
+
+[sub_resource type="Resource" id="Effect0"]
+script = ExtResource("damage")
+damage = 5
+
+[sub_resource type="Resource" id="Effect1"]
+script = ExtResource("block")
+block_amount = 4
+
+[resource]
+script = ExtResource("card")
+id = &"parry_cut"
+display_name = "Parry Cut"
+description = "Deal 5 damage. Gain 4 Block."
+energy_cost = 1
+category = 0
+effects = Array[ExtResource("effect")]([SubResource("Effect0"), SubResource("Effect1")])

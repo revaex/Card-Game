@@ -17,6 +17,18 @@ const CARDS = [
 	preload("res://data/cards/iron_seal.tres"),
 	preload("res://data/cards/marginalia.tres"),
 	preload("res://data/cards/inkblot.tres"),
+	preload("res://data/cards/parry_cut.tres"),
+	preload("res://data/cards/double_notch.tres"),
+	preload("res://data/cards/venom_edge.tres"),
+	preload("res://data/cards/reclaiming_cut.tres"),
+	preload("res://data/cards/field_dressing.tres"),
+	preload("res://data/cards/loose_leaf.tres"),
+	preload("res://data/cards/folio_wall.tres"),
+	preload("res://data/cards/bitter_guard.tres"),
+	preload("res://data/cards/breathing_room.tres"),
+	preload("res://data/cards/tainted_index.tres"),
+	preload("res://data/cards/restoration.tres"),
+	preload("res://data/cards/revision_note.tres"),
 ]
 const SAVE_PATH = "user://decks.json"
 const JOURNEY_MIN_CARDS := 10
@@ -109,11 +121,50 @@ func category_counts(recipe: Dictionary) -> Array[int]:
 	return counts
 
 
+func profile_text(recipe: Dictionary) -> String:
+	var curve := {}
+	var healing := 0
+	var damage := 0
+	var block := 0
+	var draw := 0
+	var counterwritten := 0
+	for definition in CARDS:
+		var copies := int(recipe.cards.get(String(definition.id), 0))
+		if copies == 0:
+			continue
+		var cost: int = definition.energy_cost
+		curve[cost] = curve.get(cost, 0) + copies
+		if definition.effects.any(func(effect): return effect is HealEffect):
+			healing += copies
+		if definition.effects.any(func(effect): return effect is DamageEffect or effect is ApplyPoisonEffect):
+			damage += copies
+		if definition.effects.any(func(effect): return effect is GainBlockEffect):
+			block += copies
+		if definition.effects.any(func(effect): return effect is DrawEffect):
+			draw += copies
+		if definition.effects.any(func(effect): return effect != null and effect.after_rewrite):
+			counterwritten += copies
+	var costs := curve.keys()
+	costs.sort()
+	var buckets := PackedStringArray()
+	for cost in costs:
+		buckets.append("%dE ×%d" % [cost, curve[cost]])
+	return "Energy · %s\nHealing cards %d · Damage cards %d\nBlock cards %d · Draw cards %d\nCounterwritten cards %d" % [" / ".join(buckets) if not buckets.is_empty() else "—", healing, damage, block, draw, counterwritten]
+
+
 func style_recipes() -> Array[Dictionary]:
 	return [
 		{"name": "Poison Pressure", "cards": {"strike": 2, "block": 2, "venom": 2, "inkblot": 2, "siphon": 2}},
 		{"name": "Riposte Guard", "cards": {"strike": 3, "block": 2, "iron_seal": 2, "insight": 2, "mend": 1}},
 		{"name": "Surge Cycle", "cards": {"redline": 2, "crosscut": 2, "switchback": 2, "insight": 2, "block": 2}},
+		{"name": "Measured Guard", "cards": {"parry_cut": 2, "field_dressing": 2, "breathing_room": 2, "strike": 2, "insight": 2}},
+		{"name": "Twin Riposte", "cards": {"double_notch": 2, "folio_wall": 2, "breathing_room": 2, "block": 2, "strike": 2}},
+		{"name": "Toxic Ledger", "cards": {"venom_edge": 2, "bitter_guard": 2, "tainted_index": 2, "inkblot": 2, "block": 2}},
+		{"name": "Rewrite Engine", "cards": {"reclaiming_cut": 2, "loose_leaf": 2, "revision_note": 2, "errata": 2, "paper_trail": 2}},
+		{"name": "Recovery Line", "cards": {"reclaiming_cut": 2, "field_dressing": 2, "restoration": 2, "strike": 2, "switchback": 2}},
+		{"name": "Zero Margin", "cards": {"redline": 2, "loose_leaf": 2, "revision_note": 2, "crosscut": 2, "insight": 2}},
+		{"name": "Shelter Archive", "cards": {"parry_cut": 2, "folio_wall": 2, "restoration": 2, "block": 2, "insight": 2}},
+		{"name": "Poison and Steel", "cards": {"venom_edge": 2, "double_notch": 2, "bitter_guard": 2, "tainted_index": 2, "field_dressing": 2}},
 	]
 
 

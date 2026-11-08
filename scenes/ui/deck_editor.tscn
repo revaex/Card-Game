@@ -73,6 +73,12 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = "Add a card to get started."
 
+[node name="DeckProfile" type="Label" parent="Workshop/DeckTray/Contents"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 3
+
 [node name="DeckContents" type="VBoxContainer" parent="Workshop/DeckTray/Contents"]
 unique_name_in_owner = true
 layout_mode = 2

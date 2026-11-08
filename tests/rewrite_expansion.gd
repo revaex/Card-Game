@@ -64,8 +64,109 @@ func check_margin_burn() -> void:
 	check(not sealed.preview_margin_burn(sealed.player_piles.hand[0]).rewrite_available, "The forecast accounts for a sealed first card and a final card already at the back")
 
 
+func check_workshop_cards() -> void:
+	var loose_leaf := preload("res://data/cards/loose_leaf.tres")
+	var dormant := duel(loose_leaf)
+	dormant.play_card(dormant.player_piles.hand[0])
+	check(dormant.energy == 3 and dormant.player.block == 3 and dormant.player_piles.hand.size() == 4, "Loose Leaf costs zero and its draw is dormant")
+	var active := duel(loose_leaf)
+	activate(active)
+	active.play_card(active.player_piles.hand[0])
+	check(active.player_piles.hand.size() == 5, "Loose Leaf draws after Rewrite")
+
+	var double_notch := preload("res://data/cards/double_notch.tres")
+	var cards: Array[CardInstance] = [CardInstance.new(double_notch), CardInstance.new(preload("res://data/cards/mend.tres")), CardInstance.new(preload("res://data/cards/loose_leaf.tres"))]
+	var riposte := Session.new(cards, copies(StarterDeck.BLOCK), false)
+	riposte.play_card(cards[2])
+	riposte.play_card(cards[1])
+	check(riposte.preview_attack(cards[0]).damage == 28, "Double Notch forecasts Riposte on both hits")
+	riposte.play_card(cards[0])
+	check(riposte.enemy.health == 12 and riposte.completed_pattern == "Riposte", "Both boosted hits resolve at the normal energy cost")
+
+	var library := Library.new()
+	var recipe: Dictionary = library.style_recipes().filter(func(entry): return entry.name == "Rewrite Engine")[0]
+	var journey := Journey.new(library.instantiate_deck(recipe), false)
+	journey.checkpoint_id = "workshop-cards-test"
+	var checkpoint := Checkpoint.new()
+	checkpoint.path = "res://.godot/workshop-cards-%d.checkpoint" % Time.get_ticks_usec()
+	check(checkpoint.save_run(journey, recipe.name), "A new preset can save a Journey checkpoint")
+	var restored := checkpoint.load_run()
+	check(not restored.is_empty() and restored.journey.roster.any(func(card): return card.definition == loose_leaf), "A new card ID survives Journey reload")
+	DirAccess.remove_absolute(checkpoint.path)
+
+
+func queue_fixture() -> RefCounted:
+	var cards := copies(StarterDeck.BLOCK, 8)
+	# Draws from the end: 1, 1, 1, 2, 0.
+	cards[3].cost_modifier = -1
+	cards[4].cost_modifier = 1
+	return Session.new(copies(StarterDeck.BLOCK), cards, false)
+
+
+func check_queue_experiments() -> void:
+	var standard := queue_fixture()
+	var line: Array[CardInstance] = standard.enemy_piles.hand.duplicate()
+	standard.cadence = 2
+	var standard_preview: Dictionary = standard.preview_rewrite(line[1])
+	check(standard_preview.plan == [line[0], line[2], line[4], line[1]] and standard_preview.after.unused == 0, "Standard scan skips the 2-cost card and still plays the free card")
+
+	var strict := queue_fixture()
+	strict.strict_rival_queue = true
+	strict.carry_rival_reserves = true
+	strict.cadence = 2
+	line = strict.enemy_piles.hand.duplicate()
+	var preview: Dictionary = strict.preview_rewrite(line[1])
+	check(preview.plan == [line[0], line[2]] and preview.after.unused == 1 and preview.blocker == line[3], "Strict forecast strands one energy at the first unaffordable card")
+	check(preview.carryover == [line[3], line[4], line[1]], "The free card and rewritten copy both wait behind the blocker")
+	check(strict.rewrite_intent(line[1]) and strict.enemy_opening_plan() == preview.plan, "Rewrite commits the strict forecast order")
+	strict.end_turn()
+	check(strict.statistics.enemy.cards == 2 and strict.enemy_energy == 1, "Strict playback spends exactly the forecast energy")
+	check(strict.rival_unused_energy == 1 and strict.rival_queue_stops == 1 and strict.reserves_carried_total == 3, "Practice comparison records completed-turn energy, stalls, and carryover")
+	check(strict.carried_intents == preview.carryover and strict.enemy_piles.hand.slice(0, 3) == preview.carryover, "Playback carries the forecast prefix in order")
+	check(strict.enemy_piles.hand.size() == 5 and strict.enemy_piles.total_cards() == 8, "Carryover fills vacancies without duplicating cards")
+
+	var warden := preload("res://data/rivals/warden.tres")
+	var carry := Session.new(copies(StarterDeck.BLOCK), warden.create_deck(), false, false, warden)
+	carry.carry_rival_reserves = true
+	line = carry.enemy_piles.hand.duplicate()
+	carry.end_turn()
+	check(carry.carried_intents == line.slice(2) and carry.enemy_piles.hand.slice(0, 3) == line.slice(2), "Carry alone keeps reserves before the Warden's fresh Guard cards")
+
+	var phase := Session.new(copies(StarterDeck.BLOCK), Scribe.create_deck(), false, false, Scribe)
+	phase.carry_rival_reserves = true
+	phase.enemy.take_damage(16)
+	phase.check_outcome()
+	line = phase.enemy_piles.hand.duplicate()
+	phase.end_turn()
+	check(phase.rival_final_phase and phase.carried_intents == line.slice(2) and phase.anchored_intent == line[2], "Final Revision seals the carried front without rearranging it")
+
+	var strict_only := queue_fixture()
+	strict_only.strict_rival_queue = true
+	strict_only.end_turn()
+	check(strict_only.rival_queue_stops == 1 and strict_only.carried_intents.is_empty(), "Strict queue can be tested with the existing discard rule")
+
+
+func check_cadence_energy() -> void:
+	var session := queue_fixture()
+	var action := Session.CadenceAction.ENERGY
+	session.cadence = 3
+	check(not session.spend_cadence(action), "Normal combat rejects the experimental energy spend")
+	session.cadence_energy_enabled = true
+	session.cadence = 2
+	check(not session.spend_cadence(action) and session.energy == 3, "Energy requires the full Cadence bar")
+	session.cadence = 3
+	check(session.spend_cadence(action) and session.energy == 4 and session.cadence == 0, "Three Cadence buys one energy")
+	session.cadence = 3
+	check(not session.spend_cadence(action), "Cadence energy can only be bought once per turn")
+	session.end_turn()
+	check(session.energy == 3 and session.can_spend_cadence(action), "Energy does not carry forward and the purchase becomes available next turn")
+
+
 func run() -> void:
 	check_margin_burn()
+	check_workshop_cards()
+	check_queue_experiments()
+	check_cadence_energy()
 	var session = duel(Errata)
 	var card: CardInstance = session.player_piles.hand[0]
 	check(session.preview_attack(card).damage == 4, "Dormant bonus is excluded from damage forecasts")
@@ -107,11 +208,14 @@ func run() -> void:
 	var history: Array[String] = session.history.duplicate()
 	var preview: Dictionary = session.preview_rewrite(line[0])
 	check(preview.before.poison == 7 and preview.after.poison == 3, "Scribe preview captures Poison tradeoff")
+	check(preview.before.spent == 3 and preview.after.spent == 3 and preview.after.unused == 0, "Rewrite budget reflects the affordable cards")
+	check(preview.before.rival_block == 4 and preview.after.rival_block == 0 and preview.after.rival_heal == 3, "Forecast exposes the Scribe's Block and potential healing tradeoff")
 	check(preview.leaving == [line[0]] and preview.entering == [line[2], line[3]], "Rewrite forecast names the exact copies leaving and entering the Scribe's affordable line")
 	check(preview.before.hp_loss == 0 and preview.after.hp_loss == 5 and preview.after.draws, "Preview exposes incoming Siphon and uncertainty from draws")
 	check(session.enemy_piles.hand == line and session.history == history and session.cadence == 2, "Forecast is read-only")
 	session.player.gain_block(3)
 	check(session.preview_rewrite(line[0]).after.hp_loss == 2, "Forecast accounts for current player Block")
+	check(session.preview_rewrite(line[0]).after.absorbed == 3, "Forecast reports Block used by the visible attacks")
 	session.rewrite_intent(line[0])
 	check(session.statistics.player.displaced == 1, "Scorecard counts the Inkblot moved into reserve")
 	check(session.enemy_opening_plan() == preview.plan, "Rewritten execution plan matches preview")

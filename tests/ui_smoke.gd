@@ -205,6 +205,16 @@ func run() -> void:
 	search.text = "inkblot"
 	search.text_changed.emit(search.text)
 	check(not strike_entry.visible and editor.get_node("%Cards/inkblot").visible, "Catalogue search matches card names")
+	search.text = "apply 4 poison"
+	search.text_changed.emit(search.text)
+	check(not strike_entry.visible and editor.get_node("%Cards/inkblot").visible, "Catalogue search matches effect descriptions")
+	var energy_filter: OptionButton = editor.find_child("CatalogueEnergy", true, false)
+	energy_filter.select(1)
+	energy_filter.item_selected.emit(1)
+	check(not editor.get_node("%Cards/inkblot").visible, "Energy filter combines with effect search")
+	editor.find_children("*", "Button", true, false).filter(func(button): return button.text == "Clear filters")[0].pressed.emit()
+	check(strike_entry.visible and editor.get_node("%Cards/inkblot").visible, "Clear filters restores the full catalogue")
+	check(editor.get_node("%DeckProfile").text.contains("1E ×10") and editor.get_node("%DeckProfile").text.contains("Damage cards 5"), "Deck profile counts energy costs and damage copies")
 	search.clear()
 	search.text_changed.emit("")
 	var category_filter: OptionButton = editor.find_child("CatalogueCategory", true, false)
@@ -238,11 +248,11 @@ func run() -> void:
 	var catalogue: ScrollContainer = editor.get_node("%CatalogueScroll")
 	catalogue.scroll_vertical = int(catalogue.get_v_scroll_bar().max_value)
 	await process_frame
-	var late_card: Button = editor.get_node("%Cards/inkblot/Card/HitArea/Play")
+	var late_card: Button = editor.get_node("%Cards/revision_note/Card/HitArea/Play")
 	check(catalogue.get_global_rect().has_point(late_card.get_global_rect().get_center()), "Scrolling the catalogue exposes later cards alongside the tray")
 	drag_card(late_card.get_global_rect().get_center(), tray.get_global_rect().position + Vector2(30, 18))
-	check(ui.library.decks[0].cards.get("inkblot", 0) == 1, "A card below the fold can still be dragged into the visible deck tray")
-	editor.get_node("%DeckContents/inkblot/Remove").pressed.emit()
+	check(ui.library.decks[0].cards.get("revision_note", 0) == 1, "A new card below the fold can be dragged into the visible deck tray")
+	editor.get_node("%DeckContents/revision_note/Remove").pressed.emit()
 	ui.library.load_decks()
 	check(ui.library.total(ui.library.decks[0]) == 12, "Deck survives save/reload")
 	ui.change_count(0, "strike", -1, false)
@@ -661,7 +671,7 @@ func run() -> void:
 	check(patterns.pattern_label.text.contains("PATTERN COMPLETE") and patterns.combat_log.text.contains("Pattern Riposte"), "Completed Pattern appears in tracker and log")
 	controller_press(JOY_BUTTON_BACK)
 	var guide: Window = patterns.get_node("PatternGuide")
-	check(guide.pages.size() == 4 and guide.pages[1].title == "Shelter" and guide.pages[3].title == "Surge", "The illustrated guide includes every Pattern recipe")
+	check(guide.pages.size() == 5 and guide.pages[1].title == "Shelter" and guide.pages[3].title == "Surge" and guide.pages[4].title == "How the rival line resolves", "The guide includes all Patterns and the rival line rules")
 	var overview: String = guide.get_node("%Body").get_parsed_text()
 	check(overview.contains("Shelter") and overview.contains("Riposte") and overview.contains("Surge"), "The first Pattern Guide page lists all three payoffs")
 	guide.get_node("%Next").pressed.emit()
@@ -712,6 +722,22 @@ func run() -> void:
 		burn.pressed.emit()
 		dialog = trial.get_node("MarginBurnDialog")
 		var picker: OptionButton = dialog.find_child("Sacrifice", true, false)
+		var vertical := InputEventJoypadButton.new()
+		vertical.pressed = true
+		vertical.button_index = JOY_BUTTON_DPAD_UP
+		dialog.push_input(vertical, true)
+		check(dialog.gui_get_focus_owner() == picker, "D-pad Up reaches the Margin Burn card picker from Cancel")
+		vertical.button_index = JOY_BUTTON_DPAD_DOWN
+		dialog.push_input(vertical, true)
+		check(dialog.gui_get_focus_owner() == dialog.get_cancel_button(), "D-pad Down returns to the safe action")
+		dialog.get_ok_button().grab_focus()
+		vertical.button_index = JOY_BUTTON_DPAD_UP
+		dialog.push_input(vertical, true)
+		check(dialog.gui_get_focus_owner() == picker, "D-pad Up reaches the card picker from Exhaust card")
+		dialog.push_input(confirm, true)
+		dialog.push_input(confirm_release, true)
+		check(picker.get_popup().visible and not trial.session.margin_burn_used, "Confirm opens the dropdown without exhausting a card")
+		picker.get_popup().hide()
 		picker.select(1)
 		picker.item_selected.emit(1)
 		var burn_forecast: RichTextLabel = dialog.find_child("Forecast", true, false)
@@ -845,6 +871,12 @@ func run() -> void:
 	check(ui.library.journey_issues(sustain).is_empty() and sustain.cards.mend == 2, "Sustain preset adds healing within Journey rules")
 	var marks_before_puzzle: int = ui.relics.marks
 	ui.show_rivals()
+	ui.body.find_children("*", "Button", true, false).filter(func(button): return button.text == "Scout opening")[2].pressed.emit()
+	var opening_scout: Window = ui.get_node("OpeningScout")
+	check(opening_scout.pages[0].route.begins_with("Inkblot"), "Scouting reads the rival's prepared opening")
+	opening_scout.close_requested.emit()
+	await process_frame
+	await process_frame
 	var practice_buttons: Array = ui.body.find_children("*", "Button", true, false).filter(func(button): return button.text == "Practice fixed-opening puzzle")
 	check(practice_buttons.size() == 3, "Each rival has a practice entry")
 	for index in [0, 1]:
@@ -878,15 +910,45 @@ func run() -> void:
 		check(duel.outcome == "Victory" and ui.screen == "result" and ui.relics.marks == marks_before_puzzle, "Either puzzle solution wins without Journey or Marks progression")
 		check(ui.result_overlay.get_node("%Spoils").text.begins_with("Practice time · "), "Puzzle results show elapsed practice time")
 		check(ui.result_overlay.get_node("%Spoils").text.contains("Session best"), "Puzzle victory records a session best")
+		check(ui.result_overlay.get_node("%Spoils").text.contains("Fewest turns · 2") and ui.result_overlay.get_node("%Spoils").text.contains("Wins · %d" % (2 if rewrite else 1)), "Practice records best turns and win count per rival")
 		check(ui.result_overlay.get_node("%Spoils").text.contains("Attempt %d" % (3 if rewrite else 2)), "Puzzle attempts count restarts and rematches for this rival")
 		if not rewrite:
 			ui.result_overlay.get_node("%Rematch").pressed.emit()
 		else:
 			ui.result_overlay.get_node("%ChooseDecks").pressed.emit()
 			check(ui.screen == "rivals", "Puzzle results return to rival selection")
+	ui.body.find_child("StrictPracticeQueue", true, false).button_pressed = true
+	ui.body.find_child("CarryPracticeReserves", true, false).button_pressed = true
+	ui.body.find_child("PracticeCadenceEnergy", true, false).button_pressed = true
+	ui.body.find_children("*", "Button", true, false).filter(func(button): return button.text == "Scout opening")[1].pressed.emit()
+	opening_scout = ui.get_node("OpeningScout")
+	check(opening_scout.pages.size() == 2 and opening_scout.pages[1].body.contains("Strict queue stops at Strike"), "Scouting separates standard advice from the selected practice forecast")
+	opening_scout.close_requested.emit()
+	await process_frame
+	var experimental_buttons: Array = ui.body.find_children("*", "Button", true, false).filter(func(button): return button.text == "Practice fixed-opening puzzle")
+	experimental_buttons[1].pressed.emit()
+	var experimental_table: Control = ui.body.get_node("CombatTable")
+	var experimental_duel: RefCounted = experimental_table.session
+	check(experimental_duel.strict_rival_queue and experimental_duel.carry_rival_reserves, "Rival selection enables both practice variants")
+	check(not experimental_table.get_node("Middle/Field/Actions/LabToggle").visible, "Scored practice hides the sandbox pile tools")
+	var energy_trade_button: Button = experimental_table.get_node("%CadenceEnergy")
+	check(energy_trade_button.visible and energy_trade_button.disabled, "Experimental energy button shows its Cadence requirement")
+	experimental_duel.cadence = 3
+	experimental_table.refresh()
+	energy_trade_button.pressed.emit()
+	check(experimental_duel.energy == 4 and energy_trade_button.disabled, "Practice energy purchase uses the once-per-turn combat rule")
+	check(experimental_table.get_node("%IntentExperiment").text.contains("stops at Strike") and experimental_table.get_node("%IntentExperiment").text.contains("Next front"), "Board explains the visible blocker and carried prefix")
+	experimental_duel.enemy.apply_poison(99)
+	experimental_table.end_turn()
+	check(ui.result_overlay.get_node("%Spoils").text.contains("Attempt 1"), "Alternate rules start a separate practice record")
+	ui.result_overlay.get_node("%Rematch").pressed.emit()
+	experimental_duel = ui.body.get_node("CombatTable").session
+	check(experimental_duel.strict_rival_queue and experimental_duel.carry_rival_reserves and experimental_duel.cadence_energy_enabled, "Rematch preserves the selected rules")
 	ui.show_library(false)
 	for recipe in ui.library.style_recipes():
 		check(ui.library.journey_issues(recipe).is_empty() and not ui.library.category_counts(recipe).has(0), "New style preset is Journey legal and supports Patterns")
+		check(ui.library.instantiate_deck(recipe).size() == ui.library.total(recipe), "Each preset builds all of its catalogued cards")
+	check(ui.library.profile_text(ui.library.counterpoint_sustain_recipe()).contains("Healing cards 2"), "Deck profile counts healing copies")
 	var deck_search: LineEdit = ui.body.find_child("DeckSearch", true, false)
 	deck_search.text = "no-deck-with-this-name"
 	deck_search.text_changed.emit(deck_search.text)
@@ -897,6 +959,11 @@ func run() -> void:
 	var ready_filter: CheckButton = ui.body.find_child("JourneyReadyFilter", true, false)
 	ready_filter.button_pressed = true
 	check(deck_rows.all(func(panel): return panel.visible == ui.library.journey_issues(panel.get_meta("recipe")).is_empty()), "Journey filter uses the shared validation")
+	var alphabetical: CheckButton = ui.body.find_child("AlphabeticalDecks", true, false)
+	alphabetical.button_pressed = true
+	var sorted: Array = deck_rows[0].get_parent().get_children().filter(func(panel): return panel.has_meta("recipe"))
+	for index in range(1, sorted.size()):
+		check(String(sorted[index - 1].get_meta("recipe").name).naturalnocasecmp_to(sorted[index].get_meta("recipe").name) <= 0, "Deck library sorts names without changing recipes")
 	var original: Dictionary = ui.library.decks[0].duplicate(true)
 	ui.duplicate_deck(0, false)
 	var copy_index: int = ui.library.decks.size() - 1

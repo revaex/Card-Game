@@ -17,7 +17,10 @@ then see the [feature shortlist](docs/feature_shortlist.md),
 - Hover cards for damage previews. **Pattern guide** shows the recipes.
 - Hover or focus a rival card to preview how Rewrite changes planned cards,
   attack HP loss, and Poison. Draw follow-ups are explicitly unknown.
-- The rival discards unplayed reserves after its turn and prepares a fresh hand.
+- The rival skips unaffordable cards and can still play free cards at zero
+  energy. After its turn, it discards unplayed reserves and sorts its new hand
+  by doctrine. The board shows the next-hand order and the current line's
+  projected energy spend.
 - Right-click or use **Inspect** on a focused card in either line. On touch,
   tapping a rival card opens inspection with an explicit Rewrite confirmation.
 - On the default controller layout, **Y** ends the turn and the right stick
@@ -41,12 +44,17 @@ You can also challenge a single rival or play a custom deck-versus-deck duel.
 Choose **Practice fixed-opening puzzle** on any rival card for a supplied
 deck, a timed result, and a rematch. Attempts and best times are tracked
 per rival during the current app session.
+The optional **Practice rules** above the rival cards let you test strict
+queues, carry unplayed reserves forward, or trade 3 Cadence for 1 energy.
+Scout opening previews the selected rules and the standard opening separately.
 In **Your decks**, click a card, use Confirm, or drag it into the deck tray.
 Use **−** in the tray to remove a copy. Journeys start with 10–14 cards and at most two
 copies of each card, with Strike and Block exempt from the copy limit.
 Counterpoint includes all three categories and is a good place to start.
 The deck library can filter by name or Journey readiness. Try the Poison
 Pressure, Riposte Guard, or Surge Cycle presets to explore different styles.
+The workshop playtest also includes Twin Riposte for multi-hit finishers,
+Rewrite Engine for Counterwritten cards, and Recovery Line for sustain.
 
 Enable **Playtest Margin Burn** in standalone duel setup to try exhausting one
 card for up to 2 Cadence once per duel. Playtest wins award no progression.
